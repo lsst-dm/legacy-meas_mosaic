@@ -1,0 +1,22 @@
+syntax: glob
+*~
+*.pyo
+*.pyc
+*.o
+*.so
+*.dylib
+*.os
+*.la
+*.a
+
+syntax: regexp
+^#.*#$
+^\.fuse.*
+^\.scon*
+^\.config.log$
+^TAGS$
+^core$
+^core\.
+^config.log$
+^out.fits$
+^out.log$
