@@ -1,0 +1,8 @@
+# -*- python -*-
+import re
+Import("env")
+
+env.CheckSwig("python", ilang="c++", includedProducts="hscMosaic afw utils daf_base pex_exceptions pex_policy daf_persistence pex_logging daf_data security")
+env.LoadableModuleIncomplete("_mosaicLib", Split("mosaicLib.i"),
+                             CCFLAGS=re.sub("-Wall", "", " ".join(env['CCFLAGS'])),
+                             LIBS=env.getlibs("hscmosaic"))
