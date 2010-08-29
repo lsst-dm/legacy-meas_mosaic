@@ -27,7 +27,9 @@ env = scons.makeEnv(
         ["security", "lsst/security/Security.h", "security:C++"],
         ["daf_data", "lsst/daf/data.h", "daf_data:C++"],
         ["eigen", "Eigen/Core.h"],
+        ["base", "lsst/base.h"],
         ["afw", "lsst/afw/detection/Source.h", "afw"],
+        ["minuit2", "Minuit2/GenericFunction.h", "Minuit2"],
         ["cfitsio", "fitsio.h", "cfitsio"],
     ],
 )
