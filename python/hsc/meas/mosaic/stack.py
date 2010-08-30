@@ -1,10 +1,12 @@
 import os, sys, math, re
+import eups
 import datetime
 import lsst.afw.image                    as afwImage
 import lsst.afw.coord                    as afwCoord
 import lsst.afw.geom                     as afwGeom
 import lsst.daf.base                     as dafBase
 import lsst.afw.math                     as afwMath
+import lsst.pex.policy                   as pexPolicy
 import hsc.meas.mosaic.mosaicLib         as hscMosaic
 
 def getBasename(exposureId, ccdId):
@@ -160,11 +162,15 @@ def stackInit(fileList, subImgSize,
               writePBSScript=False,
               flistFname="fileList.txt",
               wcsFname="destWcs.fits",
-              workDir="."):
+              workDir=".",
+              wcsDir=None):
 
     print "Stack Init ..."
     
-    wcsDic, dims, fscale = readParamsFromFileList(fileList, workDir=workDir)
+    if not wcsDir:
+        wcsDir = workDir
+        
+    wcsDic, dims, fscale = readParamsFromFileList(fileList, workDir=wcsDir)
     
     wcs, width, height = globalWcs(wcsDic, dims)
 
@@ -206,18 +212,26 @@ def stackExec(outputName, ix, iy, subImgSize,
               fileIO=False,
               flistFname="fileList.txt",
               wcsFname="destWcs.fits",
-              workDir="."):
+              workDir=".",
+              wcsDir=None):
 
     print "Stack Exec ..."
     
+    if not wcsDir:
+        wcsDir = workDir
+        
     if fileIO:
         fileList = flistIO(flistFname, "r", workDir=workDir)
         wcsDic, dims, fscale = readParamsFromFileList(fileList,
-                                                      workDir=workDir)
+                                                      workDir=wcsDir)
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
 
-    kernel = afwMath.makeWarpingKernel("lanczos3")
-    #kernel = afwMath.makeWarpingKernel("bilinear")
+    productDir = eups.productDir("hscMosaic")
+    policyPath = os.path.join(productDir, "policy", "HscStackDictionary.paf")
+    policy = pexPolicy.Policy.createPolicy(policyPath)
+
+    print "warpingKernel : ", policy.get("warpingKernel")
+    kernel = afwMath.makeWarpingKernel(policy.get("warpingKernel"))
         
     sctrl = afwMath.StatisticsControl()
     sctrl.setWeighted(False)
@@ -233,10 +247,12 @@ def stackExec(outputName, ix, iy, subImgSize,
     else:
         naxis2 = subImgSize
                 
+    print "interpLength : ", policy.get("interpLength")
     print ix, iy, nx, ny
     mimgStack, wcs2 = subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
                                      wcsDic, dims, fileList, fscale,
-                                     kernel, sctrl)
+                                     kernel, sctrl,
+                                     policy.get("interpLength"))
 
     if mimgStack != None:
         if fileIO:
@@ -302,15 +318,21 @@ def stackEnd(outputName,
 
     return expStack
     
-def stack(fileList, outputName, subImgSize=2048, fileIO=False, workDir="."):
+def stack(fileList, outputName, subImgSize=2048, fileIO=False,
+          workDir=".", wcsDir=None):
 
     print "Stack ..."
 
+    if not wcsDir:
+        wcsDir = workDir
+        
     if fileIO:
-        nx, ny = stackInit(fileList, subImgSize, fileIO, workDir=workDir)
+        nx, ny = stackInit(fileList, subImgSize, fileIO,
+                           workDir=workDir, wcsDir=wcsDir)
     else:
         fileList, dims, fscale, wcs, wcsDic, width, height, nx, ny \
-                  = stackInit(fileList, subImgSize, fileIO, workDir=workDir)
+                  = stackInit(fileList, subImgSize, fileIO,
+                              workDir=workDir, wcsDir=wcsDir)
 
     mimgMap = {}
     
@@ -319,7 +341,7 @@ def stack(fileList, outputName, subImgSize=2048, fileIO=False, workDir="."):
 
             if fileIO:
                 stackExec(outputName, ix, iy, subImgSize, fileIO=fileIO,
-                          workDir=workDir)
+                          workDir=workDir, wcsDir=wcsDir)
             else:
                 mimgStack = stackExec(outputName, ix, iy, subImgSize,
                                       fileList, dims, fscale,
@@ -341,7 +363,7 @@ def stack(fileList, outputName, subImgSize=2048, fileIO=False, workDir="."):
 
 def subRegionStack(wcs, subImgSize, i, j, naxis1, naxis2,
                    wcsDic, dims, fileList, fscale,
-                   kernel, sctrl):
+                   kernel, sctrl, interpLength):
     wcs2 = wcs.clone()
     wcs2.shiftReferencePixel(-i*subImgSize, -j*subImgSize)
     mimgList = afwImage.vectorMaskedImageF()
@@ -358,9 +380,10 @@ def subRegionStack(wcs, subImgSize, i, j, naxis1, naxis2,
         if isIn:
             originalExposure = afwImage.ExposureF(fileList[k])
             warpedExposure = afwImage.ExposureF(afwImage.MaskedImageF(naxis1, naxis2), wcs2)
-            # Interpolate WCS every 25 pixels.
-            # "25" can be "100" to speed up more.
-            afwMath.warpExposure(warpedExposure, originalExposure, kernel, 25);
+            # Interpolate WCS every "interlLength" pixels.
+            # The value is defined in policy file.
+            afwMath.warpExposure(warpedExposure, originalExposure, kernel,
+                                 interpLength);
             mimg = warpedExposure.getMaskedImage()
             mimg *= fscale[k]
             mimgList.push_back(mimg)
@@ -446,34 +469,42 @@ def globalWcs(wcsDic, dims, pixelSize=0.00004667):
         
 if __name__ == '__main__':
 
+    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+    
     ditherIds = [0, 1, 2, 3, 4]
     ccdIds = range(100)
     ccdIds = [9]
 
     outputName = "test-"
     subImgSize = 2048
-    fileIO = False
+    fileIO = True
     writePBSScript = False
-    workDir = "/data/yasuda/stack"
+    workDir = "."
+    wcsDir = "/data/yasuda/stack"
     
     fileList = []
     for ditherId in ditherIds:
         for ccdId in ccdIds:
-            basename = getBasename(int(ditherId), int(ccdId))
-            #fname = "%sdith%d_ccd%03d-mImg.fits" % (outputName, int(ditherId), int(ccdId))
+            basename = stack.getBasename(int(ditherId), int(ccdId))
             fileList.append("%s-wcs.fits" % basename)
-
+            
     if (len(sys.argv) == 1):
-        stackInit(fileList, subImgSize, fileIO, writePBSScript, workDir=workDir)
+        stack.stackInit(fileList, subImgSize, fileIO, writePBSScript,
+                        workDir=workDir, wcsDir=wcsDir)
 
     elif (len(sys.argv) == 3):
         ix = int(sys.argv[1])
         iy = int(sys.argv[2])
 
-        stackExec(outputName, ix, iy, subImgSize, fileIO=fileIO, workDir=workDir)
+        stack.stackExec(outputName, ix, iy, subImgSize, fileIO=fileIO,
+                        workDir=workDir, wcsDir=wcsDir)
 
     else:
         if (sys.argv[1] == "End"):
-            stackEnd(outputName, subImgSize, fileIO=fileIO, workDir=workDir)
+            stack.stackEnd(outputName, subImgSize, fileIO=fileIO,
+                           workDir=workDir)
         else:
-            stack(fileList, outputName, subImgSize=2048, fileIO=fileIO, workDir=workDir)
+            stack.stack(fileList, outputName, subImgSize=2048, fileIO=fileIO,
+                        workDir=workDir, wcsDir=wcsDir)
+
+    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")

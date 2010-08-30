@@ -1,0 +1,31 @@
+#<?cfg paf dictionary ?>
+#
+#dictionary for hsc::meas::mosaic::stack
+target: hsc::meas::mosaic::stack
+
+definitions: {
+    warpingKernel: {
+        type: "string"
+        description: "warping kernel"
+	minOccurs: 0
+	maxOccurs: 1
+	default: "bilinear"
+	allowed: {
+	    value: "bilinear"
+	    description: "use bilinear"
+	}
+	allowed: {
+	    value: "lanczos3"
+	    description: "use lanczos3"
+	}
+    }
+    interpLength: {
+        type: "int"
+        description: "interp WCS every this number of pixels"
+	minOccurs: 0
+	maxOccurs: 1
+	default: 25
+	min: 0
+    }
+}
+

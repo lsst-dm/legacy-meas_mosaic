@@ -8,13 +8,14 @@ if __name__ == '__main__':
     
     ditherIds = [0, 1, 2, 3, 4]
     ccdIds = range(100)
-    #ccdIds = [9]
+    ccdIds = [9]
 
     outputName = "test-"
     subImgSize = 2048
-    fileIO = True
+    fileIO = False
     writePBSScript = False
-    workDir = "/data/yasuda/stack"
+    workDir = "."
+    wcsDir = "/data/yasuda/stack"
     
     fileList = []
     for ditherId in ditherIds:
@@ -24,14 +25,14 @@ if __name__ == '__main__':
             
     if (len(sys.argv) == 1):
         stack.stackInit(fileList, subImgSize, fileIO, writePBSScript,
-                        workDir=workDir)
+                        workDir=workDir, wcsDir=wcsDir)
 
     elif (len(sys.argv) == 3):
         ix = int(sys.argv[1])
         iy = int(sys.argv[2])
 
         stack.stackExec(outputName, ix, iy, subImgSize, fileIO=fileIO,
-                        workDir=workDir)
+                        workDir=workDir, wcsDir=wcsDir)
 
     else:
         if (sys.argv[1] == "End"):
@@ -39,6 +40,6 @@ if __name__ == '__main__':
                            workDir=workDir)
         else:
             stack.stack(fileList, outputName, subImgSize=2048, fileIO=fileIO,
-                        workDir=workDir)
+                        workDir=workDir, wcsDir=wcsDir)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
