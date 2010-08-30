@@ -1,4 +1,4 @@
-setupRequired(hscProtopipe)
+setupRequired(DC1 working)
 
 envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
 envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)

@@ -3,7 +3,7 @@ import datetime
 import hsc.meas.mosaic.stack             as stack
 import hsc.meas.mosaic.mosaic            as mosaic
 
-def main(ditherIds, ccdIds, outputName=None, fitFP=True, skipMosaic=False, makeWarped=False):
+def main(ditherIds, ccdIds, fitFP=True, skipMosaic=False, makeWarped=False, outputName=None):
     
     if outputName == None:
         outputName = ''
@@ -16,7 +16,7 @@ def main(ditherIds, ccdIds, outputName=None, fitFP=True, skipMosaic=False, makeW
 
         print "Mosaicing ..."
         
-        mosaic.mosaic(ditherIds, ccdIds, outputName, fitFP, makeWarped)
+        mosaic.mosaic(ditherIds, ccdIds, fitFP)
 
         print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -28,7 +28,7 @@ def main(ditherIds, ccdIds, outputName=None, fitFP=True, skipMosaic=False, makeW
                 flist.append(fname)
 
         print "Stacking ..."
-        
+
         stack.stack(flist, outputName, subImgSize=2048, fileIO=False)
         
         print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
@@ -44,4 +44,4 @@ if __name__ == '__main__':
     skipMosaic=False
     makeWarped = False
 
-    main(ditherIds, ccdIds, "test-", fitFP, skipMosaic, makeWarped)
+    main(ditherIds, ccdIds, fitFP, skipMosaic, makeWarped, "test-")
