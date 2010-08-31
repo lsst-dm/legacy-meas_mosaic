@@ -1,5 +1,6 @@
 import sys
 import datetime
+import hsc.camera.data                   as data
 import hsc.meas.mosaic.stack             as stack
 import hsc.meas.mosaic.mosaic            as mosaic
 
@@ -35,7 +36,16 @@ def main(ditherIds, ccdIds, fitFP=True, skipMosaic=False, makeWarped=False, outp
         
 if __name__ == '__main__':
 
-    ditherIds = [0, 1, 2, 3, 4]
+    obsDate = "2010-08-26"
+    filter = "W-S-I+"
+    progId = "SXDS"
+    rerun = "cpl-0020"
+    
+    mgr = data.Manager(instrument="HSC", rerun=rerun)
+    frameIds = mgr.getFrameSet(obsDate=obsDate, filter=filter, progId=progId)
+    #frameIds = [20, 21, 22, 23, 24]
+    print frameIds
+    
     if (len(sys.argv) == 1):
         ccdIds = range(100)
     else:
@@ -44,4 +54,5 @@ if __name__ == '__main__':
     skipMosaic=False
     makeWarped = False
 
-    main(ditherIds, ccdIds, fitFP, skipMosaic, makeWarped, "test-")
+    #main(frameIds, ccdIds, fitFP, skipMosaic, makeWarped, "test-")
+    mosaic.mosaic(frameIds, ccdIds, fitFP, outputDir=".", rerun=rerun)

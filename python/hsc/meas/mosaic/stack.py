@@ -7,6 +7,7 @@ import lsst.afw.geom                     as afwGeom
 import lsst.daf.base                     as dafBase
 import lsst.afw.math                     as afwMath
 import lsst.pex.policy                   as pexPolicy
+import lsst.pex.exceptions               as pexExceptions
 import hsc.meas.mosaic.mosaicLib         as hscMosaic
 
 def getBasename(exposureId, ccdId):
@@ -15,28 +16,6 @@ def getBasename(exposureId, ccdId):
     basename = "%s/dith%d/out-ssb_ccd%03d" % (rootdir, int(exposureId), int(ccdId))
 
     return basename
-
-def wcsIO(outfile, mode, wcs=None):
-    if mode == "w":
-        f = open(outfile, "w")
-        f.write(wcs.getFitsMetadata().toString())
-        f.close()
-    elif mode == "r":
-        metadata = dafBase.PropertySet()
-        f = open(outfile, "r")
-        for line in f:
-            key = line.split()[0]
-            value = line.split()[2]
-            if value.isdigit():
-                metadata.set(key, int(value))
-            elif value.find('.') != -1:
-                metadata.set(key, float(value))
-            else:
-                metadata.set(key, value[1:len(value)-1])
-        f.close()
-        wcs = afwImage.makeWcs(metadata)
-            
-    return wcs
 
 def wcsIO(outfile, mode, wcs=None, width=None, height=None, nx=None, ny=None,
           workDir="."):
@@ -57,37 +36,6 @@ def wcsIO(outfile, mode, wcs=None, width=None, height=None, nx=None, ny=None,
         ny = metadata.get("NY")
             
     return wcs, width, height, nx, ny
-
-def wcsDicIO(outfile, mode, wcsDic=None):
-    if mode == "w":
-        f = open(outfile, "w")
-        for k, v in wcsDic.iteritems():
-            f.write("START %3d\n" % k)
-            f.write(wcsDic[k].getFitsMetadata().toString())
-            f.write("END\n")
-        f.close()
-    elif mode == "r":
-        wcsDic = hscMosaic.WcsDic()
-        f = open(outfile, "r")
-        for line in f:
-            if line[0:5] == 'START':
-                num = int(line.split()[1])
-                metadata = dafBase.PropertySet()
-            elif line[0:3] == 'END':
-                wcs = afwImage.makeWcs(metadata)
-                wcsDic[num] = wcs
-            else:
-                key = line.split()[0]
-                value = line.split()[2]
-                if value.isdigit():
-                    metadata.set(key, int(value))
-                elif value.find('.') != -1:
-                    metadata.set(key, float(value))
-                else:
-                    metadata.set(key, value[1:len(value)-1])
-        f.close()
-            
-    return wcsDic
 
 def flistIO(outfile, mode, fileList=None, dims=None, fscale=None, workDir="."):
     if mode == "w":
@@ -133,22 +81,27 @@ def mkScript(nx, ny, workDir="."):
             f.write("qsub qqq%02d_%02d.sh\n" % (ix, iy))
     f.close()
 
-def readParamsFromFileList(fileList, workDir="."):
+def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
     wcsDic = hscMosaic.WcsDic()
     dims = []
     fscale = []
     i = 0
     for fname in fileList:
         # Construct file name for WCS file
-        paths = fname.split('/')
-        s1 = paths[len(paths)-2] + paths[len(paths)-1]
-        s2 = re.sub("out-ssb", "", s1)
-        wcsname = os.path.join(workDir, re.sub("wcs", "wcsh", s2))
+        if not skipMosaic:
+            s1 = os.path.basename(fname)
+            s2 = re.sub("CORR", "HSCA", s1)
+            wcsname = os.path.join(wcsDir, re.sub(".fits", "-wcsh.fits", s2))
+        else:
+            wcsname = fname
         
         metadata = afwImage.readMetadata(wcsname)
         wcs = afwImage.makeWcs(metadata)
         wcsDic[i] = wcs
-        dims.append([metadata.get('NUMAXIS1'), metadata.get('NUMAXIS2')])
+        if not skipMosaic:
+            dims.append([metadata.get('NUMAXIS1'), metadata.get('NUMAXIS2')])
+        else:
+            dims.append([metadata.get('NAXIS1'), metadata.get('NAXIS2')])
         try:
             fscale.append(metadata.get('FSCALE'))
         except pexExceptions.exceptionsLib.LsstException:
@@ -163,14 +116,16 @@ def stackInit(fileList, subImgSize,
               flistFname="fileList.txt",
               wcsFname="destWcs.fits",
               workDir=".",
-              wcsDir=None):
+              wcsDir=None,
+              skipMosaic=False):
 
     print "Stack Init ..."
     
     if not wcsDir:
         wcsDir = workDir
         
-    wcsDic, dims, fscale = readParamsFromFileList(fileList, workDir=wcsDir)
+    wcsDic, dims, fscale = readParamsFromFileList(fileList, wcsDir=wcsDir,
+                                                  skipMosaic=skipMosaic)
     
     wcs, width, height = globalWcs(wcsDic, dims)
 
@@ -213,7 +168,8 @@ def stackExec(outputName, ix, iy, subImgSize,
               flistFname="fileList.txt",
               wcsFname="destWcs.fits",
               workDir=".",
-              wcsDir=None):
+              wcsDir=None,
+              skipMosaic=False):
 
     print "Stack Exec ..."
     
@@ -223,7 +179,8 @@ def stackExec(outputName, ix, iy, subImgSize,
     if fileIO:
         fileList = flistIO(flistFname, "r", workDir=workDir)
         wcsDic, dims, fscale = readParamsFromFileList(fileList,
-                                                      workDir=wcsDir)
+                                                      wcsDir=wcsDir,
+                                                      skipMosaic=skipMosaic)
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
 
     productDir = eups.productDir("hscMosaic")
@@ -273,7 +230,8 @@ def stackEnd(outputName,
              mimgMap=None,
              fileIO=False,
              wcsFname="destWcs.fits",
-             workDir="."):
+             workDir=".",
+             outputDir="."):
 
     print "Stack End ..."
     
@@ -312,27 +270,32 @@ def stackEnd(outputName,
         subImg <<= mimgStack
 
     expStack = afwImage.ExposureF(stackedMI, wcs)
-    expStack.writeFits(os.path.join(workDir, "%sstacked.fits" % (outputName)))
+    expStack.writeFits(os.path.join(outputDir, "%sstacked.fits" % (outputName)))
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     return expStack
     
 def stack(fileList, outputName, subImgSize=2048, fileIO=False,
-          workDir=".", wcsDir=None):
+          workDir=".", wcsDir=None, outputDir=None, skipMosaic=False):
 
     print "Stack ..."
 
     if not wcsDir:
         wcsDir = workDir
         
+    if not outputDir:
+        outputDir = workDir
+        
     if fileIO:
         nx, ny = stackInit(fileList, subImgSize, fileIO,
-                           workDir=workDir, wcsDir=wcsDir)
+                           workDir=workDir, wcsDir=wcsDir,
+                           skipMosaic=skipMosaic)
     else:
         fileList, dims, fscale, wcs, wcsDic, width, height, nx, ny \
                   = stackInit(fileList, subImgSize, fileIO,
-                              workDir=workDir, wcsDir=wcsDir)
+                              workDir=workDir, wcsDir=wcsDir,
+                              skipMosaic=skipMosaic)
 
     mimgMap = {}
     
@@ -341,23 +304,25 @@ def stack(fileList, outputName, subImgSize=2048, fileIO=False,
 
             if fileIO:
                 stackExec(outputName, ix, iy, subImgSize, fileIO=fileIO,
-                          workDir=workDir, wcsDir=wcsDir)
+                          workDir=workDir, wcsDir=wcsDir,
+                          skipMosaic=skipMosaic)
             else:
                 mimgStack = stackExec(outputName, ix, iy, subImgSize,
                                       fileList, dims, fscale,
                                       wcs, wcsDic, width, height,
-                                      nx, ny, fileIO)
+                                      nx, ny, fileIO,
+                                      skipMosaic=skipMosaic)
 
                 if mimgStack != None:
                     mimgMap["%d %d" % (ix, iy)] = mimgStack
 
     if fileIO:
         expStack = stackEnd(outputName, subImgSize, fileIO=fileIO,
-                            workDir=workDir)
+                            workDir=workDir, outputDir=outputDir)
     else:
         expStack = stackEnd(outputName, subImgSize,
                             wcs, width, height, nx, ny, mimgMap, fileIO,
-                            workDir=workDir)
+                            workDir=workDir, outputDir=outputDir)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 

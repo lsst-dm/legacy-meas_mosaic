@@ -1,0 +1,31 @@
+#<?cfg paf dictionary ?>
+#
+#dictionary for hsc::meas::mosaic::mosaic
+target: hsc::meas::mosaic::mosaic
+
+definitions: {
+    nBrightest: {
+        type: "int"
+        description: "number of stars used for fitting"
+	minOccurs: 0
+	maxOccurs: 1
+	default: 150
+	min: 100
+    }
+    fittingOrder: {
+        type: "int"
+        description: "fitting order"
+	minOccurs: 0
+	maxOccurs: 1
+	default: 9
+	min: 5
+    }
+    internalFitting: {
+        type: "bool"
+        description: "Use stars without catalog matching for fitting"
+	minOccurs: 0
+	maxOccurs: 1
+	default: true
+    }
+}
+

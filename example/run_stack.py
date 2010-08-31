@@ -1,27 +1,36 @@
 import sys
 import datetime
+import hsc.camera.data                   as data
 import hsc.meas.mosaic.stack             as stack
 
 if __name__ == '__main__':
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
     
-    ditherIds = [0, 1, 2, 3, 4]
+    obsDate = "2010-08-26"
+    filter = "W-S-I+"
+    progId = "SXDS"
+    rerun = "cpl-0020"
+    
+    mgr = data.Manager(instrument="HSC", rerun=rerun)
+    frameIds = mgr.getFrameSet(obsDate=obsDate, filter=filter, progId=progId)
+    
     ccdIds = range(100)
     ccdIds = [9]
 
     outputName = "test-"
     subImgSize = 2048
-    fileIO = False
+    fileIO = True
     writePBSScript = False
     workDir = "."
-    wcsDir = "/data/yasuda/stack"
+    wcsDir = "."
     
     fileList = []
-    for ditherId in ditherIds:
+    for frameId in frameIds:
         for ccdId in ccdIds:
-            basename = stack.getBasename(int(ditherId), int(ccdId))
-            fileList.append("%s-wcs.fits" % basename)
+            fname = mgr.getCorrFilename(int(frameId), int(ccdId))
+            fileList.append(fname)
+    print fileList
             
     if (len(sys.argv) == 1):
         stack.stackInit(fileList, subImgSize, fileIO, writePBSScript,
@@ -40,6 +49,6 @@ if __name__ == '__main__':
                            workDir=workDir)
         else:
             stack.stack(fileList, outputName, subImgSize=2048, fileIO=fileIO,
-                        workDir=workDir, wcsDir=wcsDir)
+                        workDir=workDir, wcsDir=wcsDir, skipMosaic=True)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")

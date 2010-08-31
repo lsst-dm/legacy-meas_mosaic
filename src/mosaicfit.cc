@@ -12,6 +12,8 @@
 using namespace hsc::meas::mosaic;
 using namespace lsst::afw::detection;
 
+//#define USE_GSL
+
 #if defined(USE_GSL)
 #include <gsl/gsl_linalg.h>
 #else
@@ -971,7 +973,9 @@ double calEta_D(double a, double d, double A, double D) {
     return -pow(cos(D)*sin(d)-sin(D)*cos(d)*cos(a-A),2.)/pow(sin(D)*sin(d)+cos(D)*cos(d)*cos(a-A),2.)-1.;
 }
 
-double *multifit(int order, SourceGroup const &allMat, SourceGroup const &allSource,
+double *multifit(int order,
+		 SourceGroup const &allMat,
+		 SourceGroup const &allSource,
 		 WcsDic &wcsDic,
 		 bool internal = false,
 		 bool verbose = false)
@@ -1049,7 +1053,7 @@ double *multifit(int order, SourceGroup const &allMat, SourceGroup const &allSou
 		    a_data[(i0+k)*ndim+i0+l] += pow(u, xorder[k]) * pow(v, yorder[k]) *
 			                        pow(u, xorder[l]) * pow(v, yorder[l]) * w1;
 		    a_data[(i0+ncoeff+k)*ndim+i0+ncoeff+l] += pow(u, xorder[k]) * pow(v, yorder[k]) *
-			                                      pow(u, xorder[l]) * pow(v, yorder[l]) * w1;
+		    	                                      pow(u, xorder[l]) * pow(v, yorder[l]) * w1;
 		}
 		b_data[i0+k]        += xi  * pow(u, xorder[k]) * pow(v, yorder[k]) * w1;
 		b_data[i0+ncoeff+k] += eta * pow(u, xorder[k]) * pow(v, yorder[k]) * w1;
@@ -1229,7 +1233,7 @@ double *multifit(int order, SourceGroup const &allMat, SourceGroup const &allSou
 
 #else
 
-    char L('L');
+    //char L('L');
     long int nrhs(1);
     long int info(0);
     long int lda(ndim);
@@ -1708,9 +1712,10 @@ double *fluxfit(SourceGroup const &allSource,
 #endif
 }
 
-std::vector<double> hsc::meas::mosaic::solveMosaic(int order,
-						SourceGroup const &allMat, SourceGroup const &allSource,
-						WcsDic &wcsDic, bool internal, bool verbose)
+std::vector<double>
+hsc::meas::mosaic::solveMosaic(int order,
+			       SourceGroup const &allMat, SourceGroup const &allSource,
+			       WcsDic &wcsDic, bool internal, bool verbose)
 {
 
     double sigma1, sigma2;

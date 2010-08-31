@@ -1,9 +1,11 @@
 import os, sys, math
 import datetime
+import eups
 import lsst.afw.image                    as afwImage
 import lsst.daf.base                     as dafBase
 import lsst.afw.cameraGeom               as cameraGeom
 import lsst.afw.cameraGeom.utils         as cameraGeomUtils
+import lsst.pex.policy                   as pexPolicy
 import hsc.camera.data                   as data
 import hsc.meas.mosaic.mosaicLib         as hscMosaic
 import hsc.meas.mosaic.stack             as stack
@@ -15,13 +17,14 @@ def getBasename(exposureId, ccdId):
 
     return basename
 
-def getOutputImageName(outputDir, exposureId, ccdId):
-    fname = "dith%d_ccd%03d-wcsh.fits" % (int(exposureId), int(ccdId))
+def getOutputFileName(outputDir, exposureId, ccdId):
+    #fname = "dith%d_ccd%03d-wcsh.fits" % (int(exposureId), int(ccdId))
+    fname = "HSCA%05d%03d-wcsh.fits" % (int(exposureId), int(ccdId))
 
     return os.path.join(outputDir, fname)
 
-def mosaic(ditherIds, ccdIds, fitFP, outputDir="."):
-    mgr = data.Manager(cameraGeomPolicyFile="HscSimulationTemporary.paf")
+def mosaic(ditherIds, ccdIds, fitFP, outputDir=".", rerun="cpl-0017"):
+    mgr = data.Manager(instrument="HSC", rerun=rerun)
     camera = cameraGeomUtils.makeCamera(mgr.getGeomPolicy())
     
     #rootdir = "/data/yasuda/data_cosmos"
@@ -32,21 +35,19 @@ def mosaic(ditherIds, ccdIds, fitFP, outputDir="."):
     if fitFP:
         for ditherId in ditherIds:
             ccdId = ccdIds[0]
-            #fname = "%s/dith%d/out-ssb_ccd%03d-wcs.fits" % (rootdir, int(ditherId), int(ccdId))
-            basename = getBasename(ditherId, ccdId)
-            metadata = afwImage.readMetadata("%s-wcs.fits" % (basename))
+            fname = mgr.getCorrFilename(int(ditherId), int(ccdId))
+            metadata = afwImage.readMetadata(fname)
             wcs = afwImage.makeWcs(metadata)
             ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(ccdId)))
             offset = ccd.getCenter()
             wcs.shiftReferencePixel(offset[0], offset[1])
-            wcsDic[int(ditherId)] = wcs
+            wcsDic[ditherIds.index(ditherId)] = wcs
     else:
         iframe = 0
         for ditherId in ditherIds:
             for ccdId in ccdIds:
-                #fname = "%s/dith%d/out-ssb_ccd%03d-wcs.fits" % (rootdir, int(ditherId), int(ccdId))
-                basename = getBasename(ditherId, ccdId)
-                metadata = afwImage.readMetadata("%s-wcs.fits" % (basename))
+                fname = mgr.getCorrFilename(int(ditherId), int(ccdId))
+                metadata = afwImage.readMetadata(fname)
                 wcs = afwImage.makeWcs(metadata)
                 wcsDic[iframe] = wcs
                 iframe += 1
@@ -60,12 +61,19 @@ def mosaic(ditherIds, ccdIds, fitFP, outputDir="."):
     iframe = 0
     for ditherId in ditherIds:
         for ccdId in ccdIds:
-            #basename = "%s/dith%d/out-ssb_ccd%03d-pre" % (rootdir, int(ditherId), int(ccdId))
-            basename = getBasename(int(ditherId), int(ccdId))
+            basename = os.path.join(mgr.getOutputDirname(int(ditherId), int(ccdId), dirType="misc"),
+                                    "HSCA%05d%03d" % (int(ditherId), int(ccdId)))
             #sS, mL, hdrInfo = pipe.io.readFits(basename)
-            sS = hscMosaic.readCat("%s-pre.fits" % (basename))
-            mL = hscMosaic.readMatchList("%s-pre.match.fits" % (basename))
-            metadata = afwImage.readMetadata("%s-wcs.fits" % (basename))
+            if os.path.isfile("%s.fits" % (basename)):
+                sS = hscMosaic.readCat("%s.fits" % (basename))
+            else:
+                sS = []
+            if os.path.isfile("%s.match.fits" % (basename)):
+                mL = hscMosaic.readMatchList("%s.match.fits" % (basename))
+            else:
+                mL = []
+            fname = mgr.getCorrFilename(int(ditherId), int(ccdId))
+            metadata = afwImage.readMetadata(fname)
             dims.append([metadata.get("NAXIS1"), metadata.get("NAXIS2")])
             
             ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(ccdId)))
@@ -77,13 +85,13 @@ def mosaic(ditherIds, ccdIds, fitFP, outputDir="."):
                     y = s.getYAstrom()
                     s.setXAstrom(x + offset[0])
                     s.setYAstrom(y + offset[1])
-                    c = wcsDic[int(ditherId)].pixelToSky(s.getXAstrom(), s.getYAstrom())
+                    c = wcsDic[ditherIds.index(ditherId)].pixelToSky(s.getXAstrom(), s.getYAstrom())
                 else:
                     c = wcsDic[iframe].pixelToSky(s.getXAstrom(), s.getYAstrom())
                 s.setRa(c[0])
                 s.setDec(c[1])
                 if fitFP:
-                    s.setAmpExposureId(int(ditherId))
+                    s.setAmpExposureId(ditherIds.index(ditherId))
                 else:
                     s.setAmpExposureId(iframe)
 
@@ -91,12 +99,12 @@ def mosaic(ditherIds, ccdIds, fitFP, outputDir="."):
                 ra = m.first.getRa()
                 dec = m.first.getDec()
                 if fitFP:
-                    x2, y2 = wcsDic[int(ditherId)].skyToPixel(ra, dec)
+                    x2, y2 = wcsDic[ditherIds.index(ditherId)].skyToPixel(ra, dec)
                     x = m.second.getXAstrom()
                     y = m.second.getYAstrom()
                     m.second.setXAstrom(x + offset[0])
                     m.second.setYAstrom(y + offset[1])
-                    m.second.setAmpExposureId(int(ditherId))
+                    m.second.setAmpExposureId(ditherIds.index(ditherId))
                 else:
                     x2, y2 = wcsDic[iframe].skyToPixel(ra, dec)
                     m.second.setAmpExposureId(iframe)
@@ -112,6 +120,10 @@ def mosaic(ditherIds, ccdIds, fitFP, outputDir="."):
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
+    productDir = eups.productDir("hscMosaic")
+    policyPath = os.path.join(productDir, "policy", "HscMosaicDictionary.paf")
+    policy = pexPolicy.Policy.createPolicy(policyPath)
+
     print "Merge matched catalog ..."
     allMat = hscMosaic.mergeMat(matchList)
     print 'len(allMat) = ', len(allMat)
@@ -119,28 +131,29 @@ def mosaic(ditherIds, ccdIds, fitFP, outputDir="."):
 
     print "Merge source catalog ..."
     d_lim = 3.0 / 3600.0 * math.pi / 180.0
-    nbrightest = 120
+    nbrightest = policy.get("nBrightest")
     allSource = hscMosaic.mergeSource(sourceSet, allMat, d_lim, nbrightest)
     print 'len(allSource) = ', len(allSource)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     print "Solve mosaic ..."
-    order = 9
-    internal = True
+    order = policy.get("fittingOrder")
+    internal = policy.get("internalFitting")
+    print "order : ", order, " internal : ", internal
     verbose = False
     fscale = hscMosaic.solveMosaic(order, allMat, allSource, wcsDic, internal, verbose)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     writeNewWCS(ditherIds, ccdIds, fitFP, wcsDic, fscale, dims, camera, outputDir)
 
-    ##outputDiag("fitstest.dat", allMat, allSource, wcsDic)
+    outputDiag("mosaicFitTest.dat", allMat, allSource, wcsDic, internal, outputDir)
 
     ##if writeNewFits:
     ##    writeNewFitsFiles(ditherIds, ccdIds, wcsDic, fscale, rootdir, outputName)
 
-def outputDiag(ofname, allMat, allSource, wcsDic):
+def outputDiag(ofname, allMat, allSource, wcsDic, internal, workDir="."):
     print "Output Diagnostic ..."
-    f = open(ofname, 'w')
+    f = open(os.path.join(workDir, ofname), 'w')
     for mL in allMat:
         if mL[0].getFlagForWcs():
             continue
@@ -159,25 +172,26 @@ def outputDiag(ofname, allMat, allSource, wcsDic):
             x0, y0 = wcsDic[ditherId].skyToPixel(ra, dec)
             line = "m %d %9.5f %9.5f %9.3f %9.3f %9.3f %9.3f %6.3f %6.3f %7.3f\n" % (ditherId, ra, dec, x0, y0, x, y, x-x0, y-y0, mag)
             f.write(line)
-           
-    for sS in allSource:
-        if sS[0].getFlagForWcs():
-            continue
-        ra = sS[0].getRa() * 180. / math.pi
-        dec = sS[0].getDec() * 180. / math.pi
-        for i in range(1,len(sS)):
-            if sS[i].getFlagForWcs():
+
+    if internal:
+        for sS in allSource:
+            if sS[0].getFlagForWcs():
                 continue
-            ditherId = sS[i].getAmpExposureId()
-            x = sS[i].getXAstrom()
-            y = sS[i].getYAstrom()
-            if sS[i].getPsfFlux() > 0:
-                mag = -2.5 * math.log10(sS[i].getPsfFlux())
-            else:
-                mag = 99.
-            x0, y0 = wcsDic[ditherId].skyToPixel(ra, dec)
-            line = "s %d %9.5f %9.5f %9.3f %9.3f %9.3f %9.3f %6.3f %6.3f %7.3f\n" % (ditherId, ra, dec, x0, y0, x, y, x-x0, y-y0, mag)
-            f.write(line)
+            ra = sS[0].getRa() * 180. / math.pi
+            dec = sS[0].getDec() * 180. / math.pi
+            for i in range(1,len(sS)):
+                if sS[i].getFlagForWcs():
+                    continue
+                ditherId = sS[i].getAmpExposureId()
+                x = sS[i].getXAstrom()
+                y = sS[i].getYAstrom()
+                if sS[i].getPsfFlux() > 0:
+                    mag = -2.5 * math.log10(sS[i].getPsfFlux())
+                else:
+                    mag = 99.
+                x0, y0 = wcsDic[ditherId].skyToPixel(ra, dec)
+                line = "s %d %9.5f %9.5f %9.3f %9.3f %9.3f %9.3f %6.3f %6.3f %7.3f\n" % (ditherId, ra, dec, x0, y0, x, y, x-x0, y-y0, mag)
+                f.write(line)
     f.close()
        
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
@@ -191,15 +205,15 @@ def writeNewWCS(ditherIds, ccdIds, fitFP, wcsDic, fscale, dims, camera, outputDi
             if fitFP:
                 ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(ccdId)))
                 offset = ccd.getCenter()
-                wcs = wcsDic[int(ditherId)].clone()
+                wcs = wcsDic[ditherIds.index(ditherId)].clone()
                 wcs.shiftReferencePixel(-offset[0], -offset[1])
-                scale = fscale[int(ditherId)]
+                scale = fscale[ditherIds.index(ditherId)]
             else:
                 wcs = wcsDic[iframe]
                 scale = fscale[iframe]
             dim = dims[iframe]
             
-            ofname = getOutputImageName(outputDir, int(ditherId), int(ccdId))
+            ofname = getOutputFileName(outputDir, int(ditherId), int(ccdId))
             md = wcs.getFitsMetadata()
             md.set("FSCALE", scale)
             md.set("NUMAXIS1", dim[0])
@@ -216,16 +230,16 @@ def writeNewFitsFiles(ditherIds, ccdIds, wcsDic, fscale, outputDir):
             if fitFP:
                 ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(ccdId)))
                 offset = ccd.getCenter()
-                wcs = wcsDic[int(ditherId)].clone()
+                wcs = wcsDic[ditherIds.index(ditherId)].clone()
                 wcs.shiftReferencePixel(-offset[0], -offset[1])
-                scale = fscale[int(ditherId)]
+                scale = fscale[ditherIds.index(ditherId)]
             else:
                 wcs = wcsDic[iframe]
                 scale = fscale[iframe]
             #fname = "%s/dith%d/out-ssb_ccd%03d-wcs.fits" % (rootdir, int(ditherId), int(ccdId))
             basename = getBasename(int(ditherId), int(ccdId))
             fname = "%s-wcs.fits" % (basename)
-            ofname = getOutputImageName(outputDir, int(ditherId), int(ccdId))
+            ofname = getOutputFileName(outputDir, int(ditherId), int(ccdId))
             md = dafBase.PropertySet()
             mImg = afwImage.MaskedImageF(fname, 0, md)
             for name in wcs.getFitsMetadata().names():
