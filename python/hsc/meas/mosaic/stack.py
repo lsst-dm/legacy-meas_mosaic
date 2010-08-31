@@ -85,6 +85,7 @@ def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
     wcsDic = hscMosaic.WcsDic()
     dims = []
     fscale = []
+    zp = []
     i = 0
     for fname in fileList:
         # Construct file name for WCS file
@@ -100,13 +101,19 @@ def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
         wcsDic[i] = wcs
         if not skipMosaic:
             dims.append([metadata.get('NUMAXIS1'), metadata.get('NUMAXIS2')])
+            fscale.append(metadata.get('FSCALE'))
         else:
             dims.append([metadata.get('NAXIS1'), metadata.get('NAXIS2')])
-        try:
-            fscale.append(metadata.get('FSCALE'))
-        except pexExceptions.exceptionsLib.LsstException:
+            zp.append(metadata.get('ZP2'))
             fscale.append(1.0)
         i += 1
+
+    if skipMosaic:
+        zp_ref = zp[0]
+        for i in range(len(zp)):
+            zp[i] -= zp_ref
+        for i in range(len(zp)):
+            fscale[i] = math.pow(10., -0.4*zp[i])
 
     return wcsDic, dims, fscale
 
@@ -142,7 +149,7 @@ def stackInit(fileList, subImgSize,
 
     if (writePBSScript):
         if (fileIO):
-            mkScript(nx, ny)
+            mkScript(nx, ny, workDir)
         else:
             print "Should define fileIO=True"
             sys.exit(1)
@@ -183,7 +190,9 @@ def stackExec(outputName, ix, iy, subImgSize,
                                                       skipMosaic=skipMosaic)
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
 
-    productDir = eups.productDir("hscMosaic")
+    #productDir = eups.productDir("hscMosaic")
+    package = "hscMosaic"
+    productDir = os.environ.get(package.upper() + "_DIR", None)
     policyPath = os.path.join(productDir, "policy", "HscStackDictionary.paf")
     policy = pexPolicy.Policy.createPolicy(policyPath)
 
@@ -214,6 +223,7 @@ def stackExec(outputName, ix, iy, subImgSize,
     if mimgStack != None:
         if fileIO:
             expStack = afwImage.ExposureF(mimgStack, wcs2)
+            print os.path.join(workDir, "%s%02d-%02d.fits" % (outputName, ix, iy))
             expStack.writeFits(os.path.join(workDir, "%s%02d-%02d.fits" % (outputName, ix, iy)))
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
@@ -326,11 +336,11 @@ def stack(fileList, outputName, subImgSize=2048, fileIO=False,
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-def subRegionStack(wcs, subImgSize, i, j, naxis1, naxis2,
+def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
                    wcsDic, dims, fileList, fscale,
                    kernel, sctrl, interpLength):
     wcs2 = wcs.clone()
-    wcs2.shiftReferencePixel(-i*subImgSize, -j*subImgSize)
+    wcs2.shiftReferencePixel(-ix*subImgSize, -iy*subImgSize)
     mimgList = afwImage.vectorMaskedImageF()
                 
     x = [0, naxis1/2, naxis1, 0, naxis1/2, naxis1, 0, naxis1/2, naxis1]
@@ -351,6 +361,8 @@ def subRegionStack(wcs, subImgSize, i, j, naxis1, naxis2,
                                  interpLength);
             mimg = warpedExposure.getMaskedImage()
             mimg *= fscale[k]
+            #mimg.writeFits("zzz-%02d-%02d-%02d.fits" % (ix, iy, k))
+
             mimgList.push_back(mimg)
 
             del originalExposure

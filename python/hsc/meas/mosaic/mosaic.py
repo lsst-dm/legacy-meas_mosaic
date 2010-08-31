@@ -47,6 +47,8 @@ def mosaic(ditherIds, ccdIds, fitFP, outputDir=".", rerun="cpl-0017"):
         for ditherId in ditherIds:
             for ccdId in ccdIds:
                 fname = mgr.getCorrFilename(int(ditherId), int(ccdId))
+                if not os.path.isfile(fname):
+                    continue
                 metadata = afwImage.readMetadata(fname)
                 wcs = afwImage.makeWcs(metadata)
                 wcsDic[iframe] = wcs
@@ -63,6 +65,9 @@ def mosaic(ditherIds, ccdIds, fitFP, outputDir=".", rerun="cpl-0017"):
         for ccdId in ccdIds:
             basename = os.path.join(mgr.getOutputDirname(int(ditherId), int(ccdId), dirType="misc"),
                                     "HSCA%05d%03d" % (int(ditherId), int(ccdId)))
+            fname = mgr.getCorrFilename(int(ditherId), int(ccdId))
+            if not os.path.isfile(fname):
+                continue
             #sS, mL, hdrInfo = pipe.io.readFits(basename)
             if os.path.isfile("%s.fits" % (basename)):
                 sS = hscMosaic.readCat("%s.fits" % (basename))
@@ -120,7 +125,9 @@ def mosaic(ditherIds, ccdIds, fitFP, outputDir=".", rerun="cpl-0017"):
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    productDir = eups.productDir("hscMosaic")
+    #productDir = eups.productDir("hscMosaic")
+    package = "hscMosaic"
+    productDir = os.environ.get(package.upper() + "_DIR", None)
     policyPath = os.path.join(productDir, "policy", "HscMosaicDictionary.paf")
     policy = pexPolicy.Policy.createPolicy(policyPath)
 
@@ -144,7 +151,7 @@ def mosaic(ditherIds, ccdIds, fitFP, outputDir=".", rerun="cpl-0017"):
     fscale = hscMosaic.solveMosaic(order, allMat, allSource, wcsDic, internal, verbose)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    writeNewWCS(ditherIds, ccdIds, fitFP, wcsDic, fscale, dims, camera, outputDir)
+    writeNewWCS(ditherIds, ccdIds, fitFP, wcsDic, fscale, dims, camera, mgr, outputDir)
 
     outputDiag("mosaicFitTest.dat", allMat, allSource, wcsDic, internal, outputDir)
 
@@ -196,12 +203,15 @@ def outputDiag(ofname, allMat, allSource, wcsDic, internal, workDir="."):
        
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-def writeNewWCS(ditherIds, ccdIds, fitFP, wcsDic, fscale, dims, camera, outputDir="."):
+def writeNewWCS(ditherIds, ccdIds, fitFP, wcsDic, fscale, dims, camera, mgr, outputDir="."):
     print "Write New WCS ..."
     iframe = 0;
     img = afwImage.ImageU(0,0)
     for ditherId in ditherIds:
         for ccdId in ccdIds:
+            fname = mgr.getCorrFilename(int(ditherId), int(ccdId))
+            if not os.path.isfile(fname):
+                continue
             if fitFP:
                 ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(ccdId)))
                 offset = ccd.getCenter()

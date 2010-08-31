@@ -16,32 +16,32 @@ if __name__ == '__main__':
     frameIds = mgr.getFrameSet(obsDate=obsDate, filter=filter, progId=progId)
     
     ccdIds = range(100)
-    ccdIds = [9]
+    #ccdIds = [9]
 
-    outputName = "test-"
+    outputName = progId + "-"
     subImgSize = 2048
     fileIO = True
-    writePBSScript = False
-    workDir = "."
+    writePBSScript = True
+    workDir = "/data/yasuda/SXDS"
     wcsDir = "."
+    skipMosaic = True
     
     fileList = []
     for frameId in frameIds:
         for ccdId in ccdIds:
             fname = mgr.getCorrFilename(int(frameId), int(ccdId))
             fileList.append(fname)
-    print fileList
             
     if (len(sys.argv) == 1):
         stack.stackInit(fileList, subImgSize, fileIO, writePBSScript,
-                        workDir=workDir, wcsDir=wcsDir)
+                        workDir=workDir, wcsDir=wcsDir, skipMosaic=skipMosaic)
 
     elif (len(sys.argv) == 3):
         ix = int(sys.argv[1])
         iy = int(sys.argv[2])
 
         stack.stackExec(outputName, ix, iy, subImgSize, fileIO=fileIO,
-                        workDir=workDir, wcsDir=wcsDir)
+                        workDir=workDir, wcsDir=wcsDir, skipMosaic=skipMosaic)
 
     else:
         if (sys.argv[1] == "End"):
@@ -49,6 +49,6 @@ if __name__ == '__main__':
                            workDir=workDir)
         else:
             stack.stack(fileList, outputName, subImgSize=2048, fileIO=fileIO,
-                        workDir=workDir, wcsDir=wcsDir, skipMosaic=True)
+                        workDir=workDir, wcsDir=wcsDir, skipMosaic=skipMosaic)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")

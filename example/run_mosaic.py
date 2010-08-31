@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
     obsDate = "2010-08-26"
     filter = "W-S-I+"
-    progId = "SXDS"
+    progId = "COSMOS_0"
     rerun = "cpl-0020"
     
     mgr = data.Manager(instrument="HSC", rerun=rerun)
