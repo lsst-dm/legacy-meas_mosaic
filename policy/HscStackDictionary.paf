@@ -27,5 +27,24 @@ definitions: {
 	default: 25
 	min: 0
     }
+    stackMethod: {
+        type: "string"
+        description: "Stacking method"
+	minOccurs: 0
+	maxOccurs: 1
+	default: "MEANCLIP"
+	allowed: {
+	    value: "MEANCLIP"
+	    description: "N-sigma clipped mean"
+	}
+	allowed: {
+	    value: "MEAN"
+	    description: "mean"
+	}
+	allowed: {
+	    value: "MEDIAN"
+	    description: "median"
+	}
+    }
 }
 

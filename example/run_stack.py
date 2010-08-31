@@ -16,13 +16,13 @@ if __name__ == '__main__':
     frameIds = mgr.getFrameSet(obsDate=obsDate, filter=filter, progId=progId)
     
     ccdIds = range(100)
-    #ccdIds = [9]
+    ccdIds = [6, 7, 8, 9, 10, 11]
 
     outputName = progId + "-"
     subImgSize = 2048
     fileIO = True
     writePBSScript = True
-    workDir = "/data/yasuda/SXDS"
+    workDir = "."
     wcsDir = "."
     skipMosaic = True
     

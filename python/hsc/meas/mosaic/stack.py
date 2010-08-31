@@ -200,7 +200,7 @@ def stackExec(outputName, ix, iy, subImgSize,
     kernel = afwMath.makeWarpingKernel(policy.get("warpingKernel"))
         
     sctrl = afwMath.StatisticsControl()
-    sctrl.setWeighted(False)
+    sctrl.setWeighted(True)
     sctrl.setAndMask(~(0x0 or afwImage.MaskU_getPlaneBitMask("DETECTED")))
 
     if ix == nx - 1:
@@ -215,10 +215,19 @@ def stackExec(outputName, ix, iy, subImgSize,
                 
     print "interpLength : ", policy.get("interpLength")
     print ix, iy, nx, ny
+    if policy.get("stackMethod") == "MEANCLIP":
+        stackFlag = afwMath.MEANCLIP
+    elif policy.get("stackMethod") == "MEAN":
+        stackFlag = afwMath.MEAN
+    elif policy.get("stackMethod") == "MEDIAN":
+        stackFlag = afwMath.MEDIAN
+    else:
+        stackFlag = afwMath.MEANCLIP
     mimgStack, wcs2 = subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
                                      wcsDic, dims, fileList, fscale,
                                      kernel, sctrl,
-                                     policy.get("interpLength"))
+                                     policy.get("interpLength"),
+                                     stackFlag)
 
     if mimgStack != None:
         if fileIO:
@@ -338,7 +347,7 @@ def stack(fileList, outputName, subImgSize=2048, fileIO=False,
 
 def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
                    wcsDic, dims, fileList, fscale,
-                   kernel, sctrl, interpLength):
+                   kernel, sctrl, interpLength, flag):
     wcs2 = wcs.clone()
     wcs2.shiftReferencePixel(-ix*subImgSize, -iy*subImgSize)
     mimgList = afwImage.vectorMaskedImageF()
@@ -368,7 +377,7 @@ def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
             del originalExposure
 
     if mimgList.size() > 0:
-        mimgStack = afwMath.statisticsStack(mimgList, afwMath.MEDIAN, sctrl)
+        mimgStack = afwMath.statisticsStack(mimgList, flag, sctrl)
         return mimgStack, wcs2
     else:
         return None, wcs2
