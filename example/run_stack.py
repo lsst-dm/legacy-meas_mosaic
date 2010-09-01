@@ -1,4 +1,4 @@
-import sys
+import sys, os
 import datetime
 import hsc.camera.data                   as data
 import hsc.meas.mosaic.stack             as stack
@@ -9,20 +9,20 @@ if __name__ == '__main__':
     
     obsDate = "2010-08-26"
     filter = "W-S-I+"
-    progId = "SXDS"
-    rerun = "cpl-0020"
+    progId = "LOCKMANHOLE"
+    rerun = "DC1-002"
     
     mgr = data.Manager(instrument="HSC", rerun=rerun)
     frameIds = mgr.getFrameSet(obsDate=obsDate, filter=filter, progId=progId)
+    #print frameIds
     
     ccdIds = range(100)
-    ccdIds = [6, 7, 8, 9, 10, 11]
 
     outputName = progId + "-"
     subImgSize = 2048
     fileIO = True
     writePBSScript = True
-    workDir = "."
+    workDir = "/data/yasuda/LOCKMANHOLE"
     wcsDir = "."
     skipMosaic = True
     
@@ -30,7 +30,8 @@ if __name__ == '__main__':
     for frameId in frameIds:
         for ccdId in ccdIds:
             fname = mgr.getCorrFilename(int(frameId), int(ccdId))
-            fileList.append(fname)
+            if os.path.isfile(fname):
+                fileList.append(fname)
             
     if (len(sys.argv) == 1):
         stack.stackInit(fileList, subImgSize, fileIO, writePBSScript,

@@ -19,6 +19,14 @@ definitions: {
 	    description: "use lanczos3"
 	}
     }
+    cacheSize: {
+        type: "int"
+        description: "warping kernel cache size"
+	minOccurs: 0
+	maxOccurs: 1
+	default: 10000
+	min: 0
+    }
     interpLength: {
         type: "int"
         description: "interp WCS every this number of pixels"

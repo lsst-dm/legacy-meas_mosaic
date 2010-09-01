@@ -75,6 +75,20 @@ def mkScript(nx, ny, workDir="."):
             f.write("python run_stack.py %d %d\n" % (ix, iy));
             f.close()
     
+    fname = "qqqEnd.sh"
+    f = open(os.path.join(workDir, fname), "w")
+    f.write("#!/bin/sh\n");
+    f.write("#PBS -l ncpus=1\n");
+    f.write("#PBS -l nodes=1\n");
+    f.write("#PBS -q default\n");
+    f.write("#\n");
+    f.write("OMP_NUM_THREADS=1; export OMP_NUM_THREADS\n");
+    f.write("cd $PBS_O_WORKDIR\n");
+    f.write("#\n");
+    f.write("setup -r /home/yasuda/temp/hscMosaic\n");
+    f.write("python run_stack.py End\n");
+    f.close()
+    
     f = open(os.path.join(workDir, "run_qsub.sh"), "w")
     for ix in range(nx):
         for iy in range(ny):
@@ -161,6 +175,14 @@ def stackInit(fileList, subImgSize,
     else:
         return fileList, dims, fscale, wcs, wcsDic, width, height, nx, ny
 
+def setCache(kernel, cacheSize=10000, force=False):
+    """Set the cache size (or don't if it wouldn't help). Always set if force is True"""
+    if not force:
+        if re.search("BilinearFunction", kernel.getKernelRowFunction().toString()):
+            cacheSize = 0
+
+    kernel.computeCache(cacheSize)
+    
 def stackExec(outputName, ix, iy, subImgSize,
               fileList=None,
               dims=None,
@@ -198,6 +220,8 @@ def stackExec(outputName, ix, iy, subImgSize,
 
     print "warpingKernel : ", policy.get("warpingKernel")
     kernel = afwMath.makeWarpingKernel(policy.get("warpingKernel"))
+    print "cacheSize : ", policy.get("cacheSize")
+    setCache(kernel, policy.get("cacheSize"))
         
     sctrl = afwMath.StatisticsControl()
     sctrl.setWeighted(True)
@@ -256,37 +280,52 @@ def stackEnd(outputName,
     
     if fileIO:
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
-        mimgMap = {}
-        for iy in range(ny):
-            for ix in range(nx):
-                file = os.path.join(workDir,
-                                    "%s%02d-%02d.fits" % (outputName, ix, iy))
-                if (os.path.isfile(file)):
-                    mimg = afwImage.MaskedImageF(file)
-                    mimgMap["%d %d" % (ix, iy)] = mimg
-        
+
     stackedMI = afwImage.MaskedImageF(width, height)
     stackedMI.getImage().set(float('nan'))
     stackedMI.getMask().set(afwImage.MaskU.getPlaneBitMask("EDGE"))
 
-    for k in mimgMap.keys():
-        ix = int(k.split()[0])
-        iy = int(k.split()[1])
-        
-        if iy == ny - 1:
-            naxis2 = height - iy * subImgSize
-        else:
-            naxis2 = subImgSize
-        if ix == nx - 1:
-            naxis1 = width - ix * subImgSize
-        else:
-            naxis1 = subImgSize
+    if fileIO:
+        for iy in range(ny):
+            for ix in range(nx):
+                file = os.path.join(workDir,
+                                    "%s%02d-%02d.fits" % (outputName, ix, iy))
+                if not os.path.isfile(file):
+                    continue
+                if iy == ny - 1:
+                    naxis2 = height - iy * subImgSize
+                else:
+                    naxis2 = subImgSize
+                if ix == nx - 1:
+                    naxis1 = width - ix * subImgSize
+                else:
+                    naxis1 = subImgSize
 
-        llc = afwImage.PointI(ix*subImgSize,          iy*subImgSize)
-        urc = afwImage.PointI(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
-        subImg = stackedMI.Factory(stackedMI, afwImage.BBox(llc, urc))
-        mimgStack = mimgMap[k]
-        subImg <<= mimgStack
+                mimg = afwImage.MaskedImageF(file)
+                llc = afwImage.PointI(ix*subImgSize,          iy*subImgSize)
+                urc = afwImage.PointI(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
+                subImg = stackedMI.Factory(stackedMI, afwImage.BBox(llc, urc))
+                subImg <<= mimg
+                del mimg
+    else:
+        for k in mimgMap.keys():
+            ix = int(k.split()[0])
+            iy = int(k.split()[1])
+        
+            if iy == ny - 1:
+                naxis2 = height - iy * subImgSize
+            else:
+                naxis2 = subImgSize
+            if ix == nx - 1:
+                naxis1 = width - ix * subImgSize
+            else:
+                naxis1 = subImgSize
+
+            llc = afwImage.PointI(ix*subImgSize,          iy*subImgSize)
+            urc = afwImage.PointI(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
+            subImg = stackedMI.Factory(stackedMI, afwImage.BBox(llc, urc))
+            mimgStack = mimgMap[k]
+            subImg <<= mimgStack
 
     expStack = afwImage.ExposureF(stackedMI, wcs)
     expStack.writeFits(os.path.join(outputDir, "%sstacked.fits" % (outputName)))
@@ -350,6 +389,7 @@ def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
                    kernel, sctrl, interpLength, flag):
     wcs2 = wcs.clone()
     wcs2.shiftReferencePixel(-ix*subImgSize, -iy*subImgSize)
+    #print wcs2.getFitsMetadata().toString()
     mimgList = afwImage.vectorMaskedImageF()
                 
     x = [0, naxis1/2, naxis1, 0, naxis1/2, naxis1, 0, naxis1/2, naxis1]
@@ -370,7 +410,8 @@ def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
                                  interpLength);
             mimg = warpedExposure.getMaskedImage()
             mimg *= fscale[k]
-            #mimg.writeFits("zzz-%02d-%02d-%02d.fits" % (ix, iy, k))
+            #print fileList[k]
+            #mimg.writeFits("zzz-%02d-%02d-%03d.fits" % (ix, iy, k))
 
             mimgList.push_back(mimg)
 
@@ -442,7 +483,7 @@ def globalWcs(wcsDic, dims, pixelSize=0.00004667):
     print "ra = %6.3f - %6.3f dec = %6.3f - %6.3f" % (ramin, ramax, decmin, decmax)
     print "width = %6.3f height = %6.3f arcmin" % ((ramax - ramin)*60, (decmax - decmin)*60)
 
-    width  = int((ramax - ramin) / pixelSize / math.cos(0.5*(decmin+decmax)*math.pi/180.))
+    width  = int((ramax - ramin) / pixelSize * math.cos(0.5*(decmin+decmax)*math.pi/180.))
     height = int((decmax - decmin) / pixelSize)
 
     print "width = %d height = %d pixel" % (width, height)
