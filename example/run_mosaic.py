@@ -39,7 +39,7 @@ if __name__ == '__main__':
     obsDate = "2010-08-26"
     filter = "W-S-I+"
     progId = "COSMOS_0"
-    rerun = "cpl-0020"
+    rerun = "DC1-005"
     
     mgr = data.Manager(instrument="HSC", rerun=rerun)
     frameIds = mgr.getFrameSet(obsDate=obsDate, filter=filter, progId=progId)

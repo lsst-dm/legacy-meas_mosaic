@@ -1,5 +1,6 @@
 import sys, os
 import datetime
+import shutil
 import hsc.camera.data                   as data
 import hsc.meas.mosaic.stack             as stack
 
@@ -9,8 +10,13 @@ if __name__ == '__main__':
     
     obsDate = "2010-08-26"
     filter = "W-S-I+"
-    progId = "LOCKMANHOLE"
-    rerun = "DC1-002"
+    #progId = "CFHQS"
+    #progId = "CFHTLS-D3"
+    #progId = "COSMOS_0"
+    #progId = "GALPLANE"
+    #progId = "LOCKMANHOLE"
+    progId = "SXDS"
+    rerun = "DC1-005"
     
     mgr = data.Manager(instrument="HSC", rerun=rerun)
     frameIds = mgr.getFrameSet(obsDate=obsDate, filter=filter, progId=progId)
@@ -22,18 +28,26 @@ if __name__ == '__main__':
     subImgSize = 2048
     fileIO = True
     writePBSScript = True
-    workDir = "/data/yasuda/LOCKMANHOLE"
+    workDir = os.path.join("/data/yasuda/stack", progId)
     wcsDir = "."
     skipMosaic = True
     
-    fileList = []
-    for frameId in frameIds:
-        for ccdId in ccdIds:
-            fname = mgr.getCorrFilename(int(frameId), int(ccdId))
-            if os.path.isfile(fname):
-                fileList.append(fname)
-            
     if (len(sys.argv) == 1):
+        fileList = []
+        for frameId in frameIds:
+            for ccdId in ccdIds:
+                fname = mgr.getCorrFilename(int(frameId), int(ccdId))
+                if os.path.isfile(fname):
+                    fileList.append(fname)
+            
+        try:
+            os.mkdir(workDir)
+        except OSError:
+            print "Working directory already exists"
+        productDir = os.environ.get("hscMosaic".upper() + "_DIR", None)
+        shutil.copyfile(os.path.join(productDir, "example/run_stack.py"),
+                        os.path.join(workDir, "run_stack.py"))
+            
         stack.stackInit(fileList, subImgSize, fileIO, writePBSScript,
                         workDir=workDir, wcsDir=wcsDir, skipMosaic=skipMosaic)
 
@@ -49,6 +63,13 @@ if __name__ == '__main__':
             stack.stackEnd(outputName, subImgSize, fileIO=fileIO,
                            workDir=workDir)
         else:
+            fileList = []
+            for frameId in frameIds:
+                for ccdId in ccdIds:
+                    fname = mgr.getCorrFilename(int(frameId), int(ccdId))
+                    if os.path.isfile(fname):
+                        fileList.append(fname)
+            
             stack.stack(fileList, outputName, subImgSize=2048, fileIO=fileIO,
                         workDir=workDir, wcsDir=wcsDir, skipMosaic=skipMosaic)
 

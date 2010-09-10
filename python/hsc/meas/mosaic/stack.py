@@ -389,7 +389,7 @@ def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
                    kernel, sctrl, interpLength, flag):
     wcs2 = wcs.clone()
     wcs2.shiftReferencePixel(-ix*subImgSize, -iy*subImgSize)
-    #print wcs2.getFitsMetadata().toString()
+    ###print wcs2.getFitsMetadata().toString()
     mimgList = afwImage.vectorMaskedImageF()
                 
     x = [0, naxis1/2, naxis1, 0, naxis1/2, naxis1, 0, naxis1/2, naxis1]
@@ -410,8 +410,8 @@ def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
                                  interpLength);
             mimg = warpedExposure.getMaskedImage()
             mimg *= fscale[k]
-            #print fileList[k]
-            #mimg.writeFits("zzz-%02d-%02d-%03d.fits" % (ix, iy, k))
+            ###print fileList[k]
+            ###mimg.writeFits("zzz-%02d-%02d-%03d.fits" % (ix, iy, k))
 
             mimgList.push_back(mimg)
 

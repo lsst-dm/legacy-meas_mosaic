@@ -4,6 +4,7 @@
 
 #include "hsc/meas/mosaic/mosaicfit.h"
 #include "lsst/afw/detection/Source.h"
+#include "lsst/afw/coord/Coord.h"
 
 
 #define D2R (M_PI/180.)
@@ -496,6 +497,7 @@ double *sipfit(int order,
     delete [] b_data;
     delete [] c_data;
 #else
+    char L('L');
     long int nrhs(1);
     long int info(0);
     long int lda(ncoeff);
@@ -510,8 +512,7 @@ double *sipfit(int order,
     std::cout << "before " << std::ctime(&t) << " ncoeff = " << ncoeff << std::endl;
     //dposv_(&L, &nA, &nrhs, a_data, &lda, b_data, &ldb, &info);
     dgesv_(&nA, &nrhs, a_data, &lda, ipiv, b_data, &ldb, &info);
-    std::cout << "sipfit "<< std::endl;
-    std::cout << "gesv "<< std::endl;
+    std::cout << "sipfit gesv"<< std::endl;
     t = std::time(NULL);
     std::cout << "after "<< std::ctime(&t) << " info  = " << info << std::endl;
 
@@ -519,8 +520,7 @@ double *sipfit(int order,
     std::cout << "before " << std::ctime(&t) << " ncoeff = " << ncoeff << std::endl;
     //dposv_(&L, &nA, &nrhs, a_data, &lda, b_data, &ldb, &info);
     dgesv_(&nA, &nrhs, a_data2, &lda, ipiv, c_data, &ldb, &info);
-    std::cout << "sipfit "<< std::endl;
-    std::cout << "gesv "<< std::endl;
+    std::cout << "sipfit gesv"<< std::endl;
     t = std::time(NULL);
     std::cout << "after "<< std::ctime(&t) << " info  = " << info << std::endl;
 
@@ -816,8 +816,8 @@ hsc::meas::mosaic::mergeMat(vvSourceMatch const &matchList) {
     }
 
     for (unsigned int i = 0; i < allMat.size(); i++) {
-	double ra  = allMat[i][0]->getRa()  * M_PI / 180.;
-	double dec = allMat[i][0]->getDec() * M_PI / 180.;
+	double ra  = allMat[i][0]->getRa()  * D2R;
+	double dec = allMat[i][0]->getDec() * D2R;
 	allMat[i][0]->setRa(ra);
 	allMat[i][0]->setDec(dec);
     }
@@ -882,12 +882,15 @@ hsc::meas::mosaic::mergeSource(SourceGroup const &sourceSet, SourceGroup const &
 	    if (sourceSet[j][i]->getPsfFlux() > fluxlim[j] &&
 		!inAllMat(allMat, sourceSet[j][i])) {
 		double ra  = sourceSet[j][i]->getRa();
-		double dec = sourceSet[j][i]->getDec();
+		double dec = sourceSet[j][i]->getDec();	// ra, dec in radian
+		lsst::afw::coord::Coord c = lsst::afw::coord::Coord(ra*R2D, dec*R2D);
 		bool match = false;
 		for (unsigned int k = 0; k < allSource.size(); k++) {
 		    double ra0  = allSource[k][0]->getRa();
 		    double dec0 = allSource[k][0]->getDec();
-		    double d = sqrt(pow(ra-ra0,2.)+pow(dec-dec0,2.));
+		    lsst::afw::coord::Coord c0 = lsst::afw::coord::Coord(ra0*R2D, dec0*R2D);
+		    //double d = sqrt(pow(ra-ra0,2.)+pow(dec-dec0,2.));
+		    double d = c.angularSeparation(c0, lsst::afw::coord::DEGREES);
 		    if (d < d_lim) {
 			allSource[k].push_back(sourceSet[j][i]);
 			match = true;
@@ -1079,8 +1082,8 @@ double *multifit(int order,
 	}
     }
 
+    int ndim0 = ncoeff * nexp * 2 + nexp * 2;
     if (internal) {
-	int ndim0 = ncoeff * nexp * 2 + nexp * 2;
 	int istar = 0;
 	for (unsigned int i = 0; i < allSource.size(); i++) {
 	    SourceSet ss = allSource[i];
@@ -1155,6 +1158,14 @@ double *multifit(int order,
 		b_data[ndim0+istar*2]   += -(xi * xi_a + eta * eta_a) * w2;
 		b_data[ndim0+istar*2+1] += -(xi * xi_d + eta * eta_d) * w2;
 
+		a_data[(j0+iexp*2)*ndim+ndim0+istar*2]     += (xi_a * xi_A + eta_a * eta_A) * w2;
+		a_data[(j0+iexp*2)*ndim+ndim0+istar*2+1]   += (xi_d * xi_A + eta_d * eta_A) * w2;
+		a_data[(j0+iexp*2+1)*ndim+ndim0+istar*2]   += (xi_a * xi_D + eta_a * eta_D) * w2;
+		a_data[(j0+iexp*2+1)*ndim+ndim0+istar*2+1] += (xi_d * xi_D + eta_d * eta_D) * w2;
+		a_data[(ndim0+istar*2)*ndim+j0+iexp*2]     = a_data[(j0+iexp*2)*ndim+ndim0+istar*2];
+		a_data[(ndim0+istar*2+1)*ndim+j0+iexp*2]   = a_data[(j0+iexp*2)*ndim+ndim0+istar*2+1];
+		a_data[(ndim0+istar*2)*ndim+j0+iexp*2+1]   = a_data[(j0+iexp*2+1)*ndim+ndim0+istar*2];
+		a_data[(ndim0+istar*2+1)*ndim+j0+iexp*2+1] = a_data[(j0+iexp*2+1)*ndim+ndim0+istar*2+1];
 	    }
 	    istar++;
 	}
@@ -1208,12 +1219,10 @@ double *multifit(int order,
 	    printf("\n");
 	}
 	printf("\n");
-	/*
 	for (int i = 0; i < 10; i++) {
 	    printf("%13.6e %13.6e\n", x->data[ndim0+i*2], x->data[ndim0+i*2+1]);
 	}
 	printf("\n");
-	*/
     }
 
     double *solution = new double[ndim];
@@ -1233,7 +1242,7 @@ double *multifit(int order,
 
 #else
 
-    //char L('L');
+    char L('L');
     long int nrhs(1);
     long int info(0);
     long int lda(ndim);
@@ -1243,10 +1252,9 @@ double *multifit(int order,
     time_t t;
     t = std::time(NULL);
     std::cout << "before " << std::ctime(&t) << " ndim = " << ndim << std::endl;
-    //dposv_(&L, &nA, &nrhs, a_data, &lda, b_data, &ldb, &info);
-    dgesv_(&nA, &nrhs, a_data, &lda, ipiv, b_data, &ldb, &info);
-    std::cout << "multifit "<< std::endl;
-    std::cout << "gesv "<< std::endl;
+    dposv_(&L, &nA, &nrhs, a_data, &lda, b_data, &ldb, &info);
+    //dgesv_(&nA, &nrhs, a_data, &lda, ipiv, b_data, &ldb, &info);
+    std::cout << "multifit posv"<< std::endl;
     t = std::time(NULL);
     std::cout << "after "<< std::ctime(&t) << " info  = " << info << std::endl;
 
@@ -1282,12 +1290,10 @@ double *multifit(int order,
 	    printf("\n");
 	}
 	printf("\n");
-	/*
 	for (int i = 0; i < 10; i++) {
 	    printf("%13.6e %13.6e\n", b_data[ndim0+i*2], b_data[ndim0+i*2+1]);
 	}
 	printf("\n");
-	*/
     }
 
     return b_data;
@@ -1341,16 +1347,16 @@ void calcDispersion(int order,
 	    if (ss[j]->getFlagForWcs() == 1) { continue; }
 	    int iexp = ss[j]->getAmpExposureId();
 	    lsst::afw::geom::PointD crval = wcsDic[iexp]->getSkyOrigin()->getPosition(lsst::afw::coord::RADIANS);
-	    //crval[0] = crval[0] * D2R;
-	    //crval[1] = crval[1] * D2R;
+	    crval[0] += sol[ncoeff*2*nexp+iexp*2];
+	    crval[1] += sol[ncoeff*2*nexp+iexp*2+1];
 	    double xi    = calXi(ra, dec, crval[0], crval[1]);
-	    double xi_A  = calXi_A(ra, dec, crval[0], crval[1]);
-	    double xi_D  = calXi_D(ra, dec, crval[0], crval[1]);
+	    //double xi_A  = calXi_A(ra, dec, crval[0], crval[1]);
+	    //double xi_D  = calXi_D(ra, dec, crval[0], crval[1]);
 	    double eta   = calEta(ra, dec, crval[0], crval[1]);
-	    double eta_A = calEta_A(ra, dec, crval[0], crval[1]);
-	    double eta_D = calEta_D(ra, dec, crval[0], crval[1]);
-	    xi  += xi_A  * sol[ncoeff*2*nexp+iexp*2] + xi_D  * sol[ncoeff*2*nexp+iexp*2+1];
-	    eta += eta_A * sol[ncoeff*2*nexp+iexp*2] + eta_D * sol[ncoeff*2*nexp+iexp*2+1];
+	    //double eta_A = calEta_A(ra, dec, crval[0], crval[1]);
+	    //double eta_D = calEta_D(ra, dec, crval[0], crval[1]);
+	    //xi  += xi_A  * sol[ncoeff*2*nexp+iexp*2] + xi_D  * sol[ncoeff*2*nexp+iexp*2+1];
+	    //eta += eta_A * sol[ncoeff*2*nexp+iexp*2] + eta_D * sol[ncoeff*2*nexp+iexp*2+1];
 	    lsst::afw::geom::PointD crpix = wcsDic[iexp]->getPixelOrigin();
 	    double u = ss[j]->getXAstrom() - crpix[0];
 	    double v = ss[j]->getYAstrom() - crpix[1];
@@ -1361,9 +1367,9 @@ void calcDispersion(int order,
 		xi2  += sol[i0+k]        * pow(u, xorder[k]) * pow(v, yorder[k]);
 		eta2 += sol[i0+ncoeff+k] * pow(u, xorder[k]) * pow(v, yorder[k]);
 	    }
-	    s += (pow(xi-xi2,2)+pow(eta-eta2,2)) * w1;
+	    s  += (pow(xi-xi2,2)+pow(eta-eta2,2)) * w1;
 	    s2 += (pow(xi-xi2,2)+pow(eta-eta2,2)) * w1;
-	    nobj += w1;
+	    nobj  += w1;
 	    nobj2 += w1;
 	}
     }
@@ -1374,28 +1380,28 @@ void calcDispersion(int order,
 	    if (ss[0]->getFlagForWcs() == 1) { continue; }
 	    double ra  = ss[0]->getRa();
 	    double dec = ss[0]->getDec();
-	    //ra  += sol[ndim0+istar*2];
-	    //dec += sol[ndim0+istar*2+1];
+	    ra  += sol[ndim0+istar*2];
+	    dec += sol[ndim0+istar*2+1];
 	    for (unsigned int j = 1; j < ss.size(); j++) {
 		if (ss[j]->getFlagForWcs() == 1) { continue; }
 		int iexp = ss[j]->getAmpExposureId();
 		lsst::afw::geom::PointD crval = wcsDic[iexp]->getSkyOrigin()->getPosition(lsst::afw::coord::RADIANS);
-		//crval[0] = crval[0] * D2R;
-		//crval[1] = crval[1] * D2R;
+		crval[0] += sol[ncoeff*2*nexp+iexp*2];
+		crval[1] += sol[ncoeff*2*nexp+iexp*2+1];
 		double xi    = calXi(ra, dec, crval[0], crval[1]);
-		double xi_A  = calXi_A(ra, dec, crval[0], crval[1]);
-		double xi_D  = calXi_D(ra, dec, crval[0], crval[1]);
-		double xi_a  = calXi_a(ra, dec, crval[0], crval[1]);
-		double xi_d  = calXi_d(ra, dec, crval[0], crval[1]);
+		//double xi_A  = calXi_A(ra, dec, crval[0], crval[1]);
+		//double xi_D  = calXi_D(ra, dec, crval[0], crval[1]);
+		//double xi_a  = calXi_a(ra, dec, crval[0], crval[1]);
+		//double xi_d  = calXi_d(ra, dec, crval[0], crval[1]);
 		double eta   = calEta(ra, dec, crval[0], crval[1]);
-		double eta_A = calEta_A(ra, dec, crval[0], crval[1]);
-		double eta_D = calEta_D(ra, dec, crval[0], crval[1]);
-		double eta_a = calEta_a(ra, dec, crval[0], crval[1]);
-		double eta_d = calEta_d(ra, dec, crval[0], crval[1]);
-		xi  += (xi_A  * sol[ncoeff*2*nexp+iexp*2] + xi_D  * sol[ncoeff*2*nexp+iexp*2+1]);
-		eta += (eta_A * sol[ncoeff*2*nexp+iexp*2] + eta_D * sol[ncoeff*2*nexp+iexp*2+1]);
-		xi  += (xi_a  * sol[ndim0+istar*2] + xi_d  * sol[ndim0+istar*2+1]);
-		eta += (eta_a * sol[ndim0+istar*2] + eta_d * sol[ndim0+istar*2+1]);
+		//double eta_A = calEta_A(ra, dec, crval[0], crval[1]);
+		//double eta_D = calEta_D(ra, dec, crval[0], crval[1]);
+		//double eta_a = calEta_a(ra, dec, crval[0], crval[1]);
+		//double eta_d = calEta_d(ra, dec, crval[0], crval[1]);
+		//xi  += (xi_A  * sol[ncoeff*2*nexp+iexp*2] + xi_D  * sol[ncoeff*2*nexp+iexp*2+1]);
+		//eta += (eta_A * sol[ncoeff*2*nexp+iexp*2] + eta_D * sol[ncoeff*2*nexp+iexp*2+1]);
+		//xi  += (xi_a  * sol[ndim0+istar*2] + xi_d  * sol[ndim0+istar*2+1]);
+		//eta += (eta_a * sol[ndim0+istar*2] + eta_d * sol[ndim0+istar*2+1]);
 		lsst::afw::geom::PointD crpix = wcsDic[iexp]->getPixelOrigin();
 		double u = ss[j]->getXAstrom() - crpix[0];
 		double v = ss[j]->getYAstrom() - crpix[1];
@@ -1407,8 +1413,8 @@ void calcDispersion(int order,
 		    eta2 += sol[i0+ncoeff+k] * pow(u, xorder[k]) * pow(v, yorder[k]);
 		}
 		s2 += (pow(xi-xi2,2)+pow(eta-eta2,2)) * w2;
-		nobj2 += w2;
 		s3 += (pow(xi-xi2,2)+pow(eta-eta2,2)) * w2;
+		nobj2 += w2;
 		nobj3 += w2;
 	    }
 	    istar++;
@@ -1470,15 +1476,17 @@ void flagStar(int order,
 	    lsst::afw::geom::PointD crval = wcsDic[iexp]->getSkyOrigin()->getPosition(lsst::afw::coord::RADIANS);
 	    //crval[0] = crval[0]  * M_PI / 180.;
 	    //crval[1] = crval[1]  * M_PI / 180.;
+	    crval[0] += sol[ncoeff*2*nexp+iexp*2];
+	    crval[1] += sol[ncoeff*2*nexp+iexp*2+1];
 	    lsst::afw::geom::PointD crpix = wcsDic[iexp]->getPixelOrigin();
 	    double xi    = calXi(ra, dec, crval[0], crval[1]);
-	    double xi_A  = calXi_A(ra, dec, crval[0], crval[1]);
-	    double xi_D  = calXi_D(ra, dec, crval[0], crval[1]);
+	    //double xi_A  = calXi_A(ra, dec, crval[0], crval[1]);
+	    //double xi_D  = calXi_D(ra, dec, crval[0], crval[1]);
 	    double eta   = calEta(ra, dec, crval[0], crval[1]);
-	    double eta_A = calEta_A(ra, dec, crval[0], crval[1]);
-	    double eta_D = calEta_D(ra, dec, crval[0], crval[1]);
-	    xi  += xi_A  * sol[ncoeff*2*nexp+iexp*2] + xi_D  * sol[ncoeff*2*nexp+iexp*2+1];
-	    eta += eta_A * sol[ncoeff*2*nexp+iexp*2] + eta_D * sol[ncoeff*2*nexp+iexp*2+1];
+	    //double eta_A = calEta_A(ra, dec, crval[0], crval[1]);
+	    //double eta_D = calEta_D(ra, dec, crval[0], crval[1]);
+	    //xi  += xi_A  * sol[ncoeff*2*nexp+iexp*2] + xi_D  * sol[ncoeff*2*nexp+iexp*2+1];
+	    //eta += eta_A * sol[ncoeff*2*nexp+iexp*2] + eta_D * sol[ncoeff*2*nexp+iexp*2+1];
 	    double u = ss[j]->getXAstrom() - crpix[0];
 	    double v = ss[j]->getYAstrom() - crpix[1];
 	    int i0 = ncoeff * 2 * iexp;
@@ -1513,28 +1521,30 @@ void flagStar(int order,
 	    if (ss[0]->getFlagForWcs() == 1) { continue; }
 	    double ra  = ss[0]->getRa();
 	    double dec = ss[0]->getDec();
-	    //ra  += sol[ndim0+istar*2];
-	    //dec += sol[ndim0+istar*2+1];
+	    ra  += sol[ndim0+istar*2];
+	    dec += sol[ndim0+istar*2+1];
 	    for (unsigned int j = 1; j < ss.size(); j++) {
 		int iexp = ss[j]->getAmpExposureId();
 		lsst::afw::geom::PointD crval = wcsDic[iexp]->getSkyOrigin()->getPosition(lsst::afw::coord::RADIANS);
+		crval[0] += sol[ncoeff*2*nexp+iexp*2];
+		crval[1] += sol[ncoeff*2*nexp+iexp*2+1];
 		//crval[0] = crval[0]  * M_PI / 180.;
 		//crval[1] = crval[1]  * M_PI / 180.;
 		lsst::afw::geom::PointD crpix = wcsDic[iexp]->getPixelOrigin();
 		double xi    = calXi(ra, dec, crval[0], crval[1]);
-		double xi_A  = calXi_A(ra, dec, crval[0], crval[1]);
-		double xi_D  = calXi_D(ra, dec, crval[0], crval[1]);
-		double xi_a  = calXi_a(ra, dec, crval[0], crval[1]);
-		double xi_d  = calXi_d(ra, dec, crval[0], crval[1]);
+		//double xi_A  = calXi_A(ra, dec, crval[0], crval[1]);
+		//double xi_D  = calXi_D(ra, dec, crval[0], crval[1]);
+		//double xi_a  = calXi_a(ra, dec, crval[0], crval[1]);
+		//double xi_d  = calXi_d(ra, dec, crval[0], crval[1]);
 		double eta   = calEta(ra, dec, crval[0], crval[1]);
-		double eta_A = calEta_A(ra, dec, crval[0], crval[1]);
-		double eta_D = calEta_D(ra, dec, crval[0], crval[1]);
-		double eta_a = calEta_a(ra, dec, crval[0], crval[1]);
-		double eta_d = calEta_d(ra, dec, crval[0], crval[1]);
-		xi  += xi_A  * sol[ncoeff*2*nexp+iexp*2] + xi_D  * sol[ncoeff*2*nexp+iexp*2+1];
-		eta += eta_A * sol[ncoeff*2*nexp+iexp*2] + eta_D * sol[ncoeff*2*nexp+iexp*2+1];
-		xi  += xi_a  * sol[ndim0+istar*2] + xi_d  * sol[ndim0+istar*2+1];
-		eta += eta_a * sol[ndim0+istar*2] + eta_d * sol[ndim0+istar*2+1];
+		//double eta_A = calEta_A(ra, dec, crval[0], crval[1]);
+		//double eta_D = calEta_D(ra, dec, crval[0], crval[1]);
+		//double eta_a = calEta_a(ra, dec, crval[0], crval[1]);
+		//double eta_d = calEta_d(ra, dec, crval[0], crval[1]);
+		//xi  += xi_A  * sol[ncoeff*2*nexp+iexp*2] + xi_D  * sol[ncoeff*2*nexp+iexp*2+1];
+		//eta += eta_A * sol[ncoeff*2*nexp+iexp*2] + eta_D * sol[ncoeff*2*nexp+iexp*2+1];
+		//xi  += xi_a  * sol[ndim0+istar*2] + xi_d  * sol[ndim0+istar*2+1];
+		//eta += eta_a * sol[ndim0+istar*2] + eta_d * sol[ndim0+istar*2+1];
 		double u = ss[j]->getXAstrom() - crpix[0];
 		double v = ss[j]->getYAstrom() - crpix[1];
 		int i0 = ncoeff * 2 * iexp;
@@ -1690,6 +1700,7 @@ double *fluxfit(SourceGroup const &allSource,
 
     return solution;
 #else //lapack
+    char L('L');
     long int nrhs(1);
     long int info(0);
     long int lda(ndim);
@@ -1701,8 +1712,7 @@ double *fluxfit(SourceGroup const &allSource,
     std::cout << "before " << std::ctime(&t) << " ndim = " << ndim << std::endl;
     //dposv_(&L, &nA, &nrhs, a_data, &lda, b_data, &ldb, &info);
     dgesv_(&nA, &nrhs, a_data, &lda, ipiv, b_data, &ldb, &info);
-    std::cout << "fluxfit "<< std::endl;
-    std::cout << "gesv "<< std::endl;
+    std::cout << "fluxfit dgesv"<< std::endl;
     t = std::time(NULL);
     std::cout << "after "<< std::ctime(&t) << " info  = " << info << std::endl;
 
@@ -1736,26 +1746,15 @@ hsc::meas::mosaic::solveMosaic(int order,
     for (int k = 0; k < 1; k++) {
 	flagStar(order, allMat, allSource, wcsDic, sol, sigma1, sigma2, internal, true);
 
-	//for (unsigned int i = 0; i < allSource.size(); i++) {
-	//SourceSet ss = allSource[i];
-	//if (ss[0]->getFlagForWcs() == 1) { continue; }
-	//for (unsigned int j = 1; j < ss.size(); j++) {
-	//if (ss[j]->getFlagForWcs() == 1) { continue; }
-		//if (ss[j]->getAmpExposureId() == 0) {
-		//    std::cout << ss[0]->getRa() << " " << ss[0]->getDec() << " " << ss[j]->getXAstrom() << " " << ss[j]->getYAstrom() << std::endl;
-		//}
-	//}
-	//}
-
 	delete [] sol;
 	sol = multifit(order, allMat, allSource, wcsDic, internal, verbose);
-	calcDispersion(order, allMat, allSource, wcsDic, sol, &sigma1, &sigma2, true);
+	calcDispersion(order, allMat, allSource, wcsDic, sol, &sigma1, &sigma2, true, true);
     }
 #endif
 #if 0
-    for (int k = 0; k < 1; k++) {
+    for (int k = 0; k < 2; k++) {
 	for (unsigned int i = 0; i < wcsDic.size(); i++) {
-	    lsst::afw::geom::Point2D crval = wcsDic[i]->getSkyOrigin();
+	    lsst::afw::geom::Point2D crval = wcsDic[i]->getSkyOrigin()->getPosition(lsst::afw::coord::DEGREES);
 	    printf("%15.10f %15.10f\n", crval[0], crval[1]);
 	    //std::cout << crval[0] << " " << crval[1] << std::endl;
 	    printf("%15.10f %15.10f\n", sol[ncoeff*2*nexp+i*2] * R2D, sol[ncoeff*2*nexp+i*2+1] * R2D);
@@ -1769,7 +1768,7 @@ hsc::meas::mosaic::solveMosaic(int order,
 	    //std::cout << metadata->toString() << std::endl;
 	    lsst::afw::image::Wcs::Ptr wcs = lsst::afw::image::makeWcs(metadata);
 	    wcsDic[i] = wcs;
-	    crval = wcsDic[i]->getSkyOrigin();
+	    crval = wcsDic[i]->getSkyOrigin()->getPosition(lsst::afw::coord::DEGREES);
 	    printf("%15.10f %15.10f\n", crval[0], crval[1]);
 	    //std::cout << crval[0] << " " << crval[1] << std::endl;
 	    std::cout << std::endl;
@@ -1794,9 +1793,12 @@ hsc::meas::mosaic::solveMosaic(int order,
 
 	delete [] sol;
 	sol = multifit(order, allMat, allSource, wcsDic, internal, true);
-	calcDispersion(order, allMat, allSource, wcsDic, sol, &sigma1, &sigma2, true);
+	calcDispersion(order, allMat, allSource, wcsDic, sol, &sigma1, &sigma2);
     }
 #endif
+
+    /* update crval values in wcs */
+
     for (unsigned int i = 0; i < wcsDic.size(); i++) {
 	lsst::afw::geom::PointD crval = wcsDic[i]->getSkyOrigin()->getPosition(lsst::afw::coord::DEGREES);
 	crval[0] += sol[ncoeff*2*nexp+i*2]   * R2D;
@@ -1861,6 +1863,7 @@ hsc::meas::mosaic::solveMosaic(int order,
 
     for (unsigned int i = 0; i < allMat.size(); i++) {
 	SourceSet ss = allMat[i];
+	if (ss[0]->getFlagForWcs() == 1) { continue; }
 	double ra  = ss[0]->getRa();
 	double dec = ss[0]->getDec();
 	for (unsigned int j = 1; j < ss.size(); j++) {
@@ -1924,7 +1927,7 @@ hsc::meas::mosaic::solveMosaic(int order,
 		si->setXAstrom(u);
 		si->setYAstrom(v);
 		// use XAstromErr as weight
-		si->setXAstromErr(1000.0);
+		si->setXAstromErr(1.0);
 		img[iexp].push_back(si);
 	    }
 	}
@@ -1997,8 +2000,6 @@ hsc::meas::mosaic::solveMosaic(int order,
 	    if (ss[j]->getFlagForWcs() == 0) {
 		int iexp = ss[j]->getAmpExposureId();
 		lsst::afw::geom::PointD crval = wcsDic[iexp]->getSkyOrigin()->getPosition(lsst::afw::coord::RADIANS);
-		//crval[0] = crval[0] * D2R;
-		//crval[1] = crval[1] * D2R;
 		double xi    = calXi(ra, dec, crval[0], crval[1]);
 		double eta   = calEta(ra, dec, crval[0], crval[1]);
 		lsst::afw::coord::Coord::Ptr p = wcsDic[iexp]->pixelToSky(ss[j]->getXAstrom(), ss[j]->getYAstrom());
@@ -2006,7 +2007,8 @@ hsc::meas::mosaic::solveMosaic(int order,
 		double dec2 = p->getLatitude(lsst::afw::coord::RADIANS);
 		double xi2    = calXi(ra2, dec2, crval[0], crval[1]);
 		double eta2   = calEta(ra2, dec2, crval[0], crval[1]);
-		s += (pow(xi-xi2,2)+pow(eta-eta2,2));
+		//s += (pow(xi-xi2,2)+pow(eta-eta2,2));
+		s += (pow(ra-ra2,2)+pow(dec-dec2,2));
 		nobj += 1;
 	    }
 	}
