@@ -9,7 +9,7 @@ definitions: {
         description: "number of stars used for fitting"
 	minOccurs: 0
 	maxOccurs: 1
-	default: 150
+	default: 120
 	min: 100
     }
     fittingOrder: {

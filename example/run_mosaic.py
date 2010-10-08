@@ -38,21 +38,26 @@ if __name__ == '__main__':
 
     obsDate = "2010-08-26"
     filter = "W-S-I+"
-    progId = "COSMOS_0"
+    progId = "CFHTLS-D3"
     rerun = "DC1-005"
-    
+
+    progId = sys.argv[1]
+
+    print progId
     mgr = data.Manager(instrument="HSC", rerun=rerun)
     frameIds = mgr.getFrameSet(obsDate=obsDate, filter=filter, progId=progId)
     #frameIds = [20, 21, 22, 23, 24]
     print frameIds
     
-    if (len(sys.argv) == 1):
-        ccdIds = range(100)
-    else:
-        ccdIds = sys.argv[1:]
+    ccdIds = range(100)
+    
+#    if (len(sys.argv) == 1):
+#        ccdIds = range(100)
+#    else:
+#        ccdIds = sys.argv[1:]
     fitFP = True
     skipMosaic=False
     makeWarped = False
 
     #main(frameIds, ccdIds, fitFP, skipMosaic, makeWarped, "test-")
-    mosaic.mosaic(frameIds, ccdIds, fitFP, outputDir=".", rerun=rerun)
+    mosaic.mosaic(frameIds, ccdIds, fitFP, outputDir=".", rerun=rerun, progId=progId)
