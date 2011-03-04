@@ -16,7 +16,7 @@ env = scons.makeEnv(
 #        ["boost", "boost/serialization/base_object.hpp", "boost_serialization:C++"],
 #        ["boost", "boost/test/unit_test.hpp", "boost_unit_test_framework:C++"],
         ["python", "Python.h"],
-#        ["gsl", "gsl/gsl_linalg.h", "gslcblas gsl"],
+        ["gsl", "gsl/gsl_linalg.h", "gslcblas gsl"],
         ["boost", "boost/shared_ptr.hpp", "boost_system:C++"],
         ["daf_base", "lsst/daf/base/Citizen.h", "daf_base:C++"],
         ["utils", "lsst/utils/ieee.h", "utils:C++"],

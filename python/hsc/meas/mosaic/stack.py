@@ -28,8 +28,11 @@ def wcsIO(outfile, mode, wcs=None, width=None, height=None, nx=None, ny=None,
         metadata.set("NY", ny)
         img.writeFits(os.path.join(workDir, outfile), metadata)
     elif mode == "r":
-        metadata = afwImage.readMetadata(os.path.join(workDir, outfile))
+        filename = os.path.join(workDir, outfile)
+        print "reading WCS from %s" % (filename)
+        metadata = afwImage.readMetadata(filename)
         wcs = afwImage.makeWcs(metadata)
+        
         width  = metadata.get("NUMAXIS1")
         height = metadata.get("NUMAXIS2")
         nx = metadata.get("NX")
@@ -68,10 +71,10 @@ def mkScript(nx, ny, workDir="."):
             f.write("#PBS -l nodes=1\n");
             f.write("#PBS -q default\n");
             f.write("#\n");
-            f.write("OMP_NUM_THREADS=1; export OMP_NUM_THREADS\n");
+            f.write("#OMP_NUM_THREADS=1; export OMP_NUM_THREADS\n");
             f.write("cd $PBS_O_WORKDIR\n");
             f.write("#\n");
-            f.write("setup -r /home/yasuda/temp/hscMosaic\n");
+            f.write("#setup -r /home/yasuda/temp/hscMosaic\n");
             f.write("python run_stack.py %d %d\n" % (ix, iy));
             f.close()
     
@@ -82,10 +85,10 @@ def mkScript(nx, ny, workDir="."):
     f.write("#PBS -l nodes=1\n");
     f.write("#PBS -q default\n");
     f.write("#\n");
-    f.write("OMP_NUM_THREADS=1; export OMP_NUM_THREADS\n");
-    f.write("cd $PBS_O_WORKDIR\n");
+    f.write("#OMP_NUM_THREADS=1; export OMP_NUM_THREADS\n");
+    f.write("#cd $PBS_O_WORKDIR\n");
     f.write("#\n");
-    f.write("setup -r /home/yasuda/temp/hscMosaic\n");
+    f.write("#setup -r /home/yasuda/temp/hscMosaic\n");
     f.write("python run_stack.py End\n");
     f.close()
     
@@ -105,11 +108,12 @@ def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
         # Construct file name for WCS file
         if not skipMosaic:
             s1 = os.path.basename(fname)
-            s2 = re.sub("CORR", "HSCA", s1)
-            wcsname = os.path.join(wcsDir, re.sub(".fits", "-wcsh.fits", s2))
+            s2 = re.sub("CORR", "wcs", s1)
+            wcsname = os.path.join(wcsDir, s2)
         else:
             wcsname = fname
-        
+
+        print "reading WCS for (%s) from %s" % (i, wcsname)
         metadata = afwImage.readMetadata(wcsname)
         wcs = afwImage.makeWcs(metadata)
         wcsDic[i] = wcs
@@ -118,7 +122,8 @@ def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
             fscale.append(metadata.get('FSCALE'))
         else:
             dims.append([metadata.get('NAXIS1'), metadata.get('NAXIS2')])
-            zp.append(metadata.get('ZP2'))
+            cal1 = afwImage.Calib(metadata).getFluxMag0()
+            zp.append(2.5*math.log10(cal1[0]))
             fscale.append(1.0)
         i += 1
 
@@ -131,7 +136,7 @@ def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
 
     return wcsDic, dims, fscale
 
-def stackInit(fileList, subImgSize,
+def stackInit(ioMgr, fileList, subImgSize,
               fileIO=False,
               writePBSScript=False,
               flistFname="fileList.txt",
@@ -183,7 +188,7 @@ def setCache(kernel, cacheSize=10000, force=False):
 
     kernel.computeCache(cacheSize)
     
-def stackExec(outputName, ix, iy, subImgSize,
+def stackExec(ioMgr, outputName, ix, iy, subImgSize,
               fileList=None,
               dims=None,
               fscale=None,
@@ -198,7 +203,8 @@ def stackExec(outputName, ix, iy, subImgSize,
               wcsFname="destWcs.fits",
               workDir=".",
               wcsDir=None,
-              skipMosaic=False):
+              skipMosaic=False,
+              filter="unknown"):
 
     print "Stack Exec ..."
     
@@ -210,8 +216,13 @@ def stackExec(outputName, ix, iy, subImgSize,
         wcsDic, dims, fscale = readParamsFromFileList(fileList,
                                                       wcsDir=wcsDir,
                                                       skipMosaic=skipMosaic)
-        wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
 
+        wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
+        width = 2048
+        height = 4096
+        nx = 16
+        ny = 16
+        
     #productDir = eups.productDir("hscMosaic")
     package = "hscMosaic"
     productDir = os.environ.get(package.upper() + "_DIR", None)
@@ -256,8 +267,11 @@ def stackExec(outputName, ix, iy, subImgSize,
     if mimgStack != None:
         if fileIO:
             expStack = afwImage.ExposureF(mimgStack, wcs2)
-            print os.path.join(workDir, "%s%02d-%02d.fits" % (outputName, ix, iy))
-            expStack.writeFits(os.path.join(workDir, "%s%02d-%02d.fits" % (outputName, ix, iy)))
+            ioMgr.outButler.put(expStack, 'stack', dict(stack=10,
+                                                        patch=int("%3d%02d" % (ix, iy)),
+                                                        filter=filter))
+            #print os.path.join(workDir, "%s%02d-%02d.fits" % (outputName, ix, iy))
+            #expStack.writeFits(os.path.join(workDir, "%s%02d-%02d.fits" % (outputName, ix, iy)))
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
