@@ -61,7 +61,7 @@ def flistIO(outfile, mode, fileList=None, dims=None, fscale=None, workDir="."):
 
     return fileList
 
-def mkScript(nx, ny, workDir="."):
+def mkScript(nx, ny, rerun, program, filter, workDir="."):
     for ix in range(nx):
         for iy in range(ny):
             fname = "qqq%02d_%02d.sh" % (ix, iy)
@@ -75,7 +75,8 @@ def mkScript(nx, ny, workDir="."):
             f.write("cd $PBS_O_WORKDIR\n");
             f.write("#\n");
             f.write("#setup -r /home/yasuda/temp/hscMosaic\n");
-            f.write("python run_stack.py %d %d\n" % (ix, iy));
+            f.write("python run_stack.py --rerun=%s --program=%s --filter=%s %d %d\n" %
+                    (rerun, program, filter, ix, iy));
             f.close()
     
     fname = "qqqEnd.sh"
@@ -89,7 +90,8 @@ def mkScript(nx, ny, workDir="."):
     f.write("#cd $PBS_O_WORKDIR\n");
     f.write("#\n");
     f.write("#setup -r /home/yasuda/temp/hscMosaic\n");
-    f.write("python run_stack.py End\n");
+    f.write("python run_stack.py  --rerun=%s -program=%s --filter=%s End\n" %
+            (rerun, program, filter));
     f.close()
     
     f = open(os.path.join(workDir, "run_qsub.sh"), "w")
@@ -143,7 +145,10 @@ def stackInit(ioMgr, fileList, subImgSize,
               wcsFname="destWcs.fits",
               workDir=".",
               wcsDir=None,
-              skipMosaic=False):
+              skipMosaic=False,
+              rerun="please_set_this",
+              program="please_set_this",
+              filter="please_set_this"):
 
     print "Stack Init ..."
     
@@ -168,7 +173,7 @@ def stackInit(ioMgr, fileList, subImgSize,
 
     if (writePBSScript):
         if (fileIO):
-            mkScript(nx, ny, workDir)
+            mkScript(nx, ny, rerun, program, filter, workDir)
         else:
             print "Should define fileIO=True"
             sys.exit(1)
@@ -417,6 +422,7 @@ def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
         isIn = checkOverlap(wcsDic[k], dims[k], points)
         if isIn:
             originalExposure = afwImage.ExposureF(fileList[k])
+            originalExposure.setWcs(v)
             warpedExposure = afwImage.ExposureF(afwImage.MaskedImageF(naxis1, naxis2), wcs2)
             # Interpolate WCS every "interlLength" pixels.
             # The value is defined in policy file.
