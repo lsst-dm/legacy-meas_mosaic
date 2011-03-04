@@ -31,20 +31,22 @@ env = scons.makeEnv(
         ["afw", "lsst/afw/detection/Source.h", "afw"],
         ["minuit2", "Minuit2/GenericFunction.h", "Minuit2"],
         ["cfitsio", "fitsio.h", "cfitsio"],
+        ["mkl", "mkl_lapack.h"],
     ],
 )
 
-atlas_libs = ['lapack', 'ptf77blas', 'ptcblas', 'atlas', 'pthread', 'gfortran' ]
-atlas_libpath = '/home/katayama/opt/lib'
-atlas_libpath = '/home/katayama/software/atlas/lb01/lib'
+#atlas_libs = ['lapack', 'ptf77blas', 'ptcblas', 'atlas', 'pthread', 'gfortran' ]
+#atlas_libpath = '/home/katayama/opt/lib'
+#atlas_libpath = '/home/katayama/software/atlas/lb01/lib'
 
-mkl_libs = [ 'mkl_gnu_thread', 'mkl_core', 'iomp5', 'pthread' ]
+#mkl_libs = [ 'mkl_gnu_thread', 'mkl_core', 'iomp5', 'pthread' ]
 mkl_libpath = [ '/opt/intel/Compiler/11.1/072/mkl/lib/em64t',
                 '/opt/intel/Compiler/11.1/072/lib/intel64' ]
+mkl_libs = [ 'mkl_solver_lp64', 'mkl_intel_lp64', 'mkl_intel_thread', 'mkl_core', 'iomp5', 'pthread' ]
 
 
 env.Append(LIBPATH = mkl_libpath)
-env.Append(LDFLAGS = '-v')
+#env.Append(LDFLAGS = '-v')
 
 #env.Append(CXXFLAGS = '-pthread')
 
@@ -54,6 +56,7 @@ env.libs["hscmosaic"] += mkl_libs + env.getlibs("pex_exceptions afw boost utils 
 for d in (
     "lib",
     "python/hsc/meas/mosaic",
+    "tests",
 #    "example",
 ):
     SConscript(os.path.join(d, "SConscript"))

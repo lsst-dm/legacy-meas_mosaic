@@ -1,4 +1,5 @@
-setupRequired(DC1 working)
+setupRequired(pipette -t DC2)
+setupRequired(mkl)
 
 envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
 envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
