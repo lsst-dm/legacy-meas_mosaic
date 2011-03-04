@@ -1,7 +1,9 @@
+#!/usr/bin/env python
+
 import sys, os
 import datetime
 import shutil
-#import hsc.camera.data                   as data
+import optparse
 import hsc.meas.mosaic.stack             as stack
 
 import lsst.obs.hscSim as obsHsc
@@ -14,7 +16,29 @@ try:
 except:
     pass
 
-def main(rerun, progId, filter):
+def main():
+    parser = optparse.OptionParser()
+    parser.add_option("-r", "--rerun",
+                      type=str, default=None,
+                      help="rerun name to take corrected frames from and write stack images to.")
+    parser.add_option("-p", "--program",
+                      type=str, default=None,
+                      help="program name (e.g. COSMOS_0)")
+    parser.add_option("-f", "--filter",
+                      type=str, default=None,
+                      help="filter name (e.g. W-S-I+)")
+    (opts, args) = parser.parse_args()
+
+    if not opts.rerun or not opts.program or not opts.filter:
+        parser.help()
+        raise SystemExit("failed to parse arguments")
+
+    sys.argv = [sys.argv[0]] + args
+    print "rerun=%s, program=%s, filter=%s, args=%s " % (opts.rerun, opts.program, opts.filter,
+                                              sys.argv)
+    run(rerun=opts.rerun, program=opts.program, filter=opts.filter)
+    
+def run(rerun=None, program=None, filter=None):
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     # HSC only for now.
@@ -23,15 +47,15 @@ def main(rerun, progId, filter):
 
     config = {}
     ioMgr = pipReadWrite.ReadWrite(mapper, ['visit', 'ccd'], config=config)
-    frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=progId, filter=filter))
+    frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=program, filter=filter))
     print frameIds
 
     ccdIds = range(100)
-    outputName = progId + "-"
+    outputName = program + "-"
     subImgSize = 2048
     fileIO = True
     writePBSScript = True
-    workDir = os.path.join("/data/cloomis/stack", progId, filter)
+    workDir = os.path.join("/data/cloomis/stack", program, filter)
     wcsDir = "."
     skipMosaic = True
     
@@ -59,7 +83,8 @@ def main(rerun, progId, filter):
                         os.path.join(workDir, "run_stack.py"))
             
         stack.stackInit(ioMgr, fileList, subImgSize, fileIO, writePBSScript,
-                        workDir=workDir, wcsDir=wcsDir, skipMosaic=skipMosaic)
+                        workDir=workDir, wcsDir=wcsDir, skipMosaic=skipMosaic,
+                        rerun=rerun, program=program, filter=filter)
 
     elif (len(sys.argv) == 3):
         ix = int(sys.argv[1])
@@ -91,7 +116,5 @@ def main(rerun, progId, filter):
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
 if __name__ == '__main__':
-    main(progId = "COSMOS_0",
-         rerun = "cpl-matches.5",
-         filter="W-S-I+")
+    main()
     
