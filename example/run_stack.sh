@@ -5,6 +5,5 @@
 #
 cd $PBS_O_WORKDIR
 #
-setup -r /home/yasuda/temp/hscMosaic
 
 python ./run_stack.py All
