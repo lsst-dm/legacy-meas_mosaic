@@ -120,8 +120,8 @@ def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
         wcs = afwImage.makeWcs(metadata)
         wcsDic[i] = wcs
         if not skipMosaic:
-            dims.append([metadata.get('NUMAXIS1'), metadata.get('NUMAXIS2')])
-            fscale.append(metadata.get('FSCALE'))
+            dims.append([metadata.get('NAXIS1'), metadata.get('NAXIS2')])
+            fscale.append(1.0) #metadata.get('FSCALE'))
         else:
             dims.append([metadata.get('NAXIS1'), metadata.get('NAXIS2')])
             cal1 = afwImage.Calib(metadata).getFluxMag0()
@@ -268,7 +268,7 @@ def stackExec(ioMgr, outputName, ix, iy, subImgSize,
     if mimgStack != None:
         if fileIO:
             expStack = afwImage.ExposureF(mimgStack, wcs2)
-            ioMgr.outButler.put(expStack, 'stack', dict(stack=10,
+            ioMgr.outButler.put(expStack, 'stack', dict(stack=11,
                                                         patch=int("%3d%02d" % (ix, iy)),
                                                         filter=filter))
             #print os.path.join(workDir, "%s%02d-%02d.fits" % (outputName, ix, iy))
