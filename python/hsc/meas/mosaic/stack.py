@@ -223,10 +223,6 @@ def stackExec(ioMgr, outputName, ix, iy, subImgSize,
                                                       skipMosaic=skipMosaic)
 
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
-        width = 2048
-        height = 4096
-        nx = 16
-        ny = 16
         
     #productDir = eups.productDir("hscMosaic")
     package = "hscMosaic"

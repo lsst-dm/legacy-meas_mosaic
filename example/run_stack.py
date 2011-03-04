@@ -57,7 +57,7 @@ def run(rerun=None, program=None, filter=None):
     writePBSScript = True
     workDir = os.path.join("/data/cloomis/stack", program, filter)
     wcsDir = "."
-    skipMosaic = True
+    skipMosaic = False
     
     if (len(sys.argv) == 1):
         fileList = []
