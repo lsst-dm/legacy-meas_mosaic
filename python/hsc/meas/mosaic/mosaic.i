@@ -6,8 +6,20 @@
 %include "std_string.i"
 %include "std_map.i"
 
+#if 1
+SWIG_SHARED_PTR(DetectorPtr, lsst::afw::cameraGeom::Detector);
+SWIG_SHARED_PTR_DERIVED(CcdPtr, lsst::afw::cameraGeom::Detector,
+				lsst::afw::cameraGeom::Ccd);
+#else
+%import "lsst/afw/cameraGeom/cameraGeom.i"
+#endif
+SWIG_SHARED_PTR(CoeffPtr, hsc::meas::mosaic::Coeff);
+
+%include "hsc/meas/mosaic/mosaicfit.h"
+
 %template(SourceGroup) std::vector<lsst::afw::detection::SourceSet>;
 %template(WcsDic) std::map<int, lsst::afw::image::Wcs::Ptr>;
 %template(vvSourceMatch) std::vector<std::vector<lsst::afw::detection::SourceMatch> >;
 
-%include "hsc/meas/mosaic/mosaicfit.h"
+%template(CcdSet) std::vector<lsst::afw::cameraGeom::Ccd::Ptr>;
+%template(CoeffSet) std::vector<hsc::meas::mosaic::Coeff::Ptr>;
