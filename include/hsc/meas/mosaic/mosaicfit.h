@@ -7,22 +7,23 @@
 #include "lsst/afw/geom.h"
 #include "lsst/afw/detection/SourceMatch.h"
 #include "lsst/afw/cameraGeom/Ccd.h"
+#include "boost/enable_shared_from_this.hpp"
 
 namespace hsc {
     namespace meas {
 	namespace mosaic {
-
+#if 0
 	    lsst::afw::image::Wcs::Ptr fitTANSIP(int order,
 						 std::vector<lsst::afw::detection::SourceMatch> const &matPair,
 						 lsst::afw::geom::PointD &crval,
 						 lsst::afw::geom::PointD &crpix,
 						 bool verbose = false);
-
+#endif
 	    typedef std::vector<lsst::afw::detection::SourceSet> SourceGroup;
 	    //typedef std::vector<std::vector<lsst::afw::detection::SourceMatch> > vvSourceMatch;
 	    typedef std::vector<lsst::afw::detection::SourceMatchVector> vvSourceMatch;
 	    typedef std::map<int, lsst::afw::image::Wcs::Ptr> WcsDic;
-
+#if 0
 	    SourceGroup mergeMat(vvSourceMatch const &matchList);
 	    SourceGroup mergeSource(SourceGroup const &sourceSet,
 				    SourceGroup const &allMat, double d_lim,
@@ -37,9 +38,11 @@ namespace hsc {
 
 	    lsst::afw::detection::SourceSet readCat(const char* fname);
 	    std::vector<lsst::afw::detection::SourceMatch> readMatchList(const char* fname);
-
+#endif
 	    class Poly {
 	    public:
+	        typedef boost::shared_ptr<Poly> Ptr;
+
 		int order;
 		int ncoeff;
 		int *xorder;
@@ -67,13 +70,12 @@ namespace hsc {
 		double x0;
 		double y0;
 		
-		Coeff(Poly p);
+		Coeff(Poly::Ptr p);
 		~Coeff(void);
 		Coeff(const Coeff &c);
 		void show(void);
-		void uvToXiEta(Poly p, double u, double v, double *xi, double *eta);
-		void xietaToUV(Poly p, double xi, double eta, double *u, double *v);
-
+		void uvToXiEta(Poly::Ptr p, double u, double v, double *xi, double *eta);
+		void xietaToUV(Poly::Ptr p, double xi, double eta, double *u, double *v);
 	    };
 
 	    class Obs {
@@ -100,16 +102,57 @@ namespace hsc {
 		int ichip;
 		bool good;
 
+		double mag;
+
 		Obs(int id, double ra, double dec, double x, double y, int ichip, int iexp);
 		Obs(int id, double ra, double dec, int ichip, int iexp);
-		void setUV(lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+		void setUV(lsst::afw::cameraGeom::Ccd::Ptr const &ccd);
 		void setXiEta(double ra_c, double dec_c);
-		void setFitVal(Coeff::Ptr& c, Poly p);
-		void setFitVal2(Coeff::Ptr& c, Poly p);
+		void setFitVal(Coeff::Ptr& c, Poly::Ptr p);
+		void setFitVal2(Coeff::Ptr& c, Poly::Ptr p);
+	    };
+
+	    class KDTree
+#if !defined(SWIG)
+	      : public boost::enable_shared_from_this<KDTree>
+#endif
+	    {
+	    public:
+		typedef boost::shared_ptr<KDTree> Ptr;
+
+		int depth;
+		int axis;
+		double location[2];
+		lsst::afw::coord::Coord c;
+		KDTree::Ptr left;
+		KDTree::Ptr right;
+		lsst::afw::detection::SourceSet set;
+
+		KDTree(lsst::afw::detection::SourceMatch m, int depth);
+		KDTree(std::vector<lsst::afw::detection::SourceMatch> v, int depth);
+		KDTree(lsst::afw::detection::SourceSet& s, int depth);
+		KDTree(lsst::afw::detection::Source::Ptr s, int depth);
+		~KDTree();
+		KDTree::Ptr search(lsst::afw::detection::SourceMatch m);
+		KDTree::Ptr findSource(lsst::afw::detection::Source::Ptr s);
+		void add(lsst::afw::detection::SourceMatch m);
+		void add(lsst::afw::detection::Source::Ptr s);
+		void add(lsst::afw::detection::Source::Ptr s, double d_lim);
+		int count(void);
+		void mergeMat(SourceGroup& sg);
+		int mergeSource(SourceGroup& sg);
+		bool isLeaf(void);
+		KDTree::Ptr findNearest(lsst::afw::detection::Source::Ptr s);
+		double distance(lsst::afw::detection::Source::Ptr s);
 	    };
 
 	    typedef std::vector<lsst::afw::cameraGeom::Ccd::Ptr> CcdSet;
 	    typedef std::vector<Coeff::Ptr> CoeffSet;
+
+	    KDTree::Ptr kdtreeMat(vvSourceMatch const &matchList);
+	    KDTree::Ptr kdtreeSource(SourceGroup const &sourceSet, KDTree::Ptr rootMat,
+				     double d_lim, unsigned int nbrightest);
+
 	    CoeffSet solveMosaic_CCD_shot(int order,
 					  SourceGroup const &allMat,
 					  WcsDic &wcsDic,
@@ -125,6 +168,11 @@ namespace hsc {
 
 	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::Ptr& ccd);
 	    lsst::afw::image::TanWcs::Ptr wcsFromCoeff(Coeff::Ptr& coeff);
+
+	    std::vector<double>	solveFlux(SourceGroup const &allSource,
+					  WcsDic &wcsDic,
+					  CcdSet &ccdSet);
+
     }
   }
 }

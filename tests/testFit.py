@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import sys
 import math
 import datetime
 import numpy
@@ -13,16 +14,26 @@ import lsst.afw.coord                   as afwCoord
 import hsc.meas.mosaic.mosaicLib        as hscMosaic
 
 inMapper = hscSim.HscSimMapper()
-mapper = hscSim.HscSimMapper(rerun="pre-DC2.2")
+mapper = hscSim.HscSimMapper(rerun="cpl-matches.5")
 io = pipReadWrite.ReadWrite(mapper, ['visit'], fileKeys=['visit', 'ccd'])
 
 def getAllForCcd(frame, ccd):
 
     data = {'visit': frame, 'ccd':ccd}
+    #print data
 
-    sources = io.read('src', data, ignore=True)[0].getSources()
-    md = io.read('calexp_md', data, ignore=True)[0]
-    matches = io.readMatches(data, ignore=True)[0]
+    butler = io.inButler
+    try:
+        sources = io.read('src', data, ignore=True)[0].getSources()
+        md = io.read('calexp_md', data, ignore=True)[0]
+        matches = io.readMatches(data, ignore=True)[0]
+        if not butler.datasetExists('src', data):
+            raise RuntimeError("no data for src %s" % (data))
+        if not butler.datasetExists('calexp_md', data):
+            raise RuntimeError("no data for calexp_md %s" % (data))
+    except Exception, e:
+        print "failed to read something: %s" % (e)
+        return None, None, None, None
 
     wcs = afwImage.makeWcs(md)
     
@@ -77,8 +88,30 @@ def readCcd(ccdIds):
         
 if __name__ == '__main__':
 
-    frameIds = [220, 221, 222, 223, 224]
+    #frameIds = [220, 221, 222, 223, 224]
     #frameIds = [230, 231, 232, 233, 234]
+    frameIds = []
+    if (len(sys.argv) == 1):
+        print "Usage: python testFit.py <frameid>"
+        print "       frameid = 20, 21, 22, 23, 24"
+        sys.exit(1)
+    else:
+        if (sys.argv[1] == "20"):
+            frameIds = [201, 202, 203, 204, 205, 206, 207, 208]
+        elif (sys.argv[1] == "21"):
+            frameIds = [211, 212, 213, 214, 215, 216, 217, 218]
+        elif (sys.argv[1] == "22"):
+            frameIds = [220, 221, 222, 223, 224, 225, 226, 227, 228]
+        elif (sys.argv[1] == "23"):
+            frameIds = [231, 232, 233, 234, 235, 236, 237, 238]
+        elif (sys.argv[1] == "24"):
+            frameIds = [241, 242, 243, 244]
+        else:
+            for i in range(5):
+                frameIds.append(int(sys.argv[1])*10 + i)
+
+    print frameIds
+    
     ccdIds = range(100)
 
     ccdSet = readCcd(ccdIds)
@@ -103,32 +136,51 @@ if __name__ == '__main__':
     sourceSet = hscMosaic.SourceGroup()
     matchList = hscMosaic.vvSourceMatch()
     for frameId in frameIds:
+        ss = []
+        ml = []
         for ccdId in ccdIds:
             sources, md, matches, wcs = getAllForCcd(frameId, ccdId)
-            cleanUpSources(sources, wcs, ccdId, frameIds.index(frameId))
-            cleanUpMatches(matches, wcs, ccdId, frameIds.index(frameId))
-            #print len(matches), len(sources)
-            sourceSet.push_back(sources)
-            matchList.push_back(matches)
+            if sources != None:
+                cleanUpSources(sources, wcs, ccdId, frameIds.index(frameId))
+                cleanUpMatches(matches, wcs, ccdId, frameIds.index(frameId))
+                for s in sources:
+                    ss.append(s)
+                for m in matches:
+                    ml.append(m)
+        sourceSet.push_back(ss)
+        matchList.push_back(ml)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    print "Merge matched catalog ..."
-    allMat = hscMosaic.mergeMat(matchList)
+    print "Creating kd-tree for matched catalog ..."
+    print 'len(matchList) = ', len(matchList)
+    rootMat = hscMosaic.kdtreeMat(matchList)
+    allMat = hscMosaic.SourceGroup()
+    rootMat.mergeMat(allMat)
     print 'len(allMat) = ', len(allMat)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
     
-    print "Merge source catalog ..."
+    print "Creating kd-tree for source catalog ..."
+    print 'len(sourceSet) = ', len(sourceSet)
     d_lim = 3.0 / 3600.0 * math.pi / 180.0
-    #nbrightest = policy.get("nBrightest")
-    nbrightest = 120
-    allSource = hscMosaic.mergeSource(sourceSet, allMat, d_lim, nbrightest)
+    nbrightest = 30000
+    rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, d_lim, nbrightest)
+    allSource = hscMosaic.SourceGroup() 
+    num = rootSource.mergeSource(allSource)
+    print "# of allSource : ", num
     print 'len(allSource) = ', len(allSource)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     print "Solve mosaic ..."
-    order = 9
+    order = 11
     coeffSet = hscMosaic.solveMosaic_CCD(order, allMat, allSource, wcsDic, ccdSet)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+
+#    f = open("coeffs.dat", "wt")
+#    for i in range(coeffSet.size()):
+#        f.write("%ld %12.5e %12.5e\n" % (i, coeffSet[i].A, coeffSet[i].D));
+#        for k in range(coeffSet[i].ncoeff):
+#            f.write("%ld %12.5e %12.5e %12.5e %12.5e\n" % (i, coeffSet[i].a[k], coeffSet[i].b[k], coeffSet[i].ap[k], coeffSet[i].bp[k]));
+#    f.close()
 
     f = open("ccd.dat", "wt")
     for i in range(ccdSet.size()):
