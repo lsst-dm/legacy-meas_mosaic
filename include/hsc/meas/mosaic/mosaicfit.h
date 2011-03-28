@@ -81,6 +81,7 @@ namespace hsc {
 
 		int id;
 		int istar;
+		int jstar;	/* index for fit */
 		int iexp;
 		int ichip;
 		bool good;

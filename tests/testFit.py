@@ -175,12 +175,12 @@ if __name__ == '__main__':
     coeffSet = hscMosaic.solveMosaic_CCD(order, allMat, allSource, wcsDic, ccdSet)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-#    f = open("coeffs.dat", "wt")
-#    for i in range(coeffSet.size()):
-#        f.write("%ld %12.5e %12.5e\n" % (i, coeffSet[i].A, coeffSet[i].D));
-#        for k in range(coeffSet[i].ncoeff):
-#            f.write("%ld %12.5e %12.5e %12.5e %12.5e\n" % (i, coeffSet[i].a[k], coeffSet[i].b[k], coeffSet[i].ap[k], coeffSet[i].bp[k]));
-#    f.close()
+    f = open("coeffs.dat", "wt")
+    for i in range(coeffSet.size()):
+        f.write("%ld %12.5e %12.5e\n" % (i, coeffSet[i].A, coeffSet[i].D));
+        for k in range(coeffSet[i].ncoeff):
+            f.write("%ld %12.5e %12.5e %12.5e %12.5e\n" % (i, coeffSet[i].get_a(k), coeffSet[i].get_b(k), coeffSet[i].get_ap(k), coeffSet[i].get_bp(k)));
+    f.close()
 
     f = open("ccd.dat", "wt")
     for i in range(ccdSet.size()):
