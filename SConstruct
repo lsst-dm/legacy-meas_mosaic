@@ -4,6 +4,7 @@
 #
 import glob, os.path, sys, traceback
 import lsst.SConsUtils as scons
+import os
 
 env = scons.makeEnv(
     "hscmosaic",
@@ -35,22 +36,17 @@ env = scons.makeEnv(
     ],
 )
 
-#atlas_libs = ['lapack', 'ptf77blas', 'ptcblas', 'atlas', 'pthread', 'gfortran' ]
-#atlas_libpath = '/home/katayama/opt/lib'
-#atlas_libpath = '/home/katayama/software/atlas/lb01/lib'
-
-#mkl_libs = [ 'mkl_gnu_thread', 'mkl_core', 'iomp5', 'pthread' ]
-mkl_libpath = [ '/opt/intel/Compiler/11.1/072/mkl/lib/em64t',
-                '/opt/intel/Compiler/11.1/072/lib/intel64' ]
-mkl_libs = [ 'mkl_solver_lp64', 'mkl_intel_lp64', 'mkl_intel_thread', 'mkl_core', 'iomp5', 'pthread' ]
-
+if os.environ.get("SETUP_MKL").find("10.3") == -1:
+    mkl_libpath = [ '/opt/intel/Compiler/11.1/072/mkl/lib/em64t',
+                    '/opt/intel/Compiler/11.1/072/lib/intel64' ]
+    mkl_libs = [ 'mkl_solver_lp64', 'mkl_intel_lp64', 'mkl_intel_thread', 'mkl_core', 'iomp5', 'pthread' ]
+else:
+    mkl_libpath = [ '/opt/intel/composerxe-2011.0.084/mkl/lib/intel64',
+                    '/opt/intel/composerxe-2011/lib/intel64' ]
+    mkl_libs = [ 'mkl_intel_lp64', 'mkl_intel_thread', 'mkl_core', 'iomp5', 'pthread' ]
 
 env.Append(LIBPATH = mkl_libpath)
-#env.Append(LDFLAGS = '-v')
 
-#env.Append(CXXFLAGS = '-pthread')
-
-#env.libs["hscmosaic"] += env.getlibs("gsl gslcblas afw daf_base")
 env.libs["hscmosaic"] += mkl_libs + env.getlibs("pex_exceptions afw boost utils daf_base daf_data daf_persistence pex_logging pex_policy security")
 
 for d in (
