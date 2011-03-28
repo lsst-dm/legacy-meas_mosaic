@@ -12,33 +12,12 @@
 namespace hsc {
     namespace meas {
 	namespace mosaic {
-#if 0
-	    lsst::afw::image::Wcs::Ptr fitTANSIP(int order,
-						 std::vector<lsst::afw::detection::SourceMatch> const &matPair,
-						 lsst::afw::geom::PointD &crval,
-						 lsst::afw::geom::PointD &crpix,
-						 bool verbose = false);
-#endif
+
 	    typedef std::vector<lsst::afw::detection::SourceSet> SourceGroup;
 	    //typedef std::vector<std::vector<lsst::afw::detection::SourceMatch> > vvSourceMatch;
 	    typedef std::vector<lsst::afw::detection::SourceMatchVector> vvSourceMatch;
 	    typedef std::map<int, lsst::afw::image::Wcs::Ptr> WcsDic;
-#if 0
-	    SourceGroup mergeMat(vvSourceMatch const &matchList);
-	    SourceGroup mergeSource(SourceGroup const &sourceSet,
-				    SourceGroup const &allMat, double d_lim,
-				    unsigned int nbrightest = 100);
 
-	    std::vector<double> solveMosaic(int order,
-					    SourceGroup const &allMat,
-					    SourceGroup const &allSource,
-					    WcsDic &wcsDic,
-					    bool internal = false,
-					    bool verbose = false);
-
-	    lsst::afw::detection::SourceSet readCat(const char* fname);
-	    std::vector<lsst::afw::detection::SourceMatch> readMatchList(const char* fname);
-#endif
 	    class Poly {
 	    public:
 	        typedef boost::shared_ptr<Poly> Ptr;
@@ -76,6 +55,10 @@ namespace hsc {
 		void show(void);
 		void uvToXiEta(Poly::Ptr p, double u, double v, double *xi, double *eta);
 		void xietaToUV(Poly::Ptr p, double xi, double eta, double *u, double *v);
+		double get_a(int i) { return a[i]; }
+		double get_b(int i) { return b[i]; }
+		double get_ap(int i) { return ap[i]; }
+		double get_bp(int i) { return bp[i]; }
 	    };
 
 	    class Obs {
