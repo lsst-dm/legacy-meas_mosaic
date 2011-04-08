@@ -97,7 +97,7 @@ def run(rerun=None, program=None, filter=None):
     else:
         if (sys.argv[1] == "End"):
             stack.stackEnd(outputName, subImgSize, fileIO=fileIO,
-                           workDir=workDir)
+                           workDir=workDir, filter=filter)
         else:
             fileList = []
             for frameId in frameIds:

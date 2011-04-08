@@ -90,7 +90,7 @@ def mkScript(nx, ny, rerun, program, filter, workDir="."):
     f.write("#cd $PBS_O_WORKDIR\n");
     f.write("#\n");
     f.write("#setup -r /home/yasuda/temp/hscMosaic\n");
-    f.write("python run_stack.py  --rerun=%s -program=%s --filter=%s End\n" %
+    f.write("python run_stack.py  --rerun=%s --program=%s --filter=%s End\n" %
             (rerun, program, filter));
     f.close()
     
@@ -115,15 +115,17 @@ def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
         else:
             wcsname = fname
 
+        mdOrig = afwImage.readMetadata(fname)
+        dims.append([mdOrig.get('NAXIS1'), mdOrig.get('NAXIS2')])
+        
         print "reading WCS for (%s) from %s" % (i, wcsname)
         metadata = afwImage.readMetadata(wcsname)
         wcs = afwImage.makeWcs(metadata)
         wcsDic[i] = wcs
         if not skipMosaic:
-            dims.append([metadata.get('NAXIS1'), metadata.get('NAXIS2')])
-            fscale.append(1.0) #metadata.get('FSCALE'))
+            #fscale.append(metadata.get('FSCALE'))
+            fscale.append(1.0)
         else:
-            dims.append([metadata.get('NAXIS1'), metadata.get('NAXIS2')])
             cal1 = afwImage.Calib(metadata).getFluxMag0()
             zp.append(2.5*math.log10(cal1[0]))
             fscale.append(1.0)
@@ -271,8 +273,8 @@ def stackExec(ioMgr, outputName, ix, iy, subImgSize,
             ioMgr.outButler.put(expStack, 'stack', dict(stack=11,
                                                         patch=int("%3d%02d" % (ix, iy)),
                                                         filter=filter))
-            #print os.path.join(workDir, "%s%02d-%02d.fits" % (outputName, ix, iy))
-            #expStack.writeFits(os.path.join(workDir, "%s%02d-%02d.fits" % (outputName, ix, iy)))
+            #print os.path.join(workDir, "%s%s-%02d-%02d.fits" % (outputName, filter, ix, iy))
+            expStack.writeFits(os.path.join(workDir, "%s%s-%02d-%02d.fits" % (outputName, filter, ix, iy)))
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -289,13 +291,15 @@ def stackEnd(outputName,
              fileIO=False,
              wcsFname="destWcs.fits",
              workDir=".",
-             outputDir="."):
+             outputDir=".",
+             filter="unknown"):
 
     print "Stack End ..."
     
     if fileIO:
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
 
+    print width, height
     stackedMI = afwImage.MaskedImageF(width, height)
     stackedMI.getImage().set(float('nan'))
     stackedMI.getMask().set(afwImage.MaskU.getPlaneBitMask("EDGE"))
@@ -304,7 +308,7 @@ def stackEnd(outputName,
         for iy in range(ny):
             for ix in range(nx):
                 file = os.path.join(workDir,
-                                    "%s%02d-%02d.fits" % (outputName, ix, iy))
+                                    "%s%s-%02d-%02d.fits" % (outputName, filter, ix, iy))
                 if not os.path.isfile(file):
                     continue
                 if iy == ny - 1:
@@ -343,7 +347,7 @@ def stackEnd(outputName,
             subImg <<= mimgStack
 
     expStack = afwImage.ExposureF(stackedMI, wcs)
-    expStack.writeFits(os.path.join(outputDir, "%sstacked.fits" % (outputName)))
+    expStack.writeFits(os.path.join(outputDir, "%s%s-stacked.fits" % (outputName, filter)))
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -417,6 +421,7 @@ def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
     for k, v in wcsDic.iteritems():
         isIn = checkOverlap(wcsDic[k], dims[k], points)
         if isIn:
+            print fileList[k]
             originalExposure = afwImage.ExposureF(fileList[k])
             originalExposure.setWcs(v)
             warpedExposure = afwImage.ExposureF(afwImage.MaskedImageF(naxis1, naxis2), wcs2)
