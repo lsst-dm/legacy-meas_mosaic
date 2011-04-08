@@ -726,11 +726,13 @@ KDTree::Ptr
 hsc::meas::mosaic::kdtreeMat(vvSourceMatch const &matchList) {
 
     KDTree::Ptr root = KDTree::Ptr(new KDTree(matchList[0], 0));
+    std::cout << "root->count() : " << root->count() << std::endl;
 
     for (unsigned int j = 1; j < matchList.size(); j++) {
 	for (unsigned int i = 0; i < matchList[j].size(); i++) {
 	    root->add(matchList[j][i]);
 	}
+	std::cout << "root->count() : " << root->count() << std::endl;
     }
 
     //std::cout << root->count() << std::endl;
@@ -741,9 +743,33 @@ hsc::meas::mosaic::kdtreeMat(vvSourceMatch const &matchList) {
 KDTree::Ptr
 hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 				KDTree::Ptr rootMat,
+				int nchip,
 				double d_lim, unsigned int nbrightest) {
-    double fluxlim[sourceSet.size()];
+    double fluxlim[sourceSet.size()*nchip];
 
+    for (size_t j = 0; j < sourceSet.size(); j++) {
+	for (int k = 0; k < nchip; k++) {
+	    std::vector<double> v;
+	    for (size_t i = 0; i < sourceSet[j].size(); i++) {
+		if (sourceSet[j][i]->getAmpExposureId() % 1000 == k) {
+		    v.push_back(sourceSet[j][i]->getPsfFlux());
+		}
+	    }
+	    if (nbrightest < v.size()) {
+		std::sort(v.begin(), v.end(), std::greater<double>());
+		fluxlim[j*nchip+k] = v[nbrightest-1];
+	    } else {
+		fluxlim[j*nchip+k] = 0.0;
+	    }
+	    printf("%d %2d %4d %f\n", j, k, v.size(), fluxlim[j*nchip+k]);
+	    if (j == 2 && k == 76) {
+		for (int i = 0; i < v.size(); i++) {
+		    printf("%d %f\n", i, v[i]);
+		}
+	    }
+	}
+    }
+    /*
     for (unsigned int j = 0; j < sourceSet.size(); j++) {
 	if (nbrightest < sourceSet[j].size()) {
 	    std::vector<double> v;
@@ -757,12 +783,13 @@ hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 	}
 	//std::cout << j << " " << fluxlim[j] << std::endl;
     }
-
+    */
     //std::cout << "(1) " << sourceSet[0].size() << std::endl;
 
     SourceSet set;
     for (size_t i = 0; i < sourceSet[0].size(); i++) {
-        if (sourceSet[0][i]->getPsfFlux() >= fluxlim[0] &&
+	int k = sourceSet[0][i]->getAmpExposureId() % 1000;
+        if (sourceSet[0][i]->getPsfFlux() >= fluxlim[k] &&
 	    rootMat->findSource(sourceSet[0][i]) == NULL) {
 	    set.push_back(sourceSet[0][i]);
 	}
@@ -775,7 +802,8 @@ hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 
     for (size_t j = 1; j < sourceSet.size(); j++) {
 	for (size_t i = 0; i < sourceSet[j].size(); i++) {
-	    if (sourceSet[j][i]->getPsfFlux() >= fluxlim[j] &&
+	    int k = sourceSet[0][i]->getAmpExposureId() % 1000;
+	    if (sourceSet[j][i]->getPsfFlux() >= fluxlim[j*nchip+k] &&
 		rootMat->findSource(sourceSet[j][i]) == NULL) {
 		KDTree::Ptr leaf = rootSource->findNearest(sourceSet[j][i]);
 		if (leaf->distance(sourceSet[j][i]) < d_lim)
@@ -1198,17 +1226,8 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 	}
     }
     delete [] num;
-    /*
-    for (int i = 0; i < nSobs; i++) {
-	if (s[i]->good) {
-	    if (std::find(v_istar.begin(), v_istar.end(), s[i]->istar) == v_istar.end()) {
-		v_istar.push_back(s[i]->istar);
-	    }
-	}
-    }
-    */
-    nstar = v_istar.size();
-    std::cout << "nstar: " << nstar << std::endl;
+    int nstar2 = v_istar.size();
+    std::cout << "nstar: " << nstar2 << std::endl;
 
     for (int i = 0; i < nSobs; i++) {
 	std::vector<int>::iterator it = std::find(v_istar.begin(), v_istar.end(), s[i]->istar);
@@ -1222,16 +1241,16 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
     int size, size0, np = 0;
     if (solveCcd) {
 	if (allowRotation) {
-	    size  = 2 * ncoeff * nexp + 3 * nchip + 1 + nstar * 2;
+	    size  = 2 * ncoeff * nexp + 3 * nchip + 1 + nstar2 * 2;
 	    size0 = 2 * ncoeff * nexp + 3 * nchip + 1;
 	    np = 3;
 	} else {
-	    size  = 2 * ncoeff * nexp + 2 * nchip + nstar * 2;
+	    size  = 2 * ncoeff * nexp + 2 * nchip + nstar2 * 2;
 	    size0 = 2 * ncoeff * nexp + 2 * nchip;
 	    np = 2;
 	}
     } else {
-	size  = 2 * ncoeff * nexp + nstar * 2;
+	size  = 2 * ncoeff * nexp + nstar2 * 2;
 	size0 = 2 * ncoeff * nexp;
     }
     double *a_data = new double[size*size];
@@ -1527,10 +1546,60 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 
     return coeff;
 }
-
+#if 0
 double *fluxFit(std::vector<Obs::Ptr> &s, int nexp, int nchip, int nstar)
 {
-    int ndim = nexp * nchip + nstar + 1;
+    int nSobs = s.size();
+
+    int* num = new int[nstar];
+    for (int i = 0; i < nstar; i++) {
+	num[i] = 0;
+    }
+    for (int i = 0; i < nSobs; i++) {
+	if (s[i]->good && s[i]->mag != -9999) {
+	    num[s[i]->istar] += 1;
+	}
+    }
+    std::vector<int> v_istar;
+    for (int i = 0; i < nstar; i++) {
+	if (num[i] >= 2) {
+	    v_istar.push_back(i);
+	}
+    }
+    delete [] num;
+    int nstar2 = v_istar.size();
+    std::cout << "nstar: " << nstar2 << std::endl;
+
+    for (int i = 0; i < nSobs; i++) {
+	std::vector<int>::iterator it = std::find(v_istar.begin(), v_istar.end(), s[i]->istar);
+	if (it != v_istar.end()) {
+	    s[i]->jstar = it - v_istar.begin();
+	} else {
+	    s[i]->jstar = -1;
+	}
+    }
+
+    int *nn = new int[nexp*nchip];
+    for (int i = 0; i < nexp; i++) {
+	for (int j = 0; j < nchip; j++) {
+	    nn[i*nchip+j] = 0;
+	}
+    }
+    for (int i = 0; i < nSobs; i++) {
+	if (s[i]->good && s[i]->mag != -9999) {
+	    nn[s[i]->iexp*nchip+s[i]->ichip] += 1;
+	}
+    }
+    for (int i = 0; i < nexp; i++) {
+	for (int j = 0; j < nchip; j++) {
+	    if (nn[i*nchip+j] == 0) {
+		printf("%d %d\n", i, j);
+	    }
+	}
+    }
+
+    int ndim = nexp * nchip + nstar2 + 1;
+    std::cout << "ndim: " << ndim << std::endl;
 
     double *a_data = new double[ndim*ndim];
     double *b_data = new double[ndim];
@@ -1542,15 +1611,14 @@ double *fluxFit(std::vector<Obs::Ptr> &s, int nexp, int nchip, int nstar)
 	b_data[i] = 0.0;
     }
 
-    int nSobs = s.size();
     for (int i = 0; i < nSobs; i++) {
-	if (!s[i]->good || s[i]->mag == -9999) continue;
-	a_data[(s[i]->iexp*nexp+s[i]->ichip)*ndim+(s[i]->iexp*nexp+s[i]->ichip)] -= 1;
-	a_data[(nexp*nchip+s[i]->istar)*ndim+(nexp*nchip+s[i]->istar)] -= 1;
-	a_data[(s[i]->iexp*nexp+s[i]->ichip)*ndim+(nexp*nchip+s[i]->istar)] = 1;
-	a_data[(nexp*nchip+s[i]->istar)*ndim+(s[i]->iexp*nexp+s[i]->ichip)] = 1;
-	b_data[s[i]->iexp*nexp+s[i]->ichip] += s[i]->mag;
-	b_data[nexp*nchip+s[i]->istar] += s[i]->mag;
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	a_data[(s[i]->iexp*nchip+s[i]->ichip)*ndim+(s[i]->iexp*nchip+s[i]->ichip)] -= 1;
+	a_data[(nexp*nchip+s[i]->jstar)*ndim+(nexp*nchip+s[i]->jstar)] -= 1;
+	a_data[(s[i]->iexp*nchip+s[i]->ichip)*ndim+(nexp*nchip+s[i]->jstar)] = 1;
+	a_data[(nexp*nchip+s[i]->jstar)*ndim+(s[i]->iexp*nchip+s[i]->ichip)] = 1;
+	b_data[s[i]->iexp*nchip+s[i]->ichip] += s[i]->mag;
+	b_data[nexp*nchip+s[i]->jstar] -= s[i]->mag;
     }
 
     a_data[ndim-1] = 1;
@@ -1568,7 +1636,78 @@ double *fluxFit(std::vector<Obs::Ptr> &s, int nexp, int nchip, int nstar)
 
     return solution;
 }
+#else
+double *fluxFit(std::vector<Obs::Ptr> &s, int nexp, int nchip, int nstar)
+{
+    int nSobs = s.size();
 
+    int* num = new int[nstar];
+    for (int i = 0; i < nstar; i++) {
+	num[i] = 0;
+    }
+    for (int i = 0; i < nSobs; i++) {
+	if (s[i]->good && s[i]->mag != -9999) {
+	    num[s[i]->istar] += 1;
+	}
+    }
+    std::vector<int> v_istar;
+    for (int i = 0; i < nstar; i++) {
+	if (num[i] >= 2) {
+	    v_istar.push_back(i);
+	}
+    }
+    delete [] num;
+    int nstar2 = v_istar.size();
+    std::cout << "nstar: " << nstar2 << std::endl;
+
+    for (int i = 0; i < nSobs; i++) {
+	std::vector<int>::iterator it = std::find(v_istar.begin(), v_istar.end(), s[i]->istar);
+	if (it != v_istar.end()) {
+	    s[i]->jstar = it - v_istar.begin();
+	} else {
+	    s[i]->jstar = -1;
+	}
+    }
+
+    int ndim = nexp + nstar2 + 1;
+    std::cout << "ndim: " << ndim << std::endl;
+
+    double *a_data = new double[ndim*ndim];
+    double *b_data = new double[ndim];
+
+    for (int i = 0; i < ndim; i++) {
+	for (int j = 0; j < ndim; j++) {
+	    a_data[i*ndim+j] = 0.0;
+	}
+	b_data[i] = 0.0;
+    }
+
+    for (int i = 0; i < nSobs; i++) {
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	a_data[s[i]->iexp*ndim+s[i]->iexp] -= 1;
+	a_data[(nexp+s[i]->jstar)*ndim+(nexp+s[i]->jstar)] -= 1;
+	a_data[s[i]->iexp*ndim+(nexp+s[i]->jstar)] = 1;
+	a_data[(nexp+s[i]->jstar)*ndim+s[i]->iexp] = 1;
+	b_data[s[i]->iexp] += s[i]->mag;
+	b_data[nexp+s[i]->jstar] -= s[i]->mag;
+    }
+
+    a_data[ndim-1] = 1;
+    a_data[(ndim-1)*ndim] = 1;
+    b_data[ndim-1] = 0;
+
+#if defined(USE_GSL)
+    double *solution = solveMatrix_GSL(ndim, a_data, b_data);
+#else
+    double *solution = solveMatrix_MKL(ndim, a_data, b_data);
+#endif
+
+    delete [] a_data;
+    delete [] b_data;
+
+    return solution;
+}
+#endif
 double calcChi2(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, Poly::Ptr p)
 {
     int nobs  = o.size();
@@ -1758,6 +1897,9 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 					SourceGroup const &allMat,
 					WcsDic &wcsDic,
 					CcdSet &ccdSet,
+					std::vector<double> &fscale,
+					bool solveCcd,
+					bool allowRotation,
 					bool verbose)
 {
     Poly::Ptr p = Poly::Ptr(new Poly(order));
@@ -1769,6 +1911,7 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
     int nexp = wcsDic.size();
     int nchip = ccdSet.size();
     int ncoeff = p->ncoeff;
+    int nstar = allMat.size();
 
     // Solve for polynomial coefficients and crvals
     // for each exposure separately
@@ -1817,8 +1960,6 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 	matchVec[i]->setFitVal(coeffVec[matchVec[i]->iexp], p);
     }
 
-    bool solveCcd = true;
-    bool allowRotation = true;
     double *coeff;
     for (int k = 0; k < 3; k++) {
 	coeff = solveLinApprox(matchVec, coeffVec, nchip, p, solveCcd, allowRotation);
@@ -1897,6 +2038,12 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 	delete [] a;
     }
 
+    double *fsol = fluxFit(matchVec, nexp, nchip, nstar);
+    for (int i = 0; i < nexp*nchip; i++) {
+	fscale.push_back(pow(10., -0.4*fsol[i]));
+    }
+    delete [] fsol;
+
     for (int i = 0; i < nMobs; i++) {
 	matchVec[i]->setFitVal2(coeffVec[matchVec[i]->iexp], p);
     }
@@ -1922,6 +2069,9 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 				   SourceGroup const &allSource,
 				   WcsDic &wcsDic,
 				   CcdSet &ccdSet,
+				   std::vector<double> &fscale,
+				   bool solveCcd,
+				   bool allowRotation,
 				   bool verbose)
 {
     Poly::Ptr p = Poly::Ptr(new Poly(order));
@@ -2001,8 +2151,6 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 	   calcChi2(matchVec, coeffVec, p),
 	   calcChi2_Star(matchVec, sourceVec, coeffVec, p));
 
-    bool solveCcd = true;
-    bool allowRotation = true;
     double *coeff;
     for (int k = 0; k < 3; k++) {
 	coeff = solveLinApprox_Star(matchVec, sourceVec, nstar, coeffVec, nchip, p, solveCcd, allowRotation);
@@ -2119,6 +2267,13 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 	delete [] a;
     }
 
+    printf("fluxFit ...\n");
+    double *fsol = fluxFit(matchVec, nexp, nchip, allMat.size());
+    for (int i = 0; i < nexp*nchip; i++) {
+	fscale.push_back(pow(10., -0.4*fsol[i]));
+    }
+    delete [] fsol;
+
     for (int i = 0; i < nMobs; i++) {
 	matchVec[i]->setFitVal2(coeffVec[matchVec[i]->iexp], p);
     }
@@ -2146,11 +2301,7 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 		o->x, o->y, o->good);
     }
     fclose(fp);
-/*
-    for (int i = 0; i < nexp; i++) {
-        coeffVec[i]->show();
-    }
-*/
+
     return coeffVec;
 }
 
@@ -2174,6 +2325,8 @@ hsc::meas::mosaic::solveFlux(SourceGroup const &allSource,
     for (int i = 0; i < nexp*nchip; i++) {
 	fscale.push_back(pow(10., -0.4*fsol[i]));
     }
+
+    delete [] fsol;
 
     return fscale;
 }

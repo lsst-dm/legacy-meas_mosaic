@@ -1,63 +1,35 @@
 import sys
 import datetime
-import hsc.camera.data                   as data
-import hsc.meas.mosaic.stack             as stack
 import hsc.meas.mosaic.mosaic            as mosaic
 
-def main(ditherIds, ccdIds, fitFP=True, skipMosaic=False, makeWarped=False, outputName=None):
-    
-    if outputName == None:
-        outputName = ''
-        for i in range(len(ccdIds)):
-            outputName = outputName + "%d-" % (int(ccdIds[i]))
-
-    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-    
-    if not skipMosaic:
-
-        print "Mosaicing ..."
-        
-        mosaic.mosaic(ditherIds, ccdIds, fitFP)
-
-        print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-
-    if makeWarped:
-        flist = []
-        for ditherId in ditherIds:
-            for ccdId in ccdIds:
-                fname = "%sdith%d_ccd%03d-mImg.fits" % (outputName, int(ditherId), int(ccdId))
-                flist.append(fname)
-
-        print "Stacking ..."
-
-        stack.stack(flist, outputName, subImgSize=2048, fileIO=False)
-        
-        print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-        
 if __name__ == '__main__':
 
-    obsDate = "2010-08-26"
-    filter = "W-S-I+"
-    progId = "CFHTLS-D3"
-    rerun = "DC1-005"
+    rerun = "cpl-matches.5"
 
-    progId = sys.argv[1]
+    frameIds = []
+    if (len(sys.argv) == 1):
+        print "Usage: python testFit.py <frameid>"
+        print "       frameid = 20, 21, 22, 23, 24"
+        sys.exit(1)
+    else:
+        if (sys.argv[1] == "20"):
+            #frameIds = [201, 202, 203, 204, 205, 206, 207, 208]
+            #frameIds = [201, 202, 204, 205, 206, 208]
+            frameIds = [201, 202, 204]
+        elif (sys.argv[1] == "21"):
+            frameIds = [211, 212, 213, 214, 215, 216, 217, 218]
+        elif (sys.argv[1] == "22"):
+            frameIds = [220, 221, 222, 223, 224, 225, 226, 227, 228]
+        elif (sys.argv[1] == "23"):
+            frameIds = [231, 232, 233, 234, 235, 236, 237, 238]
+        elif (sys.argv[1] == "24"):
+            frameIds = [241, 242, 243, 244]
+        else:
+            for i in range(5):
+                frameIds.append(int(sys.argv[1])*10 + i)
 
-    print progId
-    mgr = data.Manager(instrument="HSC", rerun=rerun)
-    frameIds = mgr.getFrameSet(obsDate=obsDate, filter=filter, progId=progId)
-    #frameIds = [20, 21, 22, 23, 24]
     print frameIds
     
     ccdIds = range(100)
     
-#    if (len(sys.argv) == 1):
-#        ccdIds = range(100)
-#    else:
-#        ccdIds = sys.argv[1:]
-    fitFP = True
-    skipMosaic=False
-    makeWarped = False
-
-    #main(frameIds, ccdIds, fitFP, skipMosaic, makeWarped, "test-")
-    mosaic.mosaic(frameIds, ccdIds, fitFP, outputDir=".", rerun=rerun, progId=progId)
+    mosaic.mosaic(frameIds, ccdIds, rerun, outputDir=".", verbose=True)

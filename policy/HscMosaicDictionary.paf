@@ -6,23 +6,45 @@ target: hsc::meas::mosaic::mosaic
 definitions: {
     nBrightest: {
         type: "int"
-        description: "number of stars used for fitting"
+        description: "number of stars used for fitting per exposure"
 	minOccurs: 0
 	maxOccurs: 1
-	default: 120
+	default: 300
 	min: 100
+    }
+    radXMatch: {
+        type: "double"
+        description: "radius to cross-match objects between expsoures in arcsec"
+	minOccurs: 0
+	maxOccurs: 1
+	default: 5.0
+	min: 3.0
     }
     fittingOrder: {
         type: "int"
         description: "fitting order"
 	minOccurs: 0
 	maxOccurs: 1
-	default: 9
+	default: 11
 	min: 5
     }
     internalFitting: {
         type: "bool"
         description: "Use stars without catalog matching for fitting"
+	minOccurs: 0
+	maxOccurs: 1
+	default: true
+    }
+    solveCcd: {
+        type: "bool"
+        description: "Solve CCD alignment"
+	minOccurs: 0
+	maxOccurs: 1
+	default: true
+    }
+    allowRotation: {
+        type: "bool"
+        description: "Rotation is also solved"
 	minOccurs: 0
 	maxOccurs: 1
 	default: true

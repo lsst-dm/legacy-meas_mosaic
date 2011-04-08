@@ -1,4 +1,4 @@
-setupRequired(pipette -t DC2)
+setupRequired(pipette)
 setupRequired(mkl)
 
 envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)

@@ -269,7 +269,7 @@ int main(int argc, char **argv)
     rootMat->mergeMat(allMat);
 
     double d_lim = 3.0 / 3600.0 * M_PI / 180.0;
-    KDTree::Ptr rootSource = kdtreeSource(sourceSetList, rootMat, d_lim, 10000);
+    KDTree::Ptr rootSource = kdtreeSource(sourceSetList, rootMat, ccdSet.size(), d_lim, 10000);
     SourceGroup allSource;
     rootSource->mergeSource(allSource);
 /*
@@ -285,7 +285,8 @@ int main(int argc, char **argv)
     printf("%d %d\n", nobs, nSobs);
 
     int order = 11;
-    CoeffSet coeffs = solveMosaic_CCD(order, allMat, allSource, wcsDic, ccdSet);
+    std::vector<double> fscale;
+    CoeffSet coeffs = solveMosaic_CCD(order, allMat, allSource, wcsDic, ccdSet, fscale);
 
     fp = fopen("ccd.dat", "wt");
     for (size_t i = 0; i < ccdSet.size(); i++) {

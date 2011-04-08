@@ -14,7 +14,6 @@ namespace hsc {
 	namespace mosaic {
 
 	    typedef std::vector<lsst::afw::detection::SourceSet> SourceGroup;
-	    //typedef std::vector<std::vector<lsst::afw::detection::SourceMatch> > vvSourceMatch;
 	    typedef std::vector<lsst::afw::detection::SourceMatchVector> vvSourceMatch;
 	    typedef std::map<int, lsst::afw::image::Wcs::Ptr> WcsDic;
 
@@ -134,13 +133,18 @@ namespace hsc {
 	    typedef std::vector<Coeff::Ptr> CoeffSet;
 
 	    KDTree::Ptr kdtreeMat(vvSourceMatch const &matchList);
-	    KDTree::Ptr kdtreeSource(SourceGroup const &sourceSet, KDTree::Ptr rootMat,
+	    KDTree::Ptr kdtreeSource(SourceGroup const &sourceSet,
+				     KDTree::Ptr rootMat,
+				     int nchip,
 				     double d_lim, unsigned int nbrightest);
 
 	    CoeffSet solveMosaic_CCD_shot(int order,
 					  SourceGroup const &allMat,
 					  WcsDic &wcsDic,
 					  CcdSet &ccdSet,
+					  std::vector<double> &fscale,
+					  bool solveCcd = true,
+					  bool allowRotation = true,
 					  bool verbose = false);
 
 	    CoeffSet solveMosaic_CCD(int order,
@@ -148,6 +152,9 @@ namespace hsc {
 				     SourceGroup const &allSource,
 				     WcsDic &wcsDic,
 				     CcdSet &ccdSet,
+				     std::vector<double> &fscale,
+				     bool solveCcd = true,
+				     bool allowRotation = true,
 				     bool verbose = false);
 
 	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::Ptr& ccd);
