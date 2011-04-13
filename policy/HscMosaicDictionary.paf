@@ -9,7 +9,7 @@ definitions: {
         description: "number of stars used for fitting per exposure"
 	minOccurs: 0
 	maxOccurs: 1
-	default: 300
+	default: 200
 	min: 100
     }
     radXMatch: {
@@ -17,7 +17,7 @@ definitions: {
         description: "radius to cross-match objects between expsoures in arcsec"
 	minOccurs: 0
 	maxOccurs: 1
-	default: 5.0
+	default: 3.0
 	min: 3.0
     }
     fittingOrder: {

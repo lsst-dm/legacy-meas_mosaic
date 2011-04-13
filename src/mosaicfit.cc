@@ -681,15 +681,17 @@ bool KDTree::isLeaf(void) {
       return false;
 }
 
-void KDTree::mergeMat(SourceGroup& sg) {
+int KDTree::mergeMat(SourceGroup& sg) {
+    int num = this->set.size();
     sg.push_back(this->set);
 
     if (this->left != NULL) {
-	this->left->mergeMat(sg);
+	num += this->left->mergeMat(sg);
     }
     if (this->right != NULL) {
-	this->right->mergeMat(sg);
+	num += this->right->mergeMat(sg);
     }
+    return num;
 }
 
 int KDTree::mergeSource(SourceGroup& sg) {
@@ -726,13 +728,13 @@ KDTree::Ptr
 hsc::meas::mosaic::kdtreeMat(vvSourceMatch const &matchList) {
 
     KDTree::Ptr root = KDTree::Ptr(new KDTree(matchList[0], 0));
-    std::cout << "root->count() : " << root->count() << std::endl;
+    //std::cout << "root->count() : " << root->count() << std::endl;
 
     for (unsigned int j = 1; j < matchList.size(); j++) {
 	for (unsigned int i = 0; i < matchList[j].size(); i++) {
 	    root->add(matchList[j][i]);
 	}
-	std::cout << "root->count() : " << root->count() << std::endl;
+	//std::cout << "root->count() : " << root->count() << std::endl;
     }
 
     //std::cout << root->count() << std::endl;
@@ -761,12 +763,14 @@ hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 	    } else {
 		fluxlim[j*nchip+k] = 0.0;
 	    }
+	    /*
 	    printf("%d %2d %4d %f\n", j, k, v.size(), fluxlim[j*nchip+k]);
 	    if (j == 2 && k == 76) {
 		for (int i = 0; i < v.size(); i++) {
 		    printf("%d %f\n", i, v[i]);
 		}
 	    }
+	    */
 	}
     }
     /*
@@ -802,7 +806,8 @@ hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 
     for (size_t j = 1; j < sourceSet.size(); j++) {
 	for (size_t i = 0; i < sourceSet[j].size(); i++) {
-	    int k = sourceSet[0][i]->getAmpExposureId() % 1000;
+	    int k = sourceSet[j][i]->getAmpExposureId() % 1000;
+	    //std::cout << j << " " << i << " " << k << std::endl;
 	    if (sourceSet[j][i]->getPsfFlux() >= fluxlim[j*nchip+k] &&
 		rootMat->findSource(sourceSet[j][i]) == NULL) {
 		KDTree::Ptr leaf = rootSource->findNearest(sourceSet[j][i]);
@@ -812,6 +817,7 @@ hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 		    rootSource->add(sourceSet[j][i]);
 	    }
 	}
+	//std::cout << "(3) " << rootSource->count() << std::endl;
     }
 
     //std::cout << "(4) " << rootSource->count() << std::endl;
@@ -865,6 +871,32 @@ double calEta_D(double a, double d, double A, double D) {
     return -pow(cos(D)*sin(d)-sin(D)*cos(d)*cos(a-A),2.)/pow(sin(D)*sin(d)+cos(D)*cos(d)*cos(a-A),2.)-1.;
 }
 
+#if defined(USE_GSL)
+double* solveMatrix_GSL(int size, double *a_data, double *b_data) {
+    gsl_matrix_view a = gsl_matrix_view_array(a_data, size, size);
+    gsl_vector_view b = gsl_vector_view_array(b_data, size);
+
+    gsl_vector *c = gsl_vector_alloc(size);
+
+    int s;
+
+    gsl_permutation *p = gsl_permutation_alloc(size);
+
+    gsl_linalg_LU_decomp(&a.matrix, p, &s);
+    gsl_linalg_LU_solve(&a.matrix, p, &b.vector, c);
+
+    double *c_data = new double[size];
+
+    for (int i = 0; i < size; i++) {
+        c_data[i] = c->data[i];
+    }
+
+    gsl_permutation_free(p);
+    gsl_vector_free(c);
+
+    return c_data;
+}
+#else
 double* solveMatrix_MKL(int size, double *a_data, double *b_data) {
     //char L = 'L';
     MKL_INT n = size;
@@ -874,25 +906,27 @@ double* solveMatrix_MKL(int size, double *a_data, double *b_data) {
     MKL_INT ldb = size;
     MKL_INT info = 0;
 
-    double *a = new double[size*size];
-    double *b = new double[size];
+    //double *a = new double[size*size];
+    //double *b = new double[size];
 
-    memcpy(a, a_data, sizeof(double)*size*size);
-    memcpy(b, b_data, sizeof(double)*size);
+    //memcpy(a, a_data, sizeof(double)*size*size);
+    //memcpy(b, b_data, sizeof(double)*size);
 
-    dgesv(&n, &nrhs, a, &lda, ipiv, b, &ldb, &info);
+    //dgesv(&n, &nrhs, a, &lda, ipiv, b, &ldb, &info);
+    dgesv(&n, &nrhs, a_data, &lda, ipiv, b_data, &ldb, &info);
     //dposv(&L, &n, &nrhs, a, &lda, b, &ldb, &info);
 
     double *c_data = new double[size];
-    memcpy(c_data, b, sizeof(double)*size);
+    //memcpy(c_data, b, sizeof(double)*size);
+    memcpy(c_data, b_data, sizeof(double)*size);
 
     delete [] ipiv;
-    delete [] a;
-    delete [] b;
+    //delete [] a;
+    //delete [] b;
 
     return c_data;
 }
-
+#endif
 double* solveForCoeff(std::vector<Obs::Ptr>& objList, Poly::Ptr p) {
     int ncoeff = p->ncoeff;
     int size = 2 * ncoeff + 2;
@@ -1253,8 +1287,23 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 	size  = 2 * ncoeff * nexp + nstar2 * 2;
 	size0 = 2 * ncoeff * nexp;
     }
-    double *a_data = new double[size*size];
-    double *b_data = new double[size];
+
+    std::cout << "size : " << size << std::endl;
+
+    double *a_data;
+    double *b_data;
+    try {
+	a_data = new double[size*size];
+    } catch (std::bad_alloc) {
+	std::cerr << "Memory allocation error: for a_data" << std::endl;
+	abort();
+    }
+    try {
+	b_data = new double[size];
+    } catch (std::bad_alloc) {
+	std::cerr << "Memory allocation error: for b_data" << std::endl;
+	abort();
+    }
 
     for (int j = 0; j < size; j++) {
 	b_data[j] = 0.0;
@@ -1836,12 +1885,14 @@ double *solveSIP_P(Poly::Ptr p,
     int *yorder = p->yorder;
 
     double *a_data = new double[ncoeff*ncoeff];
+    double *d_data = new double[ncoeff*ncoeff];
     double *b_data = new double[ncoeff];
     double *c_data = new double[ncoeff];
 
     for (int j = 0; j < ncoeff; j++) {
 	for (int i = 0; i < ncoeff; i++) {
 	    a_data[i+j*ncoeff] = 0.0;
+	    d_data[i+j*ncoeff] = 0.0;
 	}
 	b_data[j] = 0.0;
 	c_data[j] = 0.0;
@@ -1862,6 +1913,7 @@ double *solveSIP_P(Poly::Ptr p,
 		c_data[j] += (o->v - o->V) * pu[j] * pv[j];
 		for (int i = 0; i < ncoeff; i++) {
 		    a_data[i+j*ncoeff] += pu[j] * pv[j] * pu[i] * pv[i];
+		    d_data[i+j*ncoeff] += pu[j] * pv[j] * pu[i] * pv[i];
 		}
 	    }
 	}
@@ -1869,10 +1921,10 @@ double *solveSIP_P(Poly::Ptr p,
 
 #if defined(USE_GSL)
     double *coeffA = solveMatrix_GSL(ncoeff, a_data, b_data);
-    double *coeffB = solveMatrix_GSL(ncoeff, a_data, c_data);
+    double *coeffB = solveMatrix_GSL(ncoeff, d_data, c_data);
 #else
     double *coeffA = solveMatrix_MKL(ncoeff, a_data, b_data);
-    double *coeffB = solveMatrix_MKL(ncoeff, a_data, c_data);
+    double *coeffB = solveMatrix_MKL(ncoeff, d_data, c_data);
 #endif
 
     double *coeff = new double[2*ncoeff];
@@ -1882,6 +1934,7 @@ double *solveSIP_P(Poly::Ptr p,
     }
 
     delete [] a_data;
+    delete [] d_data;
     delete [] b_data;
     delete [] c_data;
     delete [] coeffA;
