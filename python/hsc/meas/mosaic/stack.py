@@ -70,11 +70,12 @@ def mkScript(nx, ny, rerun, program, filter, workDir="."):
             f.write("#PBS -l ncpus=1\n");
             f.write("#PBS -l nodes=1\n");
             f.write("#PBS -q default\n");
+            f.write("#PBS -j oe\n");
             f.write("#\n");
             f.write("#OMP_NUM_THREADS=1; export OMP_NUM_THREADS\n");
             f.write("cd $PBS_O_WORKDIR\n");
             f.write("#\n");
-            f.write("#setup -r /home/yasuda/temp/hscMosaic\n");
+            f.write("setup -t price-DC2 -r /home/yasuda/temp/hscMosaic\n");
             f.write("python run_stack.py --rerun=%s --program=%s --filter=%s %d %d\n" %
                     (rerun, program, filter, ix, iy));
             f.close()
@@ -85,11 +86,12 @@ def mkScript(nx, ny, rerun, program, filter, workDir="."):
     f.write("#PBS -l ncpus=1\n");
     f.write("#PBS -l nodes=1\n");
     f.write("#PBS -q default\n");
+    f.write("#PBS -j oe\n");
     f.write("#\n");
     f.write("#OMP_NUM_THREADS=1; export OMP_NUM_THREADS\n");
     f.write("#cd $PBS_O_WORKDIR\n");
     f.write("#\n");
-    f.write("#setup -r /home/yasuda/temp/hscMosaic\n");
+    f.write("setup -t price-DC2 -r /home/yasuda/temp/hscMosaic\n");
     f.write("python run_stack.py  --rerun=%s --program=%s --filter=%s End\n" %
             (rerun, program, filter));
     f.close()
@@ -118,13 +120,13 @@ def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
         mdOrig = afwImage.readMetadata(fname)
         dims.append([mdOrig.get('NAXIS1'), mdOrig.get('NAXIS2')])
         
-        print "reading WCS for (%s) from %s" % (i, wcsname)
+        #print "reading WCS for (%s) from %s" % (i, wcsname)
         metadata = afwImage.readMetadata(wcsname)
         wcs = afwImage.makeWcs(metadata)
         wcsDic[i] = wcs
         if not skipMosaic:
-            #fscale.append(metadata.get('FSCALE'))
-            fscale.append(1.0)
+            fscale.append(metadata.get('FSCALE'))
+            #fscale.append(1.0)
         else:
             cal1 = afwImage.Calib(metadata).getFluxMag0()
             zp.append(2.5*math.log10(cal1[0]))
@@ -270,10 +272,10 @@ def stackExec(ioMgr, outputName, ix, iy, subImgSize,
     if mimgStack != None:
         if fileIO:
             expStack = afwImage.ExposureF(mimgStack, wcs2)
-            ioMgr.outButler.put(expStack, 'stack', dict(stack=11,
-                                                        patch=int("%3d%02d" % (ix, iy)),
-                                                        filter=filter))
-            #print os.path.join(workDir, "%s%s-%02d-%02d.fits" % (outputName, filter, ix, iy))
+            #ioMgr.outButler.put(expStack, 'stack', dict(stack=11,
+            #                                            patch=int("%3d%02d" % (ix, iy)),
+            #                                            filter=filter))
+            print os.path.join(workDir, "%s%s-%02d-%02d.fits" % (outputName, filter, ix, iy))
             expStack.writeFits(os.path.join(workDir, "%s%s-%02d-%02d.fits" % (outputName, filter, ix, iy)))
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")

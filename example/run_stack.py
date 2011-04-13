@@ -30,7 +30,7 @@ def main():
     (opts, args) = parser.parse_args()
 
     if not opts.rerun or not opts.program or not opts.filter:
-        parser.help()
+        parser.print_help()
         raise SystemExit("failed to parse arguments")
 
     sys.argv = [sys.argv[0]] + args
@@ -55,8 +55,10 @@ def run(rerun=None, program=None, filter=None):
     subImgSize = 2048
     fileIO = True
     writePBSScript = True
-    workDir = os.path.join("/data/cloomis/stack", program, filter)
-    wcsDir = "/data/cloomis/stack/wcs"
+#    workDir = os.path.join("/data/cloomis/stack", program, filter)
+#    wcsDir = "/data/cloomis/stack/wcs"
+    workDir = os.path.join("/data/yasuda/DC2/stack2", program, filter)
+    wcsDir = "/data/yasuda/DC2/yasuda-test2"
     skipMosaic = False
     
     if (len(sys.argv) == 1):
