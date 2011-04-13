@@ -57,13 +57,13 @@ def getAllForCcd(ioMgr, frame, ccd):
 
     butler = ioMgr.inButler
     try:
-        sources = ioMgr.read('src', data, ignore=True)[0].getSources()
-        md = ioMgr.read('calexp_md', data, ignore=True)[0]
-        matches = ioMgr.readMatches(data, ignore=True)[0]
         if not butler.datasetExists('src', data):
             raise RuntimeError("no data for src %s" % (data))
         if not butler.datasetExists('calexp_md', data):
             raise RuntimeError("no data for calexp_md %s" % (data))
+        sources = ioMgr.read('src', data, ignore=True)[0].getSources()
+        md = ioMgr.read('calexp_md', data, ignore=True)[0]
+        matches = ioMgr.readMatches(data, ignore=True)[0]
     except Exception, e:
         print "failed to read something: %s" % (e)
         return None, None, None
@@ -129,7 +129,8 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
     print 'len(matchList) = ', len(matchList)
     rootMat = hscMosaic.kdtreeMat(matchList)
     allMat = hscMosaic.SourceGroup()
-    rootMat.mergeMat(allMat)
+    num = rootMat.mergeMat(allMat)
+    print "# of allMat : ", num
     print 'len(allMat) = ', len(allMat)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
     

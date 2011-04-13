@@ -4,7 +4,8 @@ import hsc.meas.mosaic.mosaic            as mosaic
 
 if __name__ == '__main__':
 
-    rerun = "cpl-matches.5"
+    #rerun = "cpl-matches.5"
+    rerun = "yasuda-test2"
 
     frameIds = []
     if (len(sys.argv) == 1):
@@ -13,11 +14,9 @@ if __name__ == '__main__':
         sys.exit(1)
     else:
         if (sys.argv[1] == "20"):
-            #frameIds = [201, 202, 203, 204, 205, 206, 207, 208]
-            #frameIds = [201, 202, 204, 205, 206, 208]
-            frameIds = [201, 202, 204]
+            frameIds = [200, 201, 202, 203, 204, 205, 206, 207, 208]
         elif (sys.argv[1] == "21"):
-            frameIds = [211, 212, 213, 214, 215, 216, 217, 218]
+            frameIds = [210, 211, 212, 213, 214, 215, 216, 217, 218]
         elif (sys.argv[1] == "22"):
             frameIds = [220, 221, 222, 223, 224, 225, 226, 227, 228]
         elif (sys.argv[1] == "23"):
