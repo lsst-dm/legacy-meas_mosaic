@@ -14,4 +14,4 @@ source /data/ana/products-yasuda/loadLSST.sh
 setup -t price-DC2 -r /home/yasuda/temp/hscMosaic
 #setup pipette -t DC2.2 -t DC2
 
-python $HSCMOSAIC_DIR/example/run_mosaic.py 21
+python $HSCMOSAIC_DIR/example/run_mosaic.py --rerun=yasuda-test2 --frameid=23 --outputDir="/data/yasuda/DC2/yasuda-test2"
