@@ -681,23 +681,29 @@ bool KDTree::isLeaf(void) {
       return false;
 }
 
-int KDTree::mergeMat(SourceGroup& sg) {
-    int num = this->set.size();
+SourceGroup KDTree::mergeMat() {
+    SourceGroup sg;
     sg.push_back(this->set);
 
     if (this->left != NULL) {
-	num += this->left->mergeMat(sg);
+	SourceGroup sg_left = this->left->mergeMat();
+	for (size_t i = 0; i < sg_left.size(); i++) {
+	    sg.push_back(sg_left[i]);
+	}
     }
     if (this->right != NULL) {
-	num += this->right->mergeMat(sg);
+	SourceGroup sg_right = this->right->mergeMat();
+	for (size_t i = 0; i < sg_right.size(); i++) {
+	    sg.push_back(sg_right[i]);
+	}
     }
-    return num;
+
+    return sg;
 }
 
-int KDTree::mergeSource(SourceGroup& sg) {
-    int num = 0;
+SourceGroup KDTree::mergeSource() {
+    SourceGroup sg;
     if (this->set.size() >= 2) {
-	num += this->set.size();
 	double sr = 0.0;
 	double sd = 0.0;
 	double sn = 0.0;
@@ -716,12 +722,19 @@ int KDTree::mergeSource(SourceGroup& sg) {
     }
 
     if (this->left != NULL) {
-	num += this->left->mergeSource(sg);
+	SourceGroup sg_left = this->left->mergeSource();
+	for (size_t i = 0; i < sg_left.size(); i++) {
+	    sg.push_back(sg_left[i]);
+	}
     }
     if (this->right != NULL) {
-	num += this->right->mergeSource(sg);
+	SourceGroup sg_right = this->right->mergeSource();
+	for (size_t i = 0; i < sg_right.size(); i++) {
+	    sg.push_back(sg_right[i]);
+	}
     }
-    return num;
+
+    return sg;
 }
 
 KDTree::Ptr
@@ -1596,6 +1609,7 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
     return coeff;
 }
 #if 0
+// All chips are independent
 double *fluxFit(std::vector<Obs::Ptr> &s, int nexp, int nchip, int nstar)
 {
     int nSobs = s.size();
@@ -1686,6 +1700,8 @@ double *fluxFit(std::vector<Obs::Ptr> &s, int nexp, int nchip, int nstar)
     return solution;
 }
 #else
+// Solve for exposure only
+// assuming that chips are normalized
 double *fluxFit(std::vector<Obs::Ptr> &s, int nexp, int nchip, int nstar)
 {
     int nSobs = s.size();
@@ -1757,6 +1773,95 @@ double *fluxFit(std::vector<Obs::Ptr> &s, int nexp, int nchip, int nstar)
     return solution;
 }
 #endif
+
+double *fluxFit_shot_chip(std::vector<Obs::Ptr> &s, int nexp, int nchip, int nstar)
+{
+    int nSobs = s.size();
+
+    int* num = new int[nstar];
+    for (int i = 0; i < nstar; i++) {
+	num[i] = 0;
+    }
+    for (int i = 0; i < nSobs; i++) {
+	if (s[i]->good && s[i]->mag != -9999) {
+	    num[s[i]->istar] += 1;
+	}
+    }
+    std::vector<int> v_istar;
+    for (int i = 0; i < nstar; i++) {
+	if (num[i] >= 2) {
+	    v_istar.push_back(i);
+	}
+    }
+    delete [] num;
+    int nstar2 = v_istar.size();
+    std::cout << "nstar: " << nstar2 << std::endl;
+
+    for (int i = 0; i < nSobs; i++) {
+	std::vector<int>::iterator it = std::find(v_istar.begin(), v_istar.end(), s[i]->istar);
+	if (it != v_istar.end()) {
+	    s[i]->jstar = it - v_istar.begin();
+	} else {
+	    s[i]->jstar = -1;
+	}
+    }
+
+    int ndim = nexp + nchip + nstar2 + 2;
+    std::cout << "ndim: " << ndim << std::endl;
+
+    double *a_data = new double[ndim*ndim];
+    double *b_data = new double[ndim];
+
+    for (int i = 0; i < ndim; i++) {
+	for (int j = 0; j < ndim; j++) {
+	    a_data[i*ndim+j] = 0.0;
+	}
+	b_data[i] = 0.0;
+    }
+
+    for (int i = 0; i < nSobs; i++) {
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	a_data[s[i]->iexp*ndim+s[i]->iexp] -= 1;
+	a_data[(nexp+s[i]->ichip)*ndim+(nexp+s[i]->ichip)] -= 1;
+	a_data[(nexp+nchip+s[i]->jstar)*ndim+(nexp+nchip+s[i]->jstar)] -= 1;
+
+	a_data[s[i]->iexp*ndim+(nexp+s[i]->ichip)] -= 1;
+	a_data[s[i]->iexp*ndim+(nexp+nchip+s[i]->jstar)] = 1;
+	a_data[(nexp+s[i]->ichip)*ndim+(nexp+nchip+s[i]->jstar)] += 1;
+
+	a_data[s[i]->iexp+(nexp+s[i]->ichip)*ndim] -= 1;
+	a_data[s[i]->iexp+(nexp+nchip+s[i]->jstar)*ndim] = 1;
+	a_data[(nexp+s[i]->ichip)+(nexp+nchip+s[i]->jstar)*ndim] += 1;
+
+	b_data[s[i]->iexp] += s[i]->mag;
+	b_data[nexp+s[i]->ichip] += s[i]->mag;
+	b_data[nexp+nchip+s[i]->jstar] -= s[i]->mag;
+    }
+
+    a_data[nexp+nchip+nstar2] = 1;
+    a_data[nexp*ndim+nexp+nchip+nstar2+1] = 1;
+    a_data[(nexp+nchip+nstar2)*ndim] = 1;
+    a_data[nexp+(nexp+nchip+nstar2+1)*ndim] = 1;
+
+    b_data[ndim-2] = 0;
+    b_data[ndim-1] = 0;
+
+#if defined(USE_GSL)
+    double *solution = solveMatrix_GSL(ndim, a_data, b_data);
+#else
+    double *solution = solveMatrix_MKL(ndim, a_data, b_data);
+#endif
+
+    delete [] a_data;
+    delete [] b_data;
+    /*
+    for (int i = 0; i < nexp+nchip; i++) {
+	printf("%d %f\n", i, solution[i]);
+    }
+    */
+    return solution;
+}
+
 double calcChi2(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, Poly::Ptr p)
 {
     int nobs  = o.size();
@@ -1865,6 +1970,8 @@ std::vector<Obs::Ptr> obsVecFromSourceGroup(SourceGroup const &all,
 	    }
 	    if (ss[j]->getPsfFlux() > 0.0) {
 		o->mag = -2.5*log10(ss[j]->getPsfFlux());
+		//if (ss[j]->getApFlux() > 0.0) {
+		//o->mag = -2.5*log10(ss[j]->getApFlux());
 	    } else {
 		o->mag = -9999;
 	    }
@@ -2091,8 +2198,8 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 	delete [] a;
     }
 
-    double *fsol = fluxFit(matchVec, nexp, nchip, nstar);
-    for (int i = 0; i < nexp*nchip; i++) {
+    double *fsol = fluxFit_shot_chip(matchVec, nexp, nchip, nstar);
+    for (int i = 0; i < nexp + nchip; i++) {
 	fscale.push_back(pow(10., -0.4*fsol[i]));
     }
     delete [] fsol;
@@ -2321,8 +2428,9 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
     }
 
     printf("fluxFit ...\n");
-    double *fsol = fluxFit(matchVec, nexp, nchip, allMat.size());
-    for (int i = 0; i < nexp*nchip; i++) {
+    double *fsol = fluxFit_shot_chip(matchVec, nexp, nchip, allMat.size());
+    //double *fsol = fluxFit_shot_chip(sourceVec, nexp, nchip, allSource.size());
+    for (int i = 0; i < nexp + nchip; i++) {
 	fscale.push_back(pow(10., -0.4*fsol[i]));
     }
     delete [] fsol;

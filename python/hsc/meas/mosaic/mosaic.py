@@ -123,14 +123,20 @@ def readCatalog(ioMgr, frameIds, ccdIds):
 
     return sourceSet, matchList
 
+def countObsInSourceGroup(sg):
+    num = 0
+    for s in sg:
+        num += (len(s) - 1)
+
+    return num
+
 def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
 
     print "Creating kd-tree for matched catalog ..."
     print 'len(matchList) = ', len(matchList)
     rootMat = hscMosaic.kdtreeMat(matchList)
-    allMat = hscMosaic.SourceGroup()
-    num = rootMat.mergeMat(allMat)
-    print "# of allMat : ", num
+    allMat = rootMat.mergeMat()
+    print "# of allMat : ", countObsInSourceGroup(allMat)
     print 'len(allMat) = ', len(allMat)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -138,9 +144,8 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
     print 'len(sourceSet) = ', len(sourceSet)
     d_lim_rad = d_lim  / 3600.0 * math.pi / 180.0
     rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, nchip, d_lim_rad, nbrightest)
-    allSource = hscMosaic.SourceGroup() 
-    num = rootSource.mergeSource(allSource)
-    print "# of allSource : ", num
+    allSource = rootSource.mergeSource()
+    print "# of allSource : ", countObsInSourceGroup(allSource)
     print 'len(allSource) = ', len(allSource)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -155,25 +160,26 @@ def writeNewWcs(coeffSet, ccdSet, fscale, frameIds, ccdIds, outputDir="."):
             wcs = hscMosaic.wcsFromCoeff(c);
             md = wcs.getFitsMetadata()
             #scale = fscale[ccdSet.size()*i+j]
-            scale = fscale[i]
+            scale = fscale[i] * fscale[coeffSet.size()+j]
             md.set("FSCALE", scale);
             fname = os.path.join(outputDir, "wcs%05d%03d.fits" % (frameIds[i], ccdIds[j]))
             img.writeFits(fname, md)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-def outputDiag(coeffSet, ccdSet, outputDir="."):
+def outputDiag(coeffSet, ccdSet, fscale, outputDir="."):
     f = open(os.path.join(outputDir, "coeffs.dat"), "wt")
     for i in range(coeffSet.size()):
         f.write("%ld %12.5e %12.5e\n" % (i, coeffSet[i].A, coeffSet[i].D));
         for k in range(coeffSet[i].ncoeff):
             f.write("%ld %12.5e %12.5e %12.5e %12.5e\n" % (i, coeffSet[i].get_a(k), coeffSet[i].get_b(k), coeffSet[i].get_ap(k), coeffSet[i].get_bp(k)));
+        f.write("%5.3f\n" % (fscale[i]))
     f.close()
 
     f = open(os.path.join(outputDir, "ccd.dat"), "wt")
     for i in range(ccdSet.size()):
         center = ccdSet[i].getCenter()
         orient = ccdSet[i].getOrientation()
-        f.write("%3ld %10.3f %10.3f %10.7f\n" % (i, center[0], center[1], orient.getYaw()));
+        f.write("%3ld %10.3f %10.3f %10.7f %5.3f\n" % (i, center[0], center[1], orient.getYaw(), fscale[coeffSet.size()+i]));
     f.close()
 
 def mosaic(frameIds, ccdIds, rerun, outputDir=".", debug=False, verbose=False):
@@ -230,4 +236,4 @@ def mosaic(frameIds, ccdIds, rerun, outputDir=".", debug=False, verbose=False):
 
     writeNewWcs(coeffSet, ccdSet, fscale, frameIds, ccdIds, outputDir)
 
-    outputDiag(coeffSet, ccdSet, outputDir)
+    outputDiag(coeffSet, ccdSet, fscale, outputDir)

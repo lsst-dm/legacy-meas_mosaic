@@ -7,6 +7,7 @@ import lsst.afw.cameraGeom              as cameraGeom
 import lsst.afw.geom                    as afwGeom
 import lsst.afw.detection               as afwDet
 import lsst.afw.image                   as afwImage
+import lsst.afw.math                    as afwMath
 import hsc.meas.mosaic.mosaicLib        as hscMosaic
 
 def calXi(a, d, A, D):
@@ -86,10 +87,12 @@ def simStar(ccdSetTrue):
         r2 = random.random()
         ra  = ra0  + (r1 - 0.5) * rad * 2 / math.cos(dec0)
         dec = 0.5*math.pi - math.acos(z_min + (z_max - z_min) * r2)
+	flux = 10000. * random.random()
         s = afwDet.Source()
         s.setId(i)
         s.setRa(ra)
         s.setDec(dec)
+        s.setPsfFlux(flux)
         if (random.random() < 0.1):
             s.setFlagForWcs(1)
         else:
@@ -98,7 +101,7 @@ def simStar(ccdSetTrue):
 
     f = open("star.dat", "w")
     for s in stars:
-        f.write("%f %f %d\n" % (s.getRa(), s.getDec(), s.getFlagForWcs()));
+        f.write("%f %f %f %d\n" % (s.getRa(), s.getDec(), s.getPsfFlux(), s.getFlagForWcs()));
     f.close()
 
     nexp = 5
@@ -157,7 +160,7 @@ def simStar(ccdSetTrue):
                         s2.setYAstrom(y)
                         s1.setRa(s.getRa())
                         s1.setDec(s.getDec())
-                        s2.setPsfFlux(100.0)
+                        s2.setPsfFlux(s.getPsfFlux()*math.pow(0.95,i)*math.pow(0.999,ccd.getId().getSerial()))
                         mL.append(afwDet.SourceMatch(s1, s2, 0.0))
 
                     s2 = afwDet.Source()
@@ -167,7 +170,7 @@ def simStar(ccdSetTrue):
                     s2.setYAstrom(y)
                     s2.setRa(s.getRa())
                     s2.setDec(s.getDec())
-                    s2.setPsfFlux(100.0)
+                    s2.setPsfFlux(s.getPsfFlux()*math.pow(0.95,i)*math.pow(0.999,ccd.getId().getSerial()))
                     sS.append(s2)
                     break
 
@@ -215,8 +218,8 @@ def readSimStar():
         wcsDic[i] = wcs
 
     matchList = hscMosaic.vvSourceMatch()
-    id, iexp, iccd, x, y, ra, dec \
-        = numpy.loadtxt("matchList.dat", usecols=(0,1,2,3,4,5,6), unpack=True)
+    id, iexp, iccd, x, y, ra, dec, flux \
+        = numpy.loadtxt("matchList.dat", usecols=(0,1,2,3,4,5,6,7), unpack=True)
     for j in range(5):
         mL = []
         for i in range(len(id)):
@@ -229,13 +232,13 @@ def readSimStar():
                 s2.setYAstrom(y[i])
                 s1.setRa(ra[i])
                 s1.setDec(dec[i])
-                s2.setPsfFlux(100.0)
+                s2.setPsfFlux(flux[i])
                 mL.append(afwDet.SourceMatch(s1, s2, 0.0))
         matchList.append(mL)
         
     sourceSet = hscMosaic.SourceGroup()
-    id, iexp, iccd, x, y, ra, dec \
-        = numpy.loadtxt("sourceSet.dat", usecols=(0,1,2,3,4,5,6), unpack=True)
+    id, iexp, iccd, x, y, ra, dec, flux \
+        = numpy.loadtxt("sourceSet.dat", usecols=(0,1,2,3,4,5,6,7), unpack=True)
     for j in range(5):
         sS = []
         for i in range(len(id)):
@@ -247,7 +250,7 @@ def readSimStar():
                 s2.setYAstrom(y[i])
                 s2.setRa(ra[i])
                 s2.setDec(dec[i])
-                s2.setPsfFlux(100.0)
+                s2.setPsfFlux(flux[i])
                 sS.append(s2)
         sourceSet.append(sS)
 
@@ -255,6 +258,13 @@ def readSimStar():
         print len(matchList[i]), len(sourceSet[i])
         
     return wcsDic, matchList, sourceSet
+
+def countObsInSourceGroup(sg):
+    num = 0
+    for s in sg:
+        num += len(s) - 1
+
+    return num
 
 if __name__ == '__main__':
     
@@ -268,6 +278,7 @@ if __name__ == '__main__':
         wcsDic, matchList, sourceSet = simStar(ccdSetTrue)
         print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
     else:
+        # First run testFit
         print "Reading simulated catalog ..."
         ccdSet, ccdSetTrue = readSimCcd()
         wcsDic, matchList, sourceSet = readSimStar()
@@ -275,27 +286,28 @@ if __name__ == '__main__':
     
     print "Merge matched catalog ..."
     rootMat = hscMosaic.kdtreeMat(matchList)
-    allMat = hscMosaic.SourceGroup()
-    rootMat.mergeMat(allMat)
+    allMat = rootMat.mergeMat()
+    print "# of allMat : ", countObsInSourceGroup(allMat)
     print 'len(allMat) = ', len(allMat)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     print "Merge source catalog ..."
     d_lim = 3.0 / 3600.0 * math.pi / 180.0
-    rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, d_lim, 10000)
-    allSource = hscMosaic.SourceGroup() 
-    rootSource.mergeSource(allSource)
+    rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, ccdSet.size(), d_lim, 10000)
+    allSource = rootSource.mergeSource()
+    print "# of allSource : ", countObsInSourceGroup(allSource)
     print 'len(allSource) = ', len(allSource)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     print "Solve mosaic ..."
     order = 11
-    coeffSet = hscMosaic.solveMosaic_CCD(order, allMat, allSource, wcsDic, ccdSet)
+    fscale = afwMath.vectorD()
+    coeffSet = hscMosaic.solveMosaic_CCD(order, allMat, allSource, wcsDic, ccdSet, fscale)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     f = open("ccd.dat", "w")
     for i in range(ccdSet.size()):
         center = ccdSet[i].getCenter()
         orient = ccdSet[i].getOrientation()
-        f.write("%3ld %11.4f %11.4f %10.7f\n" % (i, center[0], center[1], orient.getYaw()));
+        f.write("%3ld %11.4f %11.4f %10.7f %5.3f\n" % (i, center[0], center[1], orient.getYaw(), fscale[coeffSet.size()+i]));
     f.close()

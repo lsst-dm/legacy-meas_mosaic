@@ -18,6 +18,7 @@ public:
     int nx, ny;
     double x0, y0;
     double theta;
+    double gain;
 
     Chip(int id, int nx, int ny, double x0, double y0, double theta) {
 	this->id = id;
@@ -48,12 +49,14 @@ class Object {
 public:
     int id;
     double ra, dec;
+    double flux;
     bool match;
 
-    Object(int id, double ra, double dec) {
+    Object(int id, double ra, double dec, double flux) {
 	this->id  = id;
 	this->ra  = ra;
 	this->dec = dec;
+	this->flux = flux;
 	this->match = false;
     }
 };
@@ -112,10 +115,16 @@ int main(int argc, char **argv)
     fclose(fp);
     int nchip = ccd_true.size();
 
+    ccd_true[0].gain = 1.0;
+    for (size_t i = 1; i < ccd_true.size(); i++) {
+	ccd_true[i].gain = 1.0 + gsl_ran_gaussian(r, 0.1);
+    }
+
     fp = fopen("ccd_true.dat", "wt");
     for (size_t i = 0; i < ccd_true.size(); i++) {
-	fprintf(fp, "%3ld %11.4f %11.4f %10.7f %11.4f %11.4f %10.7f\n",
+	fprintf(fp, "%3ld %11.4f %11.4f %10.7f %5.3f %11.4f %11.4f %10.7f\n",
 		i, ccd_true[i].x0, ccd_true[i].y0, ccd_true[i].theta,
+		ccd_true[i].gain,
 		ccd[i].x0, ccd[i].y0, ccd[i].theta);
     }
     fclose(fp);
@@ -143,7 +152,8 @@ int main(int argc, char **argv)
 	double r2 = gsl_rng_uniform(r);
 	double ra = ra0 + (r1 - 0.5) * rad * 2 / cos(dec0);
 	double dec = M_PI_2 - acos(z_min + (z_max - z_min) * r2);
-	Object o(i, ra, dec);
+	double flux = 10000. * gsl_rng_uniform(r);
+	Object o(i, ra, dec, flux);
 	if (gsl_rng_uniform(r) < 0.1) {
 	    o.match = true;
 	}
@@ -153,11 +163,14 @@ int main(int argc, char **argv)
     int nexp = 5;
     double rac[5];
     double decc[5];
+    double fscl[5];
     rac[0]  = ra0;
     decc[0] = dec0;
+    fscl[0] = 1.0;
     for (int i = 1; i < nexp; i++) {
 	rac[i]  = ra0  + ((i-1) / 2 - 0.5) * 0.4 / 180. * M_PI;
 	decc[i] = dec0 + ((i-1) % 2 - 0.5) * 0.4 / 180. * M_PI;
+	fscl[i] = 1. + gsl_ran_gaussian(r, 0.2);
     }
 
     WcsDic wcsDic;
@@ -211,19 +224,20 @@ int main(int argc, char **argv)
 			s2->setYAstrom(y);
 			s1->setRa(star[i].ra);
 			s1->setDec(star[i].dec);
-			s2->setPsfFlux(100.0);
+			s2->setPsfFlux(star[i].flux*fscl[j]*ccd_true[k].gain*(1.+gsl_ran_gaussian(r,0.03)));
 			mL.push_back(SourceMatch(s1, s2, 0.0));
-		    } else {
-			Source::Ptr s = Source::Ptr(new Source());
-			s->setId(i);
-			s->setAmpExposureId(j*1000+k);
-			s->setXAstrom(x);
-			s->setYAstrom(y);
-			s->setRa(star[i].ra);
-			s->setDec(star[i].dec);
-			s->setPsfFlux(100.0);
-			sS.push_back(s);
 		    }
+
+		    Source::Ptr s = Source::Ptr(new Source());
+		    s->setId(i);
+		    s->setAmpExposureId(j*1000+k);
+		    s->setXAstrom(x);
+		    s->setYAstrom(y);
+		    s->setRa(star[i].ra);
+		    s->setDec(star[i].dec);
+		    s->setPsfFlux(star[i].flux*fscl[j]*ccd_true[k].gain*(1.+gsl_ran_gaussian(r,0.03)));
+		    sS.push_back(s);
+
 		    break;
 		}
 	    }
@@ -235,14 +249,15 @@ int main(int argc, char **argv)
     fp = fopen("matchList.dat", "wt");
     for (size_t j = 0; j < matchList.size(); j++) {
 	for (size_t i = 0; i < matchList[j].size(); i++) {
-	    fprintf(fp, "%5ld %ld %3ld %e %e %e %e\n",
+	    fprintf(fp, "%5ld %ld %3ld %e %e %e %e %e\n",
 		    matchList[j][i].second->getId(),
 		    matchList[j][i].second->getAmpExposureId() / 1000,
 		    matchList[j][i].second->getAmpExposureId() % 1000,
 		    matchList[j][i].second->getXAstrom(),
 		    matchList[j][i].second->getYAstrom(),
 		    matchList[j][i].first->getRa(),
-		    matchList[j][i].first->getDec());
+		    matchList[j][i].first->getDec(),
+		    matchList[j][i].second->getPsfFlux());
 	}
     }
     fclose(fp);
@@ -250,14 +265,15 @@ int main(int argc, char **argv)
     fp = fopen("sourceSet.dat", "wt");
     for (size_t j = 0; j < sourceSetList.size(); j++) {
 	for (size_t i = 0; i < sourceSetList[j].size(); i++) {
-	    fprintf(fp, "%5ld %ld %3ld %e %e %e %e\n",
+	    fprintf(fp, "%5ld %ld %3ld %e %e %e %e %e\n",
 		    sourceSetList[j][i]->getId(),
 		    sourceSetList[j][i]->getAmpExposureId() / 1000,
 		    sourceSetList[j][i]->getAmpExposureId() % 1000,
 		    sourceSetList[j][i]->getXAstrom(),
 		    sourceSetList[j][i]->getYAstrom(),
 		    sourceSetList[j][i]->getRa(),
-		    sourceSetList[j][i]->getDec());
+		    sourceSetList[j][i]->getDec(),
+		    sourceSetList[j][i]->getPsfFlux());
 	}
     }
     fclose(fp);
@@ -265,18 +281,12 @@ int main(int argc, char **argv)
     clock_t t0 = std::clock();
 
     KDTree::Ptr rootMat = kdtreeMat(matchList);
-    SourceGroup allMat;
-    rootMat->mergeMat(allMat);
+    SourceGroup allMat = rootMat->mergeMat();
 
     double d_lim = 3.0 / 3600.0 * M_PI / 180.0;
     KDTree::Ptr rootSource = kdtreeSource(sourceSetList, rootMat, ccdSet.size(), d_lim, 10000);
-    SourceGroup allSource;
-    rootSource->mergeSource(allSource);
-/*
-    SourceGroup allMat = mergeMat(matchList);
-    double d_lim = 3.0 / 3600.0 * M_PI / 180.0;
-    SourceGroup allSource = mergeSource(sourceSetList, allMat, d_lim, 10000);
-*/
+    SourceGroup allSource = rootSource->mergeSource();
+
     clock_t t1 = std::clock();
     std::cout << (double)(t1-t0)/CLOCKS_PER_SEC << std::endl;
 
@@ -292,8 +302,8 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < ccdSet.size(); i++) {
 	lsst::afw::geom::PointD center = ccdSet[i]->getCenter();
 	lsst::afw::cameraGeom::Orientation orientation = ccdSet[i]->getOrientation();
-	fprintf(fp, "%3ld %11.4f %11.4f %10.7f\n",
-		i, center[0], center[1], orientation.getYaw());
+	fprintf(fp, "%3ld %11.4f %11.4f %10.7f %5.3f\n",
+		i, center[0], center[1], orientation.getYaw(), fscale[coeffs.size()+i]);
     }
     fclose(fp);
 
@@ -306,9 +316,10 @@ int main(int argc, char **argv)
 		    coeffs[i]->a[k],  coeffs[i]->b[k], 
 		    coeffs[i]->ap[k], coeffs[i]->bp[k]);
 	}
+	fprintf(fp, "%5.3f\n", fscale[i]);
     }
     fclose(fp);
-
+    /*
     for (size_t j = 0; j < coeffs.size(); j++) {
 	for (size_t i = 0; i < ccdSet.size(); i++) {
 	    Coeff::Ptr c = convertCoeff(coeffs[j], ccdSet[i]);
@@ -319,6 +330,6 @@ int main(int argc, char **argv)
 	    exposure.writeFits(fname);
 	}
     }
-
+    */
     return 0;
 }
