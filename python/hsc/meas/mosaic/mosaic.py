@@ -4,6 +4,7 @@ import numpy
 
 import lsst.pipette.readwrite           as pipReadWrite
 import lsst.obs.hscSim                  as hscSim
+import lsst.obs.suprimecam              as obsSc
 import lsst.afw.cameraGeom              as cameraGeom
 import lsst.afw.cameraGeom.utils        as cameraGeomUtils
 import lsst.afw.image                   as afwImage
@@ -17,10 +18,33 @@ def readCcd(camera, ccdIds):
     print "Reading CCD info ..."
 
     ccds = hscMosaic.CcdSet()
+    width = []
+    height = []
     for i in ccdIds:
         ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(i)))
         ccds.push_back(ccd)
+        w = 0;
+        for amp in ccd:
+            w += amp.getDataSec(True).getWidth()
+            h = amp.getDataSec(True).getHeight()
+        width.append(w)
+        height.append(h)
 
+    # Calculate mean position of all CCD chips
+    sx = sy = 0.
+    for i in range(ccds.size()):
+        sx += ccds[i].getCenter()[0] + 0.5 * width[i]
+        sy += ccds[i].getCenter()[1] + 0.5 * height[i]
+    dx = sx / ccds.size()
+    dy = sy / ccds.size()
+
+    # Shift the origin of CCD chips
+    for i in range(ccds.size()):
+        offset = ccds[i].getCenter()
+        offset[0] -= dx
+        offset[1] -= dy
+        ccds[i].setCenter(offset)
+        
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     return ccds
@@ -151,27 +175,29 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
 
     return allMat, allSource
 
-def writeNewWcs(coeffSet, ccdSet, fscale, frameIds, ccdIds, outputDir="."):
+def writeNewWcs(ioMgr, coeffSet, ccdSet, fscale, frameIds, ccdIds):
     print "Write New WCS ..."
-    img = afwImage.ImageI(0,0)
+    exp = afwImage.ExposureI(0,0)
     for i in range(coeffSet.size()):
         for j in range(ccdSet.size()):
             c = hscMosaic.convertCoeff(coeffSet[i], ccdSet[j]);
             wcs = hscMosaic.wcsFromCoeff(c);
-            md = wcs.getFitsMetadata()
-            #scale = fscale[ccdSet.size()*i+j]
             scale = fscale[i] * fscale[coeffSet.size()+j]
-            md.set("FSCALE", scale);
-            fname = os.path.join(outputDir, "wcs%05d%03d.fits" % (frameIds[i], ccdIds[j]))
-            img.writeFits(fname, md)
+            exp.getMetadata().set("FSCALE", scale)
+            exp.setWcs(wcs)
+            try:
+                ioMgr.outButler.put(exp, 'wcs', dict(visit=frameIds[i], ccd=ccdIds[j]))
+            except Exception, e:
+                print "failed to write something: %s" % (e)
+
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
 def outputDiag(coeffSet, ccdSet, fscale, outputDir="."):
     f = open(os.path.join(outputDir, "coeffs.dat"), "wt")
     for i in range(coeffSet.size()):
         f.write("%ld %12.5e %12.5e\n" % (i, coeffSet[i].A, coeffSet[i].D));
-        for k in range(coeffSet[i].ncoeff):
-            f.write("%ld %12.5e %12.5e %12.5e %12.5e\n" % (i, coeffSet[i].get_a(k), coeffSet[i].get_b(k), coeffSet[i].get_ap(k), coeffSet[i].get_bp(k)));
+        for k in range(coeffSet[i].getNcoeff()):
+            f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" % (i, coeffSet[i].get_a(k), coeffSet[i].get_b(k), coeffSet[i].get_ap(k), coeffSet[i].get_bp(k)));
         f.write("%5.3f\n" % (fscale[i]))
     f.close()
 
@@ -182,9 +208,12 @@ def outputDiag(coeffSet, ccdSet, fscale, outputDir="."):
         f.write("%3ld %10.3f %10.3f %10.7f %5.3f\n" % (i, center[0], center[1], orient.getYaw(), fscale[coeffSet.size()+i]));
     f.close()
 
-def mosaic(frameIds, ccdIds, rerun, outputDir=".", debug=False, verbose=False):
+def mosaic(frameIds, ccdIds, instrument, rerun, outputDir=".", debug=False, verbose=False):
 
-    mapper = hscSim.HscSimMapper(rerun=rerun)
+    if instrument.lower() in ["hsc"]:
+        mapper = hscSim.HscSimMapper(rerun=rerun)
+    elif instrument.lower() in ["suprimecam", "suprime-cam", "sc"]:
+        mapper = obsSc.SuprimecamMapper(rerun=rerun)
     ioMgr = pipReadWrite.ReadWrite(mapper, ['visit'], fileKeys=['visit', 'ccd'])
 
     package = "hscMosaic"
@@ -234,6 +263,6 @@ def mosaic(frameIds, ccdIds, rerun, outputDir=".", debug=False, verbose=False):
                                                   solveCcd, allowRotation, verbose)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    writeNewWcs(coeffSet, ccdSet, fscale, frameIds, ccdIds, outputDir)
+    writeNewWcs(ioMgr, coeffSet, ccdSet, fscale, frameIds, ccdIds)
 
     outputDiag(coeffSet, ccdSet, fscale, outputDir)

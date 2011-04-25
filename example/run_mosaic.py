@@ -9,6 +9,9 @@ def main():
     parser.add_option("-r", "--rerun",
                       type=str, default=None,
                       help="rerun name to take source and matched list from.")
+    parser.add_option("-I", "--instrument",
+                      type=str, default='hsc',
+                      help="instument to treat.")
     parser.add_option("-f", "--frameid",
                       type=str, default=None,
                       help="frameid to process (20, 21, 22, 23, 24)")
@@ -22,12 +25,12 @@ def main():
         raise SystemExit("failed to parse arguments")
 
     sys.argv = [sys.argv[0]] + args
-    print "rerun=%s, frameid=%s, outputDir=%s, args=%s" % \
-        (opts.rerun, opts.frameid, opts.outputDir, sys.argv)
+    print "rerun=%s, instrument=%s, frameid=%s, outputDir=%s, args=%s" % \
+        (opts.rerun, opts.instrument, opts.frameid, opts.outputDir, sys.argv)
 
-    run(rerun=opts.rerun, frameid=opts.frameid, outputDir=opts.outputDir)
+    run(rerun=opts.rerun, instrument=opts.instrument, frameid=opts.frameid, outputDir=opts.outputDir)
 
-def run(rerun=None, frameid=None, outputDir=None):
+def run(rerun=None, instrument=None, frameid=None, outputDir=None):
     frameIds = []
     if (frameid == "20"):
         frameIds = [200, 201, 202, 203, 204, 205, 206, 207, 208]
@@ -39,15 +42,22 @@ def run(rerun=None, frameid=None, outputDir=None):
         frameIds = [230, 231, 232, 233, 234, 235, 236, 237, 238]
     elif (frameid == "24"):
         frameIds = [241, 242, 243, 244]
+    elif (frameid == "sc"):
+        frameIds = [104717, 104718, 104719, 104720, 104721, 104722, 104723, 104724, 104725, 104726]
     else:
         for i in range(5):
             frameIds.append(int(frameid)*10 + i)
 
     print frameIds
-    
-    ccdIds = range(100)
 
-    mosaic.mosaic(frameIds, ccdIds, rerun, outputDir=outputDir, verbose=True)
+    if instrument.lower() in ["hsc"]:
+        ccdIds = range(100)
+    elif instrument.lower() in ["suprimecam", "suprime-cam", "sc"]:
+        ccdIds = range(10)
+    else:
+        ccdIds = range(100)
+
+    mosaic.mosaic(frameIds, ccdIds, instrument, rerun, outputDir=outputDir, verbose=True)
 
 if __name__ == '__main__':
     main()
