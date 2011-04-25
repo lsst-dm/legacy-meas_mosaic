@@ -2135,7 +2135,7 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 	    for (int i = 0; i < nchip; i++) {
 		lsst::afw::geom::PointD center = ccdSet[i]->getCenter();
 		lsst::afw::geom::PointD offset =
-		    lsst::afw::geom::makePointD(center[0]+coeff[2*ncoeff*nexp+3*i],
+		    lsst::afw::geom::Point2D(center[0]+coeff[2*ncoeff*nexp+3*i],
 						center[1]+coeff[2*ncoeff*nexp+3*i+1]);
 		ccdSet[i]->setCenter(offset);
 		lsst::afw::cameraGeom::Orientation o = ccdSet[i]->getOrientation();
@@ -2149,7 +2149,7 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 	    for (int i = 0; i < nchip; i++) {
 		lsst::afw::geom::PointD center = ccdSet[i]->getCenter();
 		lsst::afw::geom::PointD offset =
-		    lsst::afw::geom::makePointD(center[0]+coeff[2*ncoeff*nexp+2*i],
+		    lsst::afw::geom::Point2D(center[0]+coeff[2*ncoeff*nexp+2*i],
 						center[1]+coeff[2*ncoeff*nexp+2*i+1]);
 		ccdSet[i]->setCenter(offset);
 	    }
@@ -2326,7 +2326,7 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 	    for (int i = 0; i < nchip; i++) {
 		lsst::afw::geom::PointD center = ccdSet[i]->getCenter();
 		lsst::afw::geom::PointD offset =
-		    lsst::afw::geom::makePointD(center[0]+coeff[2*ncoeff*nexp+3*i],
+		    lsst::afw::geom::Point2D(center[0]+coeff[2*ncoeff*nexp+3*i],
 						center[1]+coeff[2*ncoeff*nexp+3*i+1]);
 		ccdSet[i]->setCenter(offset);
 		lsst::afw::cameraGeom::Orientation o = ccdSet[i]->getOrientation();
@@ -2340,7 +2340,7 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 	    for (int i = 0; i < nchip; i++) {
 		lsst::afw::geom::PointD center = ccdSet[i]->getCenter();
 		lsst::afw::geom::PointD offset =
-		    lsst::afw::geom::makePointD(center[0]+coeff[2*ncoeff*nexp+2*i],
+		    lsst::afw::geom::Point2D(center[0]+coeff[2*ncoeff*nexp+2*i],
 						center[1]+coeff[2*ncoeff*nexp+2*i+1]);
 		ccdSet[i]->setCenter(offset);
 	    }
@@ -2610,8 +2610,8 @@ hsc::meas::mosaic::wcsFromCoeff(Coeff::Ptr& coeff)
     int order = coeff->order;
 
     lsst::afw::geom::PointD crval
-	= lsst::afw::geom::makePointD(coeff->A*R2D, coeff->D*R2D);
-    lsst::afw::geom::PointD crpix = lsst::afw::geom::makePointD(-coeff->x0, -coeff->y0);
+	= lsst::afw::geom::Point2D(coeff->A*R2D, coeff->D*R2D);
+    lsst::afw::geom::PointD crpix = lsst::afw::geom::Point2D(-coeff->x0, -coeff->y0);
 
     Eigen::Matrix2d cd;
     cd << coeff->a[0], coeff->a[1], coeff->b[0], coeff->b[1];
