@@ -58,6 +58,7 @@ namespace hsc {
 		double get_b(int i) { return b[i]; }
 		double get_ap(int i) { return ap[i]; }
 		double get_bp(int i) { return bp[i]; }
+		int getNcoeff() { return ncoeff; }
 	    };
 
 	    class Obs {
