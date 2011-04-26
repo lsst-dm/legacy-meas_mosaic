@@ -75,17 +75,28 @@ int Poly::getIndex(int i, int j) {
     return -1;
 }
 
-Coeff::Coeff(Poly::Ptr p) {
-    this->order  = p->order;
-    this->ncoeff = p->ncoeff;
-    this->a  = new double[this->ncoeff];
-    this->b  = new double[this->ncoeff];
-    this->ap = new double[this->ncoeff];
-    this->bp = new double[this->ncoeff];
-    memset(this->a,  0x0, sizeof(double)*this->ncoeff);
-    memset(this->b,  0x0, sizeof(double)*this->ncoeff);
-    memset(this->ap, 0x0, sizeof(double)*this->ncoeff);
-    memset(this->bp, 0x0, sizeof(double)*this->ncoeff);
+Coeff::Coeff(int order) {
+    this->p = Poly::Ptr(new Poly(order));
+    this->a  = new double[this->p->ncoeff];
+    this->b  = new double[this->p->ncoeff];
+    this->ap = new double[this->p->ncoeff];
+    this->bp = new double[this->p->ncoeff];
+    memset(this->a,  0x0, sizeof(double)*this->p->ncoeff);
+    memset(this->b,  0x0, sizeof(double)*this->p->ncoeff);
+    memset(this->ap, 0x0, sizeof(double)*this->p->ncoeff);
+    memset(this->bp, 0x0, sizeof(double)*this->p->ncoeff);
+}
+
+Coeff::Coeff(Poly::Ptr const &p) {
+    this->p = p;
+    this->a  = new double[this->p->ncoeff];
+    this->b  = new double[this->p->ncoeff];
+    this->ap = new double[this->p->ncoeff];
+    this->bp = new double[this->p->ncoeff];
+    memset(this->a,  0x0, sizeof(double)*this->p->ncoeff);
+    memset(this->b,  0x0, sizeof(double)*this->p->ncoeff);
+    memset(this->ap, 0x0, sizeof(double)*this->p->ncoeff);
+    memset(this->bp, 0x0, sizeof(double)*this->p->ncoeff);
 }
 
 Coeff::~Coeff(void) {
@@ -96,13 +107,12 @@ Coeff::~Coeff(void) {
 }
 
 Coeff::Coeff(const Coeff &c) {
-    this->order  = c.order;
-    this->ncoeff = c.ncoeff;
-    this->a  = new double[this->ncoeff];
-    this->b  = new double[this->ncoeff];
-    this->ap = new double[this->ncoeff];
-    this->bp = new double[this->ncoeff];
-    for (int i = 0; i < this->ncoeff; i++) {
+    this->p = c.p;
+    this->a  = new double[this->p->ncoeff];
+    this->b  = new double[this->p->ncoeff];
+    this->ap = new double[this->p->ncoeff];
+    this->bp = new double[this->p->ncoeff];
+    for (int i = 0; i < this->p->ncoeff; i++) {
 	this->a[i]  = c.a[i];
 	this->b[i]  = c.b[i];
 	this->ap[i] = c.ap[i];
@@ -116,23 +126,23 @@ Coeff::Coeff(const Coeff &c) {
 
 void Coeff::show(void) {
     printf("%12.5e %12.5e\n", this->A, this->D);
-    for (int k = 0; k < this->ncoeff; k++) {
+    for (int k = 0; k < this->p->ncoeff; k++) {
 	printf("%12.5e %12.5e %12.5e %12.5e\n",
 	       this->a[k], this->b[k], 
 	       this->ap[k], this->bp[k]);
     }
 }
 
-void Coeff::uvToXiEta(Poly::Ptr p, double u, double v, double *xi, double *eta) {
+void Coeff::uvToXiEta(double u, double v, double *xi, double *eta) {
     *xi  = 0.0;
     *eta = 0.0;
-    for (int i = 0; i < this->ncoeff; i++) {
+    for (int i = 0; i < this->p->ncoeff; i++) {
 	*xi  += this->a[i] * pow(u, p->xorder[i]) * pow(v, p->yorder[i]);
 	*eta += this->b[i] * pow(u, p->xorder[i]) * pow(v, p->yorder[i]);
     }
 }
 
-void Coeff::xietaToUV(Poly::Ptr p, double xi, double eta, double *u, double *v) {
+void Coeff::xietaToUV(double xi, double eta, double *u, double *v) {
     Eigen::Matrix2d cd;
     cd << this->a[0], this->a[1], this->b[0], this->b[1];
     double det = cd(0,0) * cd(1,1) - cd(0,1) * cd(1,0);
@@ -140,10 +150,75 @@ void Coeff::xietaToUV(Poly::Ptr p, double xi, double eta, double *u, double *v) 
     double V = (-xi * cd(1,0) + eta * cd(1,1)) / det;
     *u = U;
     *v = V;
-    for (int i = 0; i < this->ncoeff; i++) {
+    for (int i = 0; i < this->p->ncoeff; i++) {
 	*u += this->ap[i] * pow(U, p->xorder[i]) * pow(V, p->yorder[i]);
 	*v += this->bp[i] * pow(U, p->xorder[i]) * pow(V, p->yorder[i]);
     }
+}
+
+double Coeff::xi(double u, double v) {
+    double xi = 0.0;
+    for (int i = 0; i < this->p->ncoeff; i++) {
+	xi += this->a[i] * pow(u, this->p->xorder[i]) * pow(v, this->p->yorder[i]);
+    }
+    return xi;
+}
+
+double Coeff::eta(double u, double v) {
+    double eta = 0.0;
+    for (int i = 0; i < this->p->ncoeff; i++) {
+	eta += this->b[i] * pow(u, this->p->xorder[i]) * pow(v, this->p->yorder[i]);
+    }
+    return eta;
+}
+
+double Coeff::dxidu(double u, double v) {
+    double dxi = 0.0;
+    for (int i = 0; i < this->p->ncoeff; i++) {
+	if (this->p->xorder[i]-1 >= 0) {
+	    dxi += this->a[i] * this->p->xorder[i] * pow(u, this->p->xorder[i]-1) * pow(v, this->p->yorder[i]);
+	}
+    }
+    return dxi;
+}
+
+double Coeff::dxidv(double u, double v) {
+    double dxi = 0.0;
+    for (int i = 0; i < this->p->ncoeff; i++) {
+	if (this->p->yorder[i]-1 >= 0) {
+	    dxi += this->a[i] * pow(u, this->p->xorder[i]) * this->p->yorder[i] * pow(v, this->p->yorder[i]-1);
+	}
+    }
+    return dxi;
+}
+
+double Coeff::detadu(double u, double v) {
+    double deta = 0.0;
+    for (int i = 0; i < this->p->ncoeff; i++) {
+	if (this->p->xorder[i]-1 >= 0) {
+	    deta += this->b[i] * this->p->xorder[i] * pow(u, this->p->xorder[i]-1) * pow(v, this->p->yorder[i]);
+	}
+    }
+    return deta;
+}
+
+double Coeff::detadv(double u, double v) {
+    double deta = 0.0;
+    for (int i = 0; i < this->p->ncoeff; i++) {
+	if (this->p->yorder[i]-1 >= 0) {
+	    deta += this->b[i] * pow(u, this->p->xorder[i]) * this->p->yorder[i] * pow(v, this->p->yorder[i]-1);
+	}
+    }
+    return deta;
+}
+
+double Coeff::detJ(double u, double v) {
+    double a = this->dxidu(u, v);
+    double b = this->dxidv(u, v);
+    double c = this->detadu(u, v);
+    double d = this->detadv(u, v);
+
+    return fabs(a*d-b*c);
 }
 
 Obs::Obs(int id, double ra, double dec, double x, double y, int ichip, int iexp) {
@@ -200,7 +275,7 @@ void Obs::setXiEta(double ra_c, double dec_c) {
 void Obs::setFitVal(Coeff::Ptr& c, Poly::Ptr p) {
     this->xi_fit  = 0.0;
     this->eta_fit = 0.0;
-    for (int k = 0; k < c->ncoeff; k++) {
+    for (int k = 0; k < c->p->ncoeff; k++) {
 	this->xi_fit  += c->a[k] * pow(this->u, p->xorder[k]) * pow(this->v, p->yorder[k]);
 	this->eta_fit += c->b[k] * pow(this->u, p->xorder[k]) * pow(this->v, p->yorder[k]);
     }
@@ -214,7 +289,7 @@ void Obs::setFitVal2(Coeff::Ptr& c, Poly::Ptr p) {
     double V = (-this->xi * cd(1,0) + this->eta * cd(0,0)) / det;
     this->u_fit = U;
     this->v_fit = V;
-    for (int i = 0; i < c->ncoeff; i++) {
+    for (int i = 0; i < c->p->ncoeff; i++) {
 	this->u_fit += c->ap[i] * pow(U, p->xorder[i]) * pow(V, p->yorder[i]);
 	this->v_fit += c->bp[i] * pow(U, p->xorder[i]) * pow(V, p->yorder[i]);
     }
@@ -1854,12 +1929,43 @@ double *fluxFit_shot_chip(std::vector<Obs::Ptr> &s, int nexp, int nchip, int nst
 
     delete [] a_data;
     delete [] b_data;
-    /*
-    for (int i = 0; i < nexp+nchip; i++) {
-	printf("%d %f\n", i, solution[i]);
+
+    for (int i = 0; i < nSobs; i++) {
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	s[i]->mag0 = solution[nexp+nchip+s[i]->jstar];
     }
-    */
+
     return solution;
+}
+
+double calcChi2_flux(std::vector<Obs::Ptr> &s, int nexp, int nchip, double *fsol)
+{
+    int nSobs = s.size();
+
+    double chi2 = 0.0;
+    for (int i = 0; i < nSobs; i++) {
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	chi2 += pow(s[i]->mag + fsol[s[i]->iexp] + fsol[nexp+s[i]->ichip] - fsol[nexp+nchip+s[i]->jstar], 2.0);
+    }
+
+    return chi2;
+}
+
+void flagObj_flux(std::vector<Obs::Ptr> &s, int nexp, int nchip, double *fsol, double e2)
+{
+    int nSobs = s.size();
+
+    int nreject = 0;
+    for (int i = 0; i < nSobs; i++) {
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	double r2 = pow(s[i]->mag + fsol[s[i]->iexp] + fsol[nexp+s[i]->ichip] - fsol[nexp+nchip+s[i]->jstar], 2.0);
+	if (r2 > e2) {
+	    s[i]->good = false;
+	    nreject++;
+	}
+    }
+
+    printf("nreject: %d\n", nreject);
 }
 
 double calcChi2(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, Poly::Ptr p)
@@ -1942,9 +2048,10 @@ double calcChi2_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, CoeffSe
     return chi2;
 }
 
-std::vector<Obs::Ptr> obsVecFromSourceGroup(SourceGroup const &all,
-					    WcsDic &wcsDic,
-					    CcdSet &ccdSet)
+ObsVec
+hsc::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
+					 WcsDic &wcsDic,
+					 CcdSet &ccdSet)
 {
     std::vector<Obs::Ptr> obsVec;
     for (size_t i = 0; i < all.size(); i++) {
@@ -2054,7 +2161,8 @@ double *solveSIP_P(Poly::Ptr p,
 
 CoeffSet
 hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
-					SourceGroup const &allMat,
+					int nmatch,
+					ObsVec &matchVec,
 					WcsDic &wcsDic,
 					CcdSet &ccdSet,
 					std::vector<double> &fscale,
@@ -2064,14 +2172,11 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 {
     Poly::Ptr p = Poly::Ptr(new Poly(order));
 
-    std::vector<Obs::Ptr> matchVec  = obsVecFromSourceGroup(allMat, wcsDic, ccdSet);
-
     int nMobs = matchVec.size();
 
     int nexp = wcsDic.size();
     int nchip = ccdSet.size();
     int ncoeff = p->ncoeff;
-    int nstar = allMat.size();
 
     // Solve for polynomial coefficients and crvals
     // for each exposure separately
@@ -2097,8 +2202,13 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 	double e2 = chi2 / obsVec_sub.size();
 	flagObj(obsVec_sub, a, p, 9.0*e2);
 
+	delete [] a;
+	a = solveForCoeff(obsVec_sub, p);
+	chi2 = calcChi(obsVec_sub, a, p);
+	printf("calcChi: %e\n", chi2);
+
 	// Store solution into Coeff class
-	Coeff::Ptr c = coeffVec[i];
+	Coeff::Ptr c = Coeff::Ptr(new Coeff(p));
 	c->iexp = i;
 	for (int k = 0; k < p->ncoeff; k++) {
 	    c->a[k] = a[k];
@@ -2108,6 +2218,7 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 	    = wcsDic[i]->getSkyOrigin()->getPosition(lsst::afw::coord::RADIANS);
 	c->A = crval[0] + a[p->ncoeff*2];
 	c->D = crval[1] + a[p->ncoeff*2+1];
+	coeffVec.push_back(c);
 
 	delete [] a;
     }
@@ -2198,7 +2309,20 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 	delete [] a;
     }
 
-    double *fsol = fluxFit_shot_chip(matchVec, nexp, nchip, nstar);
+    printf("fluxFit ...\n");
+    double *fsol = fluxFit_shot_chip(matchVec, nexp, nchip, nmatch);
+    double chi2f = calcChi2_flux(matchVec, nexp, nchip, fsol);
+    printf("chi2f: %e\n", chi2f);
+    double e2f = chi2f / matchVec.size();
+    printf("e2f: %e\n", e2f);
+    flagObj_flux(matchVec, nexp, nchip, fsol, 9.0*e2f);
+    delete [] fsol;
+
+    fsol = fluxFit_shot_chip(matchVec, nexp, nchip, nmatch);
+    chi2f = calcChi2_flux(matchVec, nexp, nchip, fsol);
+    printf("chi2f: %e\n", chi2f);
+    e2f = chi2f / matchVec.size();
+    printf("e2f: %e\n", e2f);
     for (int i = 0; i < nexp + nchip; i++) {
 	fscale.push_back(pow(10., -0.4*fsol[i]));
     }
@@ -2207,7 +2331,7 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
     for (int i = 0; i < nMobs; i++) {
 	matchVec[i]->setFitVal2(coeffVec[matchVec[i]->iexp], p);
     }
-
+    /*
     FILE *fp = fopen("fit.dat", "wt");
     for (size_t i = 0; i < matchVec.size(); i++) {
 	Obs::Ptr o = matchVec[i];
@@ -2219,14 +2343,16 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 		o->x, o->y, o->good);
     }
     fclose(fp);
-
+    */
     return coeffVec;
 }
 
 CoeffSet
 hsc::meas::mosaic::solveMosaic_CCD(int order,
-				   SourceGroup const &allMat,
-				   SourceGroup const &allSource,
+				   int nmatch,
+				   int nsource,
+				   ObsVec &matchVec,
+				   ObsVec &sourceVec,
 				   WcsDic &wcsDic,
 				   CcdSet &ccdSet,
 				   std::vector<double> &fscale,
@@ -2236,16 +2362,13 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 {
     Poly::Ptr p = Poly::Ptr(new Poly(order));
 
-    std::vector<Obs::Ptr> matchVec  = obsVecFromSourceGroup(allMat,    wcsDic, ccdSet);
-    std::vector<Obs::Ptr> sourceVec = obsVecFromSourceGroup(allSource, wcsDic, ccdSet);
-
     int nMobs = matchVec.size();
     int nSobs = sourceVec.size();
 
     int nexp = wcsDic.size();
     int nchip = ccdSet.size();
     int ncoeff = p->ncoeff;
-    int nstar = allSource.size();
+    int nstar = nsource;
 
     // Solve for polynomial coefficients and crvals
     // for each exposure separately
@@ -2270,7 +2393,7 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 	double chi2 = calcChi(obsVec_sub, a, p);
 	printf("calcChi: %e\n", chi2);
 	double e2 = chi2 / obsVec_sub.size();
-	flagObj(obsVec_sub, a, p, 3.0*e2);
+	flagObj(obsVec_sub, a, p, 9.0*e2);
 
 	delete [] a;
 	a = solveForCoeff(obsVec_sub, p);
@@ -2428,8 +2551,19 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
     }
 
     printf("fluxFit ...\n");
-    double *fsol = fluxFit_shot_chip(matchVec, nexp, nchip, allMat.size());
-    //double *fsol = fluxFit_shot_chip(sourceVec, nexp, nchip, allSource.size());
+    double *fsol = fluxFit_shot_chip(matchVec, nexp, nchip, nmatch);
+    double chi2f = calcChi2_flux(matchVec, nexp, nchip, fsol);
+    printf("chi2f: %e\n", chi2f);
+    double e2f = chi2f / matchVec.size();
+    printf("e2f: %e\n", e2f);
+    flagObj_flux(matchVec, nexp, nchip, fsol, 9.0*e2f);
+    delete [] fsol;
+
+    fsol = fluxFit_shot_chip(matchVec, nexp, nchip, nmatch);
+    chi2f = calcChi2_flux(matchVec, nexp, nchip, fsol);
+    printf("chi2f: %e\n", chi2f);
+    e2f = chi2f / matchVec.size();
+    printf("e2f: %e\n", e2f);
     for (int i = 0; i < nexp + nchip; i++) {
 	fscale.push_back(pow(10., -0.4*fsol[i]));
     }
@@ -2441,7 +2575,7 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
     for (int i = 0; i < nSobs; i++) {
 	sourceVec[i]->setFitVal2(coeffVec[sourceVec[i]->iexp], p);
     }
-
+    /*
     FILE *fp = fopen("fit.dat", "wt");
     for (size_t i = 0; i < matchVec.size(); i++) {
 	Obs::Ptr o = matchVec[i];
@@ -2462,7 +2596,7 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 		o->x, o->y, o->good);
     }
     fclose(fp);
-
+    */
     return coeffVec;
 }
 
@@ -2509,7 +2643,7 @@ int binomial(int n, int k)
 Coeff::Ptr
 hsc::meas::mosaic::convertCoeff(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::Ptr& ccd)
 {
-    Poly::Ptr p = Poly::Ptr(new Poly(coeff->order));
+    Poly::Ptr p = Poly::Ptr(new Poly(coeff->p->order));
     Coeff::Ptr newC = Coeff::Ptr(new Coeff(p));
 
     int *xorder = p->xorder;
@@ -2607,7 +2741,7 @@ hsc::meas::mosaic::convertCoeff(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::P
 lsst::afw::image::TanWcs::Ptr
 hsc::meas::mosaic::wcsFromCoeff(Coeff::Ptr& coeff)
 {
-    int order = coeff->order;
+    int order = coeff->p->order;
 
     lsst::afw::geom::PointD crval
 	= lsst::afw::geom::makePointD(coeff->A*R2D, coeff->D*R2D);

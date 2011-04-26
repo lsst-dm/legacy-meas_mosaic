@@ -294,9 +294,12 @@ int main(int argc, char **argv)
     int nSobs = allSource.size();
     printf("%d %d\n", nobs, nSobs);
 
+    ObsVec matchVec  = obsVecFromSourceGroup(allMat, wcsDic, ccdSet);
+    ObsVec sourceVec = obsVecFromSourceGroup(allSource, wcsDic, ccdSet);
+
     int order = 11;
     std::vector<double> fscale;
-    CoeffSet coeffs = solveMosaic_CCD(order, allMat, allSource, wcsDic, ccdSet, fscale);
+    CoeffSet coeffs = solveMosaic_CCD(order, nobs, nSobs, matchVec, sourceVec, wcsDic, ccdSet, fscale);
 
     fp = fopen("ccd.dat", "wt");
     for (size_t i = 0; i < ccdSet.size(); i++) {
@@ -310,7 +313,7 @@ int main(int argc, char **argv)
     fp = fopen("coeffs.dat", "wt");
     for (size_t i = 0; i < coeffs.size(); i++) {
 	fprintf(fp, "%ld %12.5e %12.5e\n", i, coeffs[i]->A, coeffs[i]->D);
-	for (int k = 0; k < coeffs[i]->ncoeff; k++) {
+	for (int k = 0; k < coeffs[i]->p->ncoeff; k++) {
 	    fprintf(fp, "%ld %12.5e %12.5e %12.5e %12.5e\n",
 		    i,
 		    coeffs[i]->a[k],  coeffs[i]->b[k], 

@@ -36,8 +36,7 @@ namespace hsc {
 	    public:
 		typedef boost::shared_ptr<Coeff> Ptr;
 
-		int order;
-		int ncoeff;
+		Poly::Ptr p;
 		int iexp;
 		double *a;
 		double *b;
@@ -48,17 +47,29 @@ namespace hsc {
 		double x0;
 		double y0;
 		
-		Coeff(Poly::Ptr p);
+		Coeff(int order);
+		Coeff(Poly::Ptr const & p);
 		~Coeff(void);
 		Coeff(const Coeff &c);
 		void show(void);
-		void uvToXiEta(Poly::Ptr p, double u, double v, double *xi, double *eta);
-		void xietaToUV(Poly::Ptr p, double xi, double eta, double *u, double *v);
+		void uvToXiEta(double u, double v, double *xi, double *eta);
+		void xietaToUV(double xi, double eta, double *u, double *v);
 		double get_a(int i) { return a[i]; }
 		double get_b(int i) { return b[i]; }
 		double get_ap(int i) { return ap[i]; }
 		double get_bp(int i) { return bp[i]; }
-		int getNcoeff() { return ncoeff; }
+		void set_a(int i, double v) { a[i] = v; }
+		void set_b(int i, double v) { b[i] = v; }
+		void set_ap(int i, double v) { ap[i] = v; }
+		void set_bp(int i, double v) { bp[i] = v; }
+		double xi(double u, double v);
+		double eta(double u, double v);
+		double dxidu(double u, double v);
+		double dxidv(double u, double v);
+		double detadu(double u, double v);
+		double detadv(double u, double v);
+		double detJ(double u, double v);
+		int getNcoeff() { return p->ncoeff; }
 	    };
 
 	    class Obs {
@@ -87,6 +98,7 @@ namespace hsc {
 		bool good;
 
 		double mag;
+		double mag0;
 
 		Obs(int id, double ra, double dec, double x, double y, int ichip, int iexp);
 		Obs(int id, double ra, double dec, int ichip, int iexp);
@@ -132,6 +144,7 @@ namespace hsc {
 
 	    typedef std::vector<lsst::afw::cameraGeom::Ccd::Ptr> CcdSet;
 	    typedef std::vector<Coeff::Ptr> CoeffSet;
+	    typedef std::vector<Obs::Ptr> ObsVec;
 
 	    KDTree::Ptr kdtreeMat(vvSourceMatch const &matchList);
 	    KDTree::Ptr kdtreeSource(SourceGroup const &sourceSet,
@@ -139,8 +152,13 @@ namespace hsc {
 				     int nchip,
 				     double d_lim, unsigned int nbrightest);
 
+	    ObsVec obsVecFromSourceGroup(SourceGroup const &all,
+					 WcsDic &wcsDic,
+					 CcdSet &ccdSet);
+
 	    CoeffSet solveMosaic_CCD_shot(int order,
-					  SourceGroup const &allMat,
+					  int nmatch,
+					  ObsVec &matchVec,
 					  WcsDic &wcsDic,
 					  CcdSet &ccdSet,
 					  std::vector<double> &fscale,
@@ -149,8 +167,10 @@ namespace hsc {
 					  bool verbose = false);
 
 	    CoeffSet solveMosaic_CCD(int order,
-				     SourceGroup const &allMat,
-				     SourceGroup const &allSource,
+				     int nmatch,
+				     int nsource,
+				     ObsVec &matchVec,
+				     ObsVec &sourceVec,
 				     WcsDic &wcsDic,
 				     CcdSet &ccdSet,
 				     std::vector<double> &fscale,

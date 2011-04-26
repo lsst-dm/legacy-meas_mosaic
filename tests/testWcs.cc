@@ -36,9 +36,9 @@ int main(int argc, char **argv)
     double u, v, xi, eta;
     u = 18000.;
     v = 18000.;
-    coeffs[0]->uvToXiEta(p, u, v, &xi, &eta);
+    coeffs[0]->uvToXiEta(u, v, &xi, &eta);
     std::cout << u << " " << v << " " << xi << " " << eta << std::endl;
-    coeffs[0]->xietaToUV(p, xi, eta, &u, &v);
+    coeffs[0]->xietaToUV(xi, eta, &u, &v);
     std::cout << u << " " << v << " " << xi << " " << eta << std::endl;
 
     CcdSet ccdSet;
