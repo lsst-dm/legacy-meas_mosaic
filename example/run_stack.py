@@ -24,13 +24,22 @@ def main():
                       help="rerun name to take corrected frames from and write stack images to.")
     parser.add_option("-I", "--instrument",
                       type=str, default='hsc',
-                      help="instument to treat.")
+                      help="instument to treat (hsc or suprimecam)")
     parser.add_option("-p", "--program",
                       type=str, default=None,
                       help="program name (e.g. COSMOS_0)")
     parser.add_option("-f", "--filter",
                       type=str, default=None,
                       help="filter name (e.g. W-S-I+)")
+    parser.add_option("-d", "--dateObs",
+                      type=str, default=None,
+                      help="(optional) dataObs (e.g. 2008-11-27)")
+    parser.add_option("-w", "--workDir",
+                      type=str, default='.',
+                      help="working directory to store files (e.g. /data/yasuda/DC2/sc)")
+    parser.add_option("-W", "--workDirRoot",
+                      type=str, default=None,
+                      help="(optional) root working directory (working dir will be root/program/filter")
     (opts, args) = parser.parse_args()
 
     if not opts.rerun or not opts.program or not opts.filter:
@@ -38,12 +47,13 @@ def main():
         raise SystemExit("failed to parse arguments")
 
     sys.argv = [sys.argv[0]] + args
-    print "rerun=%s, instrument=%s, program=%s, filter=%s, args=%s " % \
-        (opts.rerun, opts.instrument, opts.program, opts.filter, sys.argv)
+    print "rerun=%s, instrument=%s, program=%s, filter=%s, dateObs=%s, args=%s " % \
+        (opts.rerun, opts.instrument, opts.program, opts.filter, opts.dateObs, sys.argv)
 
-    run(rerun=opts.rerun, instrument=opts.instrument, program=opts.program, filter=opts.filter)
+    run(rerun=opts.rerun, instrument=opts.instrument, program=opts.program, \
+            filter=opts.filter, dateObs=opts.dateObs, workDir=opts.workDir, workDirRoot=opts.workDirRoot)
     
-def run(rerun=None, instrument=None, program=None, filter=None):
+def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None, workDir=None, workDirRoot=None):
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     if instrument.lower() in ["hsc"]:
@@ -55,16 +65,23 @@ def run(rerun=None, instrument=None, program=None, filter=None):
 
     config = {}
     ioMgr = pipReadWrite.ReadWrite(mapper, ['visit', 'ccd'], config=config)
-    frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=program, filter=filter))
+    if (dateObs == None):
+        frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=program, filter=filter))
+        pointings = ioMgr.inButler.queryMetadata('calexp', None, 'pointing', dict(field=program, filter=filter))
+    else:
+        frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=program, filter=filter, dateObs=dateObs))
+        pointings = ioMgr.inButler.queryMetadata('calexp', None, 'pointing', dict(field=program, filter=filter, dateObs=dateObs))
     print frameIds
+    print pointings
 
-    outputName = program + "-"
+    if workDirRoot:
+        workDir = os.path.join(workDirRoot, program, filter)
     subImgSize = 2048
     fileIO = True
     writePBSScript = True
-    workDir = os.path.join("/data/yasuda/DC2/sc2", program, filter)
     skipMosaic = False
-    
+    stackId = pointings[0]
+
     if (len(sys.argv) == 1):
         fileList = []
         for frameId in frameIds:
@@ -90,19 +107,19 @@ def run(rerun=None, instrument=None, program=None, filter=None):
             
         stack.stackInit(ioMgr, fileList, subImgSize, fileIO, writePBSScript,
                         workDir=workDir, skipMosaic=skipMosaic,
-                        rerun=rerun, program=program, filter=filter)
+                        rerun=rerun, instrument=instrument, program=program, filter=filter, dateObs=dateObs)
 
     elif (len(sys.argv) == 3):
         ix = int(sys.argv[1])
         iy = int(sys.argv[2])
 
-        stack.stackExec(ioMgr, outputName, ix, iy, subImgSize, fileIO=fileIO,
+        stack.stackExec(ioMgr, ix, iy, subImgSize, stackId, fileIO=fileIO,
                         workDir=workDir, skipMosaic=skipMosaic,
                         filter=filter)
 
     else:
         if (sys.argv[1] == "End"):
-            stack.stackEnd(outputName, subImgSize, fileIO=fileIO,
+            stack.stackEnd(ioMgr, subImgSize, stackId, fileIO=fileIO,
                            workDir=workDir, filter=filter)
         else:
             fileList = []
@@ -115,9 +132,11 @@ def run(rerun=None, instrument=None, program=None, filter=None):
                         continue
                     if os.path.isfile(fname):
                         fileList.append(fname)
+                    else:
+                        print "file %s does not exist " % (fname)
             
-            stack.stack(fileList, outputName, subImgSize=2048, fileIO=fileIO,
-                        workDir=workDir, wcsDir=wcsDir, skipMosaic=skipMosaic)
+            stack.stack(ioMgr, fileList, subImgSize, stackId, fileIO=fileIO,
+                        workDir=workDir, skipMosaic=skipMosaic, filter=filter)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
