@@ -7,6 +7,7 @@ import optparse
 import hsc.meas.mosaic.stack             as stack
 
 import lsst.obs.hscSim as obsHsc
+import lsst.obs.suprimecam              as obsSc
 import lsst.pipette.readwrite as pipReadWrite
 import lsst.pipette.runHsc as runHsc
 
@@ -21,6 +22,9 @@ def main():
     parser.add_option("-r", "--rerun",
                       type=str, default=None,
                       help="rerun name to take corrected frames from and write stack images to.")
+    parser.add_option("-I", "--instrument",
+                      type=str, default='hsc',
+                      help="instument to treat.")
     parser.add_option("-p", "--program",
                       type=str, default=None,
                       help="program name (e.g. COSMOS_0)")
@@ -34,31 +38,31 @@ def main():
         raise SystemExit("failed to parse arguments")
 
     sys.argv = [sys.argv[0]] + args
-    print "rerun=%s, program=%s, filter=%s, args=%s " % (opts.rerun, opts.program, opts.filter,
-                                              sys.argv)
-    run(rerun=opts.rerun, program=opts.program, filter=opts.filter)
+    print "rerun=%s, instrument=%s, program=%s, filter=%s, args=%s " % \
+        (opts.rerun, opts.instrument, opts.program, opts.filter, sys.argv)
+
+    run(rerun=opts.rerun, instrument=opts.instrument, program=opts.program, filter=opts.filter)
     
-def run(rerun=None, program=None, filter=None):
+def run(rerun=None, instrument=None, program=None, filter=None):
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    # HSC only for now.
-    mapper = obsHsc.HscSimMapper(rerun=rerun)
-    #mapper = obsHsc.SuprimeCamMapper(rerun=rerun)
+    if instrument.lower() in ["hsc"]:
+        mapper = obsHsc.HscSimMapper(rerun=rerun)
+        ccdIds = range(100)
+    elif instrument.lower() in ["suprimecam", "suprime-cam", "sc"]:
+        mapper = obsSc.SuprimecamMapper(rerun=rerun)
+        ccdIds = range(10)
 
     config = {}
     ioMgr = pipReadWrite.ReadWrite(mapper, ['visit', 'ccd'], config=config)
     frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=program, filter=filter))
     print frameIds
 
-    ccdIds = range(100)
     outputName = program + "-"
     subImgSize = 2048
     fileIO = True
     writePBSScript = True
-#    workDir = os.path.join("/data/cloomis/stack", program, filter)
-#    wcsDir = "/data/cloomis/stack/wcs"
-    workDir = os.path.join("/data/yasuda/DC2/stack2", program, filter)
-    wcsDir = "/data/yasuda/DC2/yasuda-test2"
+    workDir = os.path.join("/data/yasuda/DC2/sc2", program, filter)
     skipMosaic = False
     
     if (len(sys.argv) == 1):
@@ -85,7 +89,7 @@ def run(rerun=None, program=None, filter=None):
                         os.path.join(workDir, "run_stack.py"))
             
         stack.stackInit(ioMgr, fileList, subImgSize, fileIO, writePBSScript,
-                        workDir=workDir, wcsDir=wcsDir, skipMosaic=skipMosaic,
+                        workDir=workDir, skipMosaic=skipMosaic,
                         rerun=rerun, program=program, filter=filter)
 
     elif (len(sys.argv) == 3):
@@ -93,7 +97,7 @@ def run(rerun=None, program=None, filter=None):
         iy = int(sys.argv[2])
 
         stack.stackExec(ioMgr, outputName, ix, iy, subImgSize, fileIO=fileIO,
-                        workDir=workDir, wcsDir=wcsDir, skipMosaic=skipMosaic,
+                        workDir=workDir, skipMosaic=skipMosaic,
                         filter=filter)
 
     else:

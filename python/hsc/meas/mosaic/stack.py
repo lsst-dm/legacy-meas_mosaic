@@ -111,9 +111,10 @@ def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
     for fname in fileList:
         # Construct file name for WCS file
         if not skipMosaic:
-            s1 = os.path.basename(fname)
-            s2 = re.sub("CORR", "wcs", s1)
-            wcsname = os.path.join(wcsDir, s2)
+            #s1 = os.path.basename(fname)
+            #s2 = re.sub("CORR", "wcs", s1)
+            #wcsname = os.path.join(wcsDir, s2)
+            wcsname = re.sub("CORR", "wcs", fname)
         else:
             wcsname = fname
 
