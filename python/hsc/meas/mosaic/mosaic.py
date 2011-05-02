@@ -225,8 +225,8 @@ def plotJCont(num, coeff, ccdSet, outputDir):
         for amp in ccd:
             w += amp.getDataSec(True).getWidth()
             h = amp.getDataSec(True).getHeight()
-        x0 = ccd.getCenter()[0]
-        y0 = ccd.getCenter()[1]
+        x0 = ccd.getCenter()[0] + coeff.x0
+        y0 = ccd.getCenter()[1] + coeff.y0
         t0 = ccd.getOrientation().getYaw()
         x = numpy.array([x0, \
                          x0 + w * math.cos(t0), \
@@ -341,7 +341,7 @@ def saveResPos2(matchVec, sourceVec, outputDir):
 
     plt.savefig(os.path.join(outputDir, "res_pos2.png"), format='png')
 
-def saveResFlux(matchVec, fscale, nexp, outputDir):
+def saveResFlux(matchVec, fscale, nexp, ccdSet, outputDir):
     _x = []
     _iexp = []
     _ichip = []
@@ -363,6 +363,21 @@ def saveResFlux(matchVec, fscale, nexp, outputDir):
 
     mag_std  = clippedStd(d_mag, 3)
 
+    _r = []
+    _dm = []
+    for i in range(ccdSet.size()):
+        w = 0;
+        for amp in ccdSet[i]:
+            w += amp.getDataSec(True).getWidth()
+            h = amp.getDataSec(True).getHeight()
+        _x0 = ccdSet[i].getCenter()[0] + 0.5 * w
+        _y0 = ccdSet[i].getCenter()[1] + 0.5 * h
+        _r.append(math.sqrt(_x0*_x0 + _y0*_y0))
+        _dm.append(-2.5 * math.log10(fscale[nexp+i]))
+
+    r = numpy.array(_r)
+    dm = numpy.array(_dm)
+
     plt.clf()
     plt.rc('text', usetex=True)
 
@@ -370,6 +385,11 @@ def saveResFlux(matchVec, fscale, nexp, outputDir):
     plt.hist(d_mag, bins=100, normed=True, histtype='step')
     plt.text(0.7, 0.7, r"$\sigma=$%5.3f" % (mag_std), transform=ax.transAxes)
     plt.xlabel(r'$\Delta mag$ (mag)')
+
+    ax = plt.subplot(2, 2, 2)
+    plt.plot(r, dm, 'o')
+    plt.xlabel(r'Distance from center (pixel)')
+    plt.ylabel(r'Offset in magnitude')
 
     ax = plt.subplot(2, 2, 3)
     plt.plot(iexp, d_mag, ',')
@@ -389,6 +409,7 @@ def outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, outputDir="."):
     f = open(os.path.join(outputDir, "coeffs.dat"), "wt")
     for i in range(coeffSet.size()):
         f.write("%ld %12.5e %12.5e\n" % (i, coeffSet[i].A, coeffSet[i].D));
+        f.write("%ld %12.5f %12.5f\n" % (i, coeffSet[i].x0, coeffSet[i].y0));
         for k in range(coeffSet[i].getNcoeff()):
             f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" % (i, coeffSet[i].get_a(k), coeffSet[i].get_b(k), coeffSet[i].get_ap(k), coeffSet[i].get_bp(k)));
         f.write("%5.3f\n" % (fscale[i]))
@@ -406,7 +427,7 @@ def outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, outputDir="."):
 
     saveResPos(matchVec, sourceVec, outputDir)
     saveResPos2(matchVec, sourceVec, outputDir)
-    saveResFlux(matchVec, fscale, coeffSet.size(), outputDir)
+    saveResFlux(matchVec, fscale, coeffSet.size(), ccdSet, outputDir)
 
 def mosaic(frameIds, ccdIds, instrument, rerun, outputDir=".", debug=False, verbose=False):
 
