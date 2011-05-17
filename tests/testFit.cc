@@ -186,7 +186,7 @@ int main(int argc, char **argv)
 	wcsDic.insert(WcsDic::value_type(i, p));
 
 	lsst::daf::base::PropertyList::Ptr md = p->getFitsMetadata();
-	lsst::afw::image::Image<int> img(0,0);
+	lsst::afw::image::Image<int> img(lsst::afw::geom::Extent2I(0,0));
 	char fname[32];
 	sprintf(fname, "wcssim%d.fits", i);
 	img.writeFits(std::string(fname), md);

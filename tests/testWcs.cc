@@ -63,8 +63,8 @@ int main(int argc, char **argv)
 	    //    for (size_t j = 0; j < coeffs.size(); j++) {
 	    //	for (size_t i = 0; i < ccdSet.size(); i++) {
 	    Coeff::Ptr c = convertCoeff(coeffs[j], ccdSet[i]);
-	    lsst::afw::image::TanWcs::Ptr wcs = wcsFromCoeff(c);
-	    lsst::afw::image::Exposure<int> exposure(0, *wcs);
+	    lsst::afw::image::TanWcs::ConstPtr wcs = wcsFromCoeff(c);
+	    lsst::afw::image::Exposure<int> exposure(lsst::afw::geom::Extent2I(0,0), *wcs);
 
 	    lsst::afw::coord::Coord::Ptr cp = wcs->pixelToSky(2000, 4000);
 	    std::cout << cp->getLongitude(lsst::afw::coord::DEGREES) << " " << cp->getLatitude(lsst::afw::coord::DEGREES) << std::endl;
