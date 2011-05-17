@@ -49,7 +49,7 @@ int main(int argc, char **argv)
 	fgets(buf, BUFSIZ, fp);
 	sscanf(buf, "%d %lf %lf %lf", &k, &x, &y, &t);
 	lsst::afw::geom::PointD center = 
-	    lsst::afw::geom::makePointD(x, y);
+	    lsst::afw::geom::Point2D(x, y);
 	lsst::afw::cameraGeom::Orientation orientation(0, 0.0, 0.0, t);
 	lsst::afw::cameraGeom::Ccd::Ptr ccd = lsst::afw::cameraGeom::Ccd::Ptr(new lsst::afw::cameraGeom::Ccd(k, 0.168));
 	ccd->setCenter(center);
@@ -64,7 +64,7 @@ int main(int argc, char **argv)
 	    //	for (size_t i = 0; i < ccdSet.size(); i++) {
 	    Coeff::Ptr c = convertCoeff(coeffs[j], ccdSet[i]);
 	    lsst::afw::image::TanWcs::Ptr wcs = wcsFromCoeff(c);
-	    lsst::afw::image::Exposure<int> exposure(0, 0, *wcs);
+	    lsst::afw::image::Exposure<int> exposure(0, *wcs);
 
 	    lsst::afw::coord::Coord::Ptr cp = wcs->pixelToSky(2000, 4000);
 	    std::cout << cp->getLongitude(lsst::afw::coord::DEGREES) << " " << cp->getLatitude(lsst::afw::coord::DEGREES) << std::endl;

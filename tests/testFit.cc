@@ -132,7 +132,7 @@ int main(int argc, char **argv)
     CcdSet ccdSet;
     for (int i = 0; i < nchip; i++) {
 	lsst::afw::geom::PointD center = 
-	    lsst::afw::geom::makePointD(ccd[i].x0, ccd[i].y0);
+	    lsst::afw::geom::Point2D(ccd[i].x0, ccd[i].y0);
 	lsst::afw::cameraGeom::Orientation orientation(0, 0.0, 0.0, ccd[i].theta);
 	lsst::afw::cameraGeom::Ccd::Ptr ccd = lsst::afw::cameraGeom::Ccd::Ptr(new lsst::afw::cameraGeom::Ccd(i, 0.168));
 	ccd->setCenter(center);
@@ -176,9 +176,9 @@ int main(int argc, char **argv)
     WcsDic wcsDic;
     for (int i = 0; i < nexp; i++) {
 	lsst::afw::geom::PointD crval = 
-	    lsst::afw::geom::makePointD(rac[i]/M_PI*180, decc[i]/M_PI*180);
+	    lsst::afw::geom::Point2D(rac[i]/M_PI*180, decc[i]/M_PI*180);
 	lsst::afw::geom::PointD crpix = 
-	    lsst::afw::geom::makePointD(0, 0);
+	    lsst::afw::geom::Point2D(0, 0);
 	Eigen::Matrix2d CD;
 	CD << 1, 0, 0, 1;
 	lsst::afw::image::Wcs::Ptr p = 
