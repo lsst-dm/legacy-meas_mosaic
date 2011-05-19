@@ -64,7 +64,6 @@ for d in (
 env['IgnoreFiles'] = r"(~$|\.pyc$|^\.hg$|\.o$)"
 
 Alias("install", [
-    env.Install(env['prefix'], "doc"),
     env.Install(env['prefix'], "example"),
     env.Install(env['prefix'], "include"),
     env.Install(env['prefix'], "lib"),
