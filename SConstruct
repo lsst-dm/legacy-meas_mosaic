@@ -33,7 +33,7 @@ if os.environ.get("MKL_DIR") is not None:
 
 env = scons.makeEnv(
     "hscmosaic",
-    r"$HeadURL: FILL IN PATH /hscAstrom/trunk/SConstruct $",
+    "hg",
     deps,
 )
 
