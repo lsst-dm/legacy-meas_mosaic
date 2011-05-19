@@ -43,8 +43,8 @@ if haveMKL:
                         '/opt/intel/Compiler/11.1/072/lib/intel64' ]
         mkl_libs = [ 'mkl_solver_lp64', 'mkl_intel_lp64', 'mkl_intel_thread', 'mkl_core', 'iomp5', 'pthread' ]
     else:
-        mkl_libpath = [ '/opt/intel/composerxe-2011.0.084/mkl/lib/intel64',
-                        '/opt/intel/composerxe-2011/lib/intel64' ]
+        mkl_libpath = [ '/opt/intel/composerxe/mkl/lib/intel64',
+                        '/opt/intel/composerxe/lib/intel64' ]
         mkl_libs = [ 'mkl_intel_lp64', 'mkl_intel_thread', 'mkl_core', 'iomp5', 'pthread' ]
     env.Append(LIBPATH = mkl_libpath)
     env.libs["hscmosaic"] += mkl_libs
