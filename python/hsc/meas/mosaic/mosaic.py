@@ -100,35 +100,6 @@ def getAllForCcd(ioMgr, frame, ccd):
     
     return sources, matches, wcs
 
-def cleanUpMatches(matchList, wcs, ccdId, frameId):
-    rejects = []
-    for i in range(len(matchList)):
-        m = matchList[i]
-        
-        if not m.first or not m.second:
-            rejects.append(i)
-            continue
-        
-        # First is catalogue, but the coords are (currently) in degrees
-        m.first.setRa(numpy.radians(m.first.getRa()))
-        m.first.setDec(numpy.radians(m.first.getDec()))
-
-        # Second is image, but the saved ra/dec are (currently) wrong.
-        sky = wcs.pixelToSky(m.second.getXAstrom(), m.second.getYAstrom())
-        m.second.setRa(sky[0])
-        m.second.setDec(sky[1])
-        m.second.setAmpExposureId(frameId*1000+ccdId)
-
-    return rejects
-
-def cleanUpSources(sources, wcs, ccdId, frameId):
-    for s in sources:
-        # I do not believe the saved ra/dec.
-        sky = wcs.pixelToSky(s.getXAstrom(), s.getYAstrom())
-        s.setRa(sky[0])
-        s.setDec(sky[1])
-        s.setAmpExposureId(frameId*1000+ccdId)
-
 def readCatalog(ioMgr, frameIds, ccdIds):
     print "Reading catalogs ..."
     sourceSet = hscMosaic.SourceGroup()
@@ -139,11 +110,12 @@ def readCatalog(ioMgr, frameIds, ccdIds):
         for ccdId in ccdIds:
             sources, matches, wcs = getAllForCcd(ioMgr, frameId, ccdId)
             if sources != None:
-                cleanUpSources(sources, wcs, ccdId, frameIds.index(frameId))
-                cleanUpMatches(matches, wcs, ccdId, frameIds.index(frameId))
                 for s in sources:
-                    ss.append(s)
+                    if s.getRa() == s.getRa(): # get rid of NaN
+                        s.setAmpExposureId(frameIds.index(frameId)*1000+ccdId)
+                        ss.append(s)
                 for m in matches:
+                    m.second.setAmpExposureId(frameIds.index(frameId)*1000+ccdId)
                     ml.append(m)
         sourceSet.push_back(ss)
         matchList.push_back(ml)
@@ -253,27 +225,44 @@ def clippedStd(a, n):
 def saveResPos(matchVec, sourceVec, outputDir):
     _x = []
     _y = []
+    _xm = []
+    _ym = []
     for i in range(matchVec.size()):
         if (matchVec[i].good == True):
             _x.append((matchVec[i].xi_fit - matchVec[i].xi) * 3600)
             _y.append((matchVec[i].eta_fit - matchVec[i].eta) * 3600)
+            _xm.append((matchVec[i].xi_fit - matchVec[i].xi) * 3600)
+            _ym.append((matchVec[i].eta_fit - matchVec[i].eta) * 3600)
+    _xs = []
+    _ys = []
     if (sourceVec != None):
         for i in range(sourceVec.size()):
             if (sourceVec[i].good == True):
                 _x.append((sourceVec[i].xi_fit - sourceVec[i].xi) * 3600)
                 _y.append((sourceVec[i].eta_fit - sourceVec[i].eta) * 3600)
+                _xs.append((sourceVec[i].xi_fit - sourceVec[i].xi) * 3600)
+                _ys.append((sourceVec[i].eta_fit - sourceVec[i].eta) * 3600)
 
     d_xi = numpy.array(_x)
     d_eta = numpy.array(_y)
+    d_xi_m = numpy.array(_xm)
+    d_eta_m = numpy.array(_ym)
+    d_xi_s = numpy.array(_xs)
+    d_eta_s = numpy.array(_ys)
 
     xi_std  = clippedStd(d_xi, 3)
     eta_std = clippedStd(d_eta, 3)
+    xi_std_m  = clippedStd(d_xi_m, 3)
+    eta_std_m = clippedStd(d_eta_m, 3)
+    xi_std_s  = clippedStd(d_xi_s, 3)
+    eta_std_s = clippedStd(d_eta_s, 3)
 
     plt.clf()
     plt.rc('text', usetex=True)
 
     plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
-    plt.plot(d_xi, d_eta, ',')
+    plt.plot(d_xi_m, d_eta_m, 'g,')
+    plt.plot(d_xi_s, d_eta_s, 'r,')
     plt.xlim(-0.5, 0.5)
     plt.ylim(-0.5, 0.5)
 
@@ -281,13 +270,21 @@ def saveResPos(matchVec, sourceVec, outputDir):
     plt.ylabel(r'$\Delta\eta$ (arcsec)')
 
     ax = plt.subplot2grid((5,6),(0,0), colspan=4)
-    plt.hist(d_xi, bins=100, normed=True, histtype='step')
-    plt.text(0.7, 0.7, r"$\sigma=$%5.3f" % (xi_std), transform=ax.transAxes)
+    plt.hist([d_xi, d_xi_m, d_xi_s], bins=100, normed=False, histtype='step')
+    plt.text(0.75, 0.7, r"$\sigma=$%5.3f" % (xi_std), transform=ax.transAxes, color='blue')
+    plt.text(0.75, 0.5, r"$\sigma=$%5.3f" % (xi_std_m), transform=ax.transAxes, color='green')
+    plt.text(0.75, 0.3, r"$\sigma=$%5.3f" % (xi_std_s), transform=ax.transAxes, color='red')
     plt.xlim(-0.5, 0.5)
 
     ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
-    plt.hist(d_eta, bins=100, normed=True, orientation='horizontal', histtype='step')
-    plt.text(0.7, 0.3, r"$\sigma=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes)
+    n, bins, patches = plt.hist(d_eta, bins=100, normed=False, orientation='horizontal', histtype='step')
+    plt.hist(d_eta_m, bins=bins, normed=False, orientation='horizontal', histtype='step')
+    plt.hist(d_eta_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
+    plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes, color='blue')
+    plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (eta_std_m), rotation=270, transform=ax.transAxes, color='green')
+    plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (eta_std_s), rotation=270, transform=ax.transAxes, color='red')
+    plt.xticks(rotation=270)
+    plt.yticks(rotation=270)
     plt.ylim(-0.5, 0.5)
 
     plt.savefig(os.path.join(outputDir, "res_pos.png"), format='png')

@@ -38,8 +38,6 @@ env = scons.makeEnv(
 )
 
 if haveMKL:
-    env.Append(LIBPATH = mkl_libpath)
-    env.libs["hscmosaic"] += mkl_libs
     if os.environ.get("SETUP_MKL").find("10.3") == -1:
         mkl_libpath = [ '/opt/intel/Compiler/11.1/072/mkl/lib/em64t',
                         '/opt/intel/Compiler/11.1/072/lib/intel64' ]
@@ -48,6 +46,8 @@ if haveMKL:
         mkl_libpath = [ '/opt/intel/composerxe-2011.0.084/mkl/lib/intel64',
                         '/opt/intel/composerxe-2011/lib/intel64' ]
         mkl_libs = [ 'mkl_intel_lp64', 'mkl_intel_thread', 'mkl_core', 'iomp5', 'pthread' ]
+    env.Append(LIBPATH = mkl_libpath)
+    env.libs["hscmosaic"] += mkl_libs
 else:
     env.Append(CCFLAGS=["-DUSE_GSL"])
 
