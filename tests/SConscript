@@ -4,3 +4,8 @@ Import("env")
 
 env.Program("testFit", ["testFit.cc"], LIBS=env.getlibs("hscmosaic"))
 env.Program("testWcs", ["testWcs.cc"], LIBS=env.getlibs("hscmosaic"))
+
+
+#import lsst.tests
+#tests = lsst.tests.Control(env, verbose = True)
+#tests.run("*.cc")

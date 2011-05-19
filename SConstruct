@@ -78,5 +78,5 @@ scons.CleanTree(r"*~ core *.so *.os *.o *.pyc config.log")
 
 env.Declare()
 env.Help("""
-LSST Application Framework packages
+HSC Mosaicking software
 """)
