@@ -164,7 +164,8 @@ def stackInit(ioMgr, fileList, subImgSize,
     wcsDic, dims, fscale = readParamsFromFileList(fileList,
                                                   skipMosaic=skipMosaic)
     
-    wcs, width, height = globalWcs(wcsDic, dims)
+    pixelScale = wcsDic[0].pixelScale() / 3600.
+    wcs, width, height = globalWcs(wcsDic, dims, pixelScale)
 
     nx = width  / subImgSize + 1
     ny = height / subImgSize + 1
@@ -504,8 +505,8 @@ def globalWcs(wcsDic, dims, pixelSize=0.00004667):
 
     print "width = %d height = %d pixel" % (width, height)
 
-    crval = afwGeom.makePointD(0.5*(ramin+ramax), 0.5*(decmin+decmax))
-    crpix = afwGeom.makePointD(width/2., height/2.)
+    crval = afwGeom.Point2D(0.5*(ramin+ramax), 0.5*(decmin+decmax))
+    crpix = afwGeom.Point2D(width/2., height/2.)
     wcs = afwImage.createWcs(crval, crpix, -pixelSize, 0, 0, pixelSize)
 
     return wcs, width, height
