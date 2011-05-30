@@ -585,12 +585,12 @@ KDTree::Ptr KDTree::findSource(Source::Ptr s) {
 	val = dec;
 
     for (size_t i = 0; i < this->set.size(); i++) {
-	//if (this->set[i]->getRa()  == ra &&
-	//    this->set[i]->getDec() == dec) {
+	if (this->set[i]->getRa()  == ra &&
+	    this->set[i]->getDec() == dec) {
 	//if (fabs(this->set[i]->getRa()  - ra)  < 1.0e-07 &&
 	//    fabs(this->set[i]->getDec() - dec) < 1.0e-07) {
-	if (fabs(this->set[i]->getXAstrom() - s->getXAstrom()) < 0.01 &&
-	    fabs(this->set[i]->getYAstrom() - s->getYAstrom()) < 0.01) {
+	//if (fabs(this->set[i]->getXAstrom() - s->getXAstrom()) < 0.01 &&
+	//    fabs(this->set[i]->getYAstrom() - s->getYAstrom()) < 0.01) {
 	    return shared_from_this();
 	}
     }
@@ -824,6 +824,45 @@ SourceGroup KDTree::mergeSource() {
     }
 
     return sg;
+}
+
+void KDTree::printMat() {
+    double ra = set[0]->getRa() * R2D;
+    double dec = set[0]->getDec() * R2D;
+
+    std::cout << "circle(" << ra << "," << dec << ",5.0\") # color=magenta" << std::endl;
+
+    if (this->left != NULL) {
+	this->left->printMat();
+    }
+    if (this->right != NULL) {
+	this->right->printMat();
+    }
+}
+
+void KDTree::printSource() {
+    double sr = 0.0;
+    double sd = 0.0;
+    double sn = 0.0;
+    for (size_t i = 0; i < set.size(); i++) {
+	sr += set[i]->getRa();
+	sd += set[i]->getDec();
+	sn += 1.0;
+    }
+    double ra  = sr / sn * R2D;
+    double dec = sd / sn * R2D;
+
+    if (sn >= 2.0)
+	std::cout << "circle(" << ra << "," << dec << ",5.0\") # color=red" << std::endl;
+    else
+	std::cout << "circle(" << ra << "," << dec << ",5.0\")" << std::endl;
+
+    if (this->left != NULL) {
+	this->left->printSource();
+    }
+    if (this->right != NULL) {
+	this->right->printSource();
+    }
 }
 
 KDTree::Ptr
@@ -3325,6 +3364,7 @@ initialFit(int nexp,
 	    = wcsDic[i]->getSkyOrigin()->getPosition(lsst::afw::coord::RADIANS);
 	c->A = crval[0] + a[p->ncoeff*2];
 	c->D = crval[1] + a[p->ncoeff*2+1];
+	c->x0 = c->y0 = 0.0;
 
 	for (size_t j = 0; j < obsVec_sub.size(); j++) {
 	    obsVec_sub[j]->setXiEta(c->A, c->D);

@@ -138,6 +138,8 @@ namespace hsc {
 		int count(void);
 		SourceGroup mergeMat();
 		SourceGroup mergeSource();
+		void printMat();
+		void printSource();
 		bool isLeaf(void);
 		KDTree::Ptr findNearest(lsst::afw::detection::Source::Ptr s);
 		double distance(lsst::afw::detection::Source::Ptr s);

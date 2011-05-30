@@ -135,6 +135,7 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
     print "Creating kd-tree for matched catalog ..."
     print 'len(matchList) = ', len(matchList)
     rootMat = hscMosaic.kdtreeMat(matchList)
+    #rootMat.printMat()
     allMat = rootMat.mergeMat()
     print "# of allMat : ", countObsInSourceGroup(allMat)
     print 'len(allMat) = ', len(allMat)
@@ -142,8 +143,9 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
     
     print "Creating kd-tree for source catalog ..."
     print 'len(sourceSet) = ', len(sourceSet)
-    d_lim_rad = d_lim  / 3600.0 * math.pi / 180.0
-    rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, nchip, d_lim_rad, nbrightest)
+    d_lim_deg = d_lim  / 3600.0
+    rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, nchip, d_lim_deg, nbrightest)
+    #rootSource.printSource()
     allSource = rootSource.mergeSource()
     print "# of allSource : ", countObsInSourceGroup(allSource)
     print 'len(allSource) = ', len(allSource)
