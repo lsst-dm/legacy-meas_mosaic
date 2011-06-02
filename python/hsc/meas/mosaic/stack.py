@@ -96,7 +96,7 @@ def mkScript(nx, ny, rerun, instrument, program, filter, dateObs, workDir="."):
     f.write("#\n");
     if (dateObs == None):
         f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --workDir=%s End\n" %
-                (rerun, instrument, program, workDir, filter))
+                (rerun, instrument, program, filter, workDir))
     else:
         f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --dateObs=%s --workDir=%s End\n" %
                 (rerun, instrument, program, filter, dateObs, workDir))
@@ -319,9 +319,9 @@ def stackEnd(ioMgr,
                 mimg = ioMgr.outButler.get('stack', dict(stack=stackId,
                                                          patch=int("%3d%02d" % (ix, iy)),
                                                          filter=filter)).getMaskedImage()
-                llc = afwImage.PointI(ix*subImgSize,          iy*subImgSize)
-                urc = afwImage.PointI(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
-                subImg = stackedMI.Factory(stackedMI, afwImage.BBox(llc, urc))
+                llc = afwGeom.Point2I(ix*subImgSize,          iy*subImgSize)
+                urc = afwGeom.Point2I(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
+                subImg = stackedMI.Factory(stackedMI, afwGeom.Box2I(llc, urc), afwImage.LOCAL)
                 subImg <<= mimg
                 del mimg
     else:
