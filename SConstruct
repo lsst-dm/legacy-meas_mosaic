@@ -47,11 +47,11 @@ if haveMKL:
                         '/opt/intel/composerxe/lib/intel64' ]
         mkl_libs = [ 'mkl_intel_lp64', 'mkl_intel_thread', 'mkl_core', 'iomp5', 'pthread' ]
     env.Append(LIBPATH = mkl_libpath)
-    env.libs["hscmosaic"] += mkl_libs
+    env.libs["hscMosaic"] += mkl_libs
 else:
     env.Append(CCFLAGS=["-DUSE_GSL"])
 
-env.libs["hscmosaic"] += env.getlibs("pex_exceptions ndarray afw boost utils daf_base daf_data daf_persistence pex_logging pex_policy security")
+env.libs["hscMosaic"] += env.getlibs("pex_exceptions ndarray afw boost utils daf_base daf_data daf_persistence pex_logging pex_policy security")
 
 for d in (
     "lib",
