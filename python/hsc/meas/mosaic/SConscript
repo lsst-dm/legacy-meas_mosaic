@@ -5,4 +5,4 @@ Import("env")
 env.CheckSwig("python", ilang="c++", includedProducts="hscMosaic ndarray afw utils daf_base pex_exceptions pex_policy daf_persistence pex_logging daf_data security")
 env.LoadableModuleIncomplete("_mosaicLib", Split("mosaicLib.i"),
                              CCFLAGS=re.sub("-Wall", "", " ".join(env['CCFLAGS'])),
-                             LIBS=env.getlibs("hscmosaic"))
+                             LIBS=env.getlibs("hscMosaic"))

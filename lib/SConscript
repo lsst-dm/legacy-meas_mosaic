@@ -5,5 +5,5 @@ Import("env")
 import glob, os
 
 env.SharedLibrary(
-    'hscmosaic', glob.glob("../src/*.cc"), LIBS=filter(lambda p: p != "hscmosaic", env.getlibs("hscmosaic"))
+    'hscMosaic', glob.glob("../src/*.cc"), LIBS=filter(lambda p: p != "hscMosaic", env.getlibs("hscMosaic"))
 )

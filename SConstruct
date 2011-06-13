@@ -32,7 +32,7 @@ if os.environ.get("MKL_DIR") is not None:
     haveMKL = True
 
 env = scons.makeEnv(
-    "hscmosaic",
+    "hscMosaic",
     "hg",
     deps,
 )
