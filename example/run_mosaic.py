@@ -2,6 +2,9 @@ import sys
 import optparse
 import datetime
 
+import lsst.pipette.readwrite           as pipReadWrite
+import lsst.obs.hscSim                  as hscSim
+import lsst.obs.suprimecam              as obsSc
 import hsc.meas.mosaic.mosaic            as mosaic
 
 def main():
@@ -43,7 +46,8 @@ def run(rerun=None, instrument=None, frameid=None, outputDir=None):
     elif (frameid == "24"):
         frameIds = [241, 242, 243, 244]
     elif (frameid == "sc"):
-        frameIds = [104717, 104718, 104719, 104720, 104721, 104722, 104723, 104724, 104725, 104726]
+        #frameIds = [104717, 104718, 104719, 104720, 104721, 104722, 104723, 104724, 104725, 104726]
+        frameIds = [126968, 126969, 126970]
     else:
         for i in range(5):
             frameIds.append(int(frameid)*10 + i)
@@ -51,13 +55,15 @@ def run(rerun=None, instrument=None, frameid=None, outputDir=None):
     print frameIds
 
     if instrument.lower() in ["hsc"]:
+        mapper = hscSim.HscSimMapper(rerun=rerun)
         ccdIds = range(100)
     elif instrument.lower() in ["suprimecam", "suprime-cam", "sc"]:
+        mapper = obsSc.SuprimecamMapper(rerun=rerun)
         ccdIds = range(10)
-    else:
-        ccdIds = range(100)
 
-    mosaic.mosaic(frameIds, ccdIds, instrument, rerun, outputDir=outputDir, verbose=True)
+    ioMgr = pipReadWrite.ReadWrite(mapper, ['visit', 'ccd'], config={})
+
+    mosaic.mosaic(ioMgr, frameIds, ccdIds, outputDir=outputDir, verbose=True)
 
 if __name__ == '__main__':
     main()

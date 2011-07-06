@@ -28,7 +28,10 @@ def wcsIO(outfile, mode, wcs=None, width=None, height=None, nx=None, ny=None,
         metadata.set("NY", ny)
         img.writeFits(os.path.join(workDir, outfile), metadata)
     elif mode == "r":
-        filename = os.path.join(workDir, outfile)
+        if workDir == None:
+            filename = outfile
+        else:
+            filename = os.path.join(workDir, outfile)
         print "reading WCS from %s" % (filename)
         metadata = afwImage.readMetadata(filename)
         wcs = afwImage.makeWcs(metadata)
@@ -157,15 +160,19 @@ def stackInit(ioMgr, fileList, subImgSize,
               instrument="please_set_this",
               program="please_set_this",
               filter="please_set_this",
-              dateObs=None):
+              dateObs=None,
+              destWcs=None):
 
     print "Stack Init ..."
     
     wcsDic, dims, fscale = readParamsFromFileList(fileList,
                                                   skipMosaic=skipMosaic)
     
-    pixelScale = wcsDic[0].pixelScale() / 3600.
-    wcs, width, height = globalWcs(wcsDic, dims, pixelScale)
+    if destWcs == None:
+        pixelScale = wcsDic[0].pixelScale() / 3600.
+        wcs, width, height = globalWcs(wcsDic, dims, pixelScale)
+    else:
+        wcs, width, height, nx, ny = wcsIO(destWcs, "r", workDir=None)
 
     nx = width  / subImgSize + 1
     ny = height / subImgSize + 1

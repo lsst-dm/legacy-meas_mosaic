@@ -57,27 +57,36 @@ def getWcsForCcd(ioMgr, frame, ccd):
 
     data = {'visit': frame, 'ccd':ccd}
 
-    md = ioMgr.read('calexp_md', data, ignore=True)[0]
+    try:
+        md = ioMgr.read('calexp_md', data, ignore=True)[0]
 
-    wcs = afwImage.makeWcs(md)
+        wcs = afwImage.makeWcs(md)
     
-    return wcs
+        return wcs
+    except Exception, e:
+        print "Failed to read: %s for %s" % (e, data)
+        return None
 
 def readWcs(ioMgr, frameIds, ccdSet):
         
     print "Reading WCS ..."
 
     wcsDic = hscMosaic.WcsDic()
+    frameIdsExist = []
+    i = 0
     for frameId in frameIds:
         ccdId = ccdSet[0].getId().getSerial()
         wcs = getWcsForCcd(ioMgr, frameId, ccdId)
-        offset = ccdSet[0].getCenter()
-        wcs.shiftReferencePixel(offset[0], offset[1])
-        wcsDic[frameIds.index(frameId)] = wcs
+        if wcs != None:
+            offset = ccdSet[0].getCenter()
+            wcs.shiftReferencePixel(offset[0], offset[1])
+            wcsDic[i] = wcs
+            frameIdsExist.append(frameId)
+            i += 1
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    return wcsDic
+    return wcsDic, frameIdsExist
 
 def getAllForCcd(ioMgr, frame, ccd):
 
@@ -89,6 +98,7 @@ def getAllForCcd(ioMgr, frame, ccd):
             raise RuntimeError("no data for src %s" % (data))
         if not butler.datasetExists('calexp_md', data):
             raise RuntimeError("no data for calexp_md %s" % (data))
+        print data
         sources = ioMgr.read('src', data, ignore=True)[0].getSources()
         md = ioMgr.read('calexp_md', data, ignore=True)[0]
         matches = ioMgr.readMatches(data, ignore=True)[0]
@@ -428,32 +438,27 @@ def outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, outputDir="."):
     saveResPos2(matchVec, sourceVec, outputDir)
     saveResFlux(matchVec, fscale, coeffSet.size(), ccdSet, outputDir)
 
-def mosaic(frameIds, ccdIds, instrument, rerun, outputDir=".", debug=False, verbose=False):
-
-    if instrument.lower() in ["hsc"]:
-        mapper = hscSim.HscSimMapper(rerun=rerun)
-    elif instrument.lower() in ["suprimecam", "suprime-cam", "sc"]:
-        mapper = obsSc.SuprimecamMapper(rerun=rerun)
-    ioMgr = pipReadWrite.ReadWrite(mapper, ['visit'], fileKeys=['visit', 'ccd'])
+def mosaic(ioMgr, frameIds, ccdIds, outputDir=".", debug=False, verbose=False):
 
     package = "hscMosaic"
     productDir = os.environ.get(package.upper() + "_DIR", None)
     policyPath = os.path.join(productDir, "policy", "HscMosaicDictionary.paf")
     policy = pexPolicy.Policy.createPolicy(policyPath)
 
-    ccdSet = readCcd(mapper.camera, ccdIds)
+    ccdSet = readCcd(ioMgr.inMapper.camera, ccdIds)
 
     if debug:
         for ccd in ccdSet:
             print ccd.getId().getSerial(), ccd.getCenter(), ccd.getOrientation().getYaw()
 
-    wcsDic = readWcs(ioMgr, frameIds, ccdSet)
+    wcsDic, frameIdsExist = readWcs(ioMgr, frameIds, ccdSet)
+    print frameIdsExist
 
     if debug:
         for i, wcs in wcsDic.iteritems():
             print i, wcs.getPixelOrigin(), wcs.getSkyOrigin().getPosition(afwCoord.DEGREES)
 
-    sourceSet, matchList = readCatalog(ioMgr, frameIds, ccdIds)
+    sourceSet, matchList = readCatalog(ioMgr, frameIdsExist, ccdIds)
 
     d_lim = policy.get("radXMatch")
     nbrightest = policy.get("nBrightest")
@@ -490,9 +495,11 @@ def mosaic(frameIds, ccdIds, instrument, rerun, outputDir=".", debug=False, verb
                                                   solveCcd, allowRotation, verbose)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    writeNewWcs(ioMgr, coeffSet, ccdSet, fscale, frameIds, ccdIds)
+    writeNewWcs(ioMgr, coeffSet, ccdSet, fscale, frameIdsExist, ccdIds)
 
-    if internal:
-        outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, outputDir)
-    else:
-        outputDiag(matchVec, None, coeffSet, ccdSet, fscale, outputDir)
+#    if internal:
+#        outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, outputDir)
+#    else:
+#        outputDiag(matchVec, None, coeffSet, ccdSet, fscale, outputDir)
+
+    return frameIdsExist
