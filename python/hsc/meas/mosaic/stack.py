@@ -345,9 +345,9 @@ def stackEnd(ioMgr,
             else:
                 naxis1 = subImgSize
 
-            llc = afwImage.PointI(ix*subImgSize,          iy*subImgSize)
-            urc = afwImage.PointI(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
-            subImg = stackedMI.Factory(stackedMI, afwImage.BBox(llc, urc))
+            llc = afwGeom.Point2I(ix*subImgSize,          iy*subImgSize)
+            urc = afwGeom.Point2I(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
+            subImg = stackedMI.Factory(stackedMI, afwGeom.Box2I(llc, urc), afwImage.LOCAL)
             mimgStack = mimgMap[k]
             subImg <<= mimgStack
 
@@ -361,19 +361,22 @@ def stackEnd(ioMgr,
     return expStack
     
 def stack(ioMgr, fileList, subImgSize, stackId, fileIO=False,
-          workDir=".", skipMosaic=False, filter='unknown'):
+          workDir=".", skipMosaic=False, filter='unknown',
+          destWcs=None):
 
     print "Stack ..."
 
     if fileIO:
         nx, ny = stackInit(ioMgr, fileList, subImgSize, fileIO,
                            workDir=workDir,
-                           skipMosaic=skipMosaic)
+                           skipMosaic=skipMosaic,
+                           destWcs=destWcs)
     else:
         fileList, dims, fscale, wcs, wcsDic, width, height, nx, ny \
                   = stackInit(ioMgr, fileList, subImgSize, fileIO,
                               workDir=workDir,
-                              skipMosaic=skipMosaic)
+                              skipMosaic=skipMosaic,
+                              destWcs=destWcs)
 
     mimgMap = {}
     
