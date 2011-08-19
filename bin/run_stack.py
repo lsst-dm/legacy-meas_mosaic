@@ -43,6 +43,9 @@ def main():
     parser.add_option("-s", "--destWcs",
                       type=str, default=None,
                       help="destination wcs")
+    parser.add_option("--pScale",
+                      type="float", default=0.0,
+                      help="destination pixel scale in arcsec")
     (opts, args) = parser.parse_args()
 
     if not opts.rerun or not opts.program or not opts.filter:
@@ -50,15 +53,16 @@ def main():
         raise SystemExit("failed to parse arguments")
 
     sys.argv = [sys.argv[0]] + args
-    print "rerun=%s, instrument=%s, program=%s, filter=%s, dateObs=%s, destWcs=%s, args=%s " % \
-        (opts.rerun, opts.instrument, opts.program, opts.filter, opts.dateObs, opts.destWcs, sys.argv)
+    print "rerun=%s, instrument=%s, program=%s, filter=%s, dateObs=%s, destWcs=%s, pScale=%f, args=%s " % \
+        (opts.rerun, opts.instrument, opts.program, opts.filter, opts.dateObs, opts.destWcs, opts.pScale, sys.argv)
 
     run(rerun=opts.rerun, instrument=opts.instrument, program=opts.program,
         filter=opts.filter, dateObs=opts.dateObs, destWcs=opts.destWcs,
+        pScale=opts.pScale,
         workDir=opts.workDir, workDirRoot=opts.workDirRoot)
     
 def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None, 
-        destWcs=None, workDir=None, workDirRoot=None):
+        destWcs=None, pScale=0.0, workDir=None, workDirRoot=None):
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     if instrument.lower() in ["hsc"]:
@@ -113,7 +117,8 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         stack.stackInit(ioMgr, fileList, subImgSize, fileIO, writePBSScript,
                         workDir=workDir, skipMosaic=skipMosaic,
                         rerun=rerun, instrument=instrument, program=program,
-                        filter=filter, dateObs=dateObs, destWcs=destWcs)
+                        filter=filter, dateObs=dateObs, destWcs=destWcs,
+                        pScale=pScale)
 
     elif (len(sys.argv) == 3):
         ix = int(sys.argv[1])
