@@ -90,7 +90,7 @@ def readWcs(ioMgr, frameIds, ccdSet):
 
 def getAllForCcd(ioMgr, frame, ccd):
 
-    data = {'visit': frame, 'ccd':ccd}
+    data = {'visit': frame, 'ccd': ccd}
 
     butler = ioMgr.inButler
     try:
