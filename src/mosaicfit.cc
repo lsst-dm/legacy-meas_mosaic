@@ -5,6 +5,7 @@
 #include "hsc/meas/mosaic/mosaicfit.h"
 #include "lsst/afw/detection/Source.h"
 #include "lsst/afw/coord/Coord.h"
+#include "lsst/afw/geom/Angle.h"
 #include "boost/make_shared.hpp"
 
 #define D2R (M_PI/180.)
@@ -351,8 +352,8 @@ KDTree::KDTree(SourceMatch m, int depth) {
 
     this->location[0] = m.first->getRa();
     this->location[1] = m.first->getDec();
-    this->c = lsst::afw::coord::Coord(this->location[0]*R2D,
-				      this->location[1]*R2D);
+    this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
+				      lsst::afw::geom::Angle(this->location[1]));
 
     this->set.push_back(m.first);
     this->set.push_back(m.second);
@@ -369,8 +370,8 @@ KDTree::KDTree(std::vector<SourceMatch> v, int depth) {
 
 	this->location[0] = v[0].first->getRa();
 	this->location[1] = v[0].first->getDec();
-	this->c = lsst::afw::coord::Coord(this->location[0]*R2D,
-					  this->location[1]*R2D);
+	this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
+					  lsst::afw::geom::Angle(this->location[1]));
 
 	this->set.push_back(v[0].first);
 	this->set.push_back(v[0].second);
@@ -387,8 +388,8 @@ KDTree::KDTree(std::vector<SourceMatch> v, int depth) {
 
 	this->location[0] = v[v.size()/2].first->getRa();
 	this->location[1] = v[v.size()/2].first->getDec();
-	this->c = lsst::afw::coord::Coord(this->location[0]*R2D,
-					  this->location[1]*R2D);
+	this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
+					  lsst::afw::geom::Angle(this->location[1]));
 
 	this->set.push_back(v[v.size()/2].first);
 	this->set.push_back(v[v.size()/2].second);
@@ -424,8 +425,8 @@ KDTree::KDTree(Source::Ptr s, int depth) {
 
     this->location[0] = s->getRa();
     this->location[1] = s->getDec();
-    this->c = lsst::afw::coord::Coord(this->location[0]*R2D,
-				      this->location[1]*R2D);
+    this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
+				      lsst::afw::geom::Angle(this->location[1]));
 
     this->set.push_back(s);
 
@@ -441,8 +442,8 @@ KDTree::KDTree(SourceSet& s, int depth) {
 
 	this->location[0] = s[0]->getRa();
 	this->location[1] = s[0]->getDec();
-	this->c = lsst::afw::coord::Coord(this->location[0]*R2D,
-					  this->location[1]*R2D);
+	this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
+					  lsst::afw::geom::Angle(this->location[1]));
 
 	this->set.push_back(s[0]);
 
@@ -458,8 +459,8 @@ KDTree::KDTree(SourceSet& s, int depth) {
 
 	this->location[0] = s[s.size()/2]->getRa();
 	this->location[1] = s[s.size()/2]->getDec();
-	this->c = lsst::afw::coord::Coord(this->location[0]*R2D,
-					  this->location[1]*R2D);
+	this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
+					  lsst::afw::geom::Angle(this->location[1]));
 
 	this->set.push_back(s[s.size()/2]);
 
@@ -615,8 +616,9 @@ double KDTree::distance(Source::Ptr s) {
 
     double ra  = s->getRa();
     double dec = s->getDec();
-    lsst::afw::coord::Coord c = lsst::afw::coord::Coord(ra*R2D, dec*R2D);
-    double d = this->c.angularSeparation(c, lsst::afw::coord::DEGREES);
+    lsst::afw::coord::Coord c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(ra),
+							lsst::afw::geom::Angle(dec));
+    double d = this->c.angularSeparation(c).asDegrees();
 
     return d;
 }
@@ -804,8 +806,8 @@ SourceGroup KDTree::mergeSource() {
 	double ra  = sr / sn;
 	double dec = sd / sn;
 	Source::Ptr s = Source::Ptr(new Source());
-	s->setRa(ra);
-	s->setDec(dec);
+	s->setRa(lsst::afw::geom::Angle(ra));
+	s->setDec(lsst::afw::geom::Angle(dec));
 	this->set.insert(set.begin(), s);
 	sg.push_back(this->set);
     }
@@ -3092,7 +3094,7 @@ hsc::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	    double y = ss[j]->getYAstrom();
 	    Obs::Ptr o = Obs::Ptr(new Obs(id, ra, dec, x, y, ichip, iexp));
 	    lsst::afw::geom::PointD crval
-		= wcsDic[iexp]->getSkyOrigin()->getPosition(lsst::afw::coord::RADIANS);
+		= wcsDic[iexp]->getSkyOrigin()->getPosition(lsst::afw::geom::radians);
 	    o->setXiEta(crval[0], crval[1]);
 	    o->setUV(ccdSet[ichip]);
 	    o->istar = i;
@@ -3361,7 +3363,7 @@ initialFit(int nexp,
 	    c->b[k] = a[k+p->ncoeff];
 	}
 	lsst::afw::geom::PointD crval
-	    = wcsDic[i]->getSkyOrigin()->getPosition(lsst::afw::coord::RADIANS);
+	    = wcsDic[i]->getSkyOrigin()->getPosition(lsst::afw::geom::radians);
 	c->A = crval[0] + a[p->ncoeff*2];
 	c->D = crval[1] + a[p->ncoeff*2+1];
 	c->x0 = c->y0 = 0.0;

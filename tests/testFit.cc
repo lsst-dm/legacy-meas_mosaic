@@ -222,8 +222,8 @@ int main(int argc, char **argv)
 			s2->setAmpExposureId(j*1000+k);
 			s2->setXAstrom(x);
 			s2->setYAstrom(y);
-			s1->setRa(star[i].ra);
-			s1->setDec(star[i].dec);
+			s1->setRa(lsst::afw::geom::Angle(star[i].ra));
+			s1->setDec(lsst::afw::geom::Angle(star[i].dec));
 			s2->setPsfFlux(star[i].flux*fscl[j]*ccd_true[k].gain*(1.+gsl_ran_gaussian(r,0.03)));
 			mL.push_back(SourceMatch(s1, s2, 0.0));
 		    }
@@ -233,8 +233,8 @@ int main(int argc, char **argv)
 		    s->setAmpExposureId(j*1000+k);
 		    s->setXAstrom(x);
 		    s->setYAstrom(y);
-		    s->setRa(star[i].ra);
-		    s->setDec(star[i].dec);
+		    s->setRa(lsst::afw::geom::Angle(star[i].ra));
+		    s->setDec(lsst::afw::geom::Angle(star[i].dec));
 		    s->setPsfFlux(star[i].flux*fscl[j]*ccd_true[k].gain*(1.+gsl_ran_gaussian(r,0.03)));
 		    sS.push_back(s);
 

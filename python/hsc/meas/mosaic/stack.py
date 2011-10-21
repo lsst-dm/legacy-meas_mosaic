@@ -160,6 +160,7 @@ def stackInit(ioMgr, fileList, subImgSize,
               instrument="please_set_this",
               program="please_set_this",
               filter="please_set_this",
+              pScale=0.0,
               dateObs=None,
               destWcs=None):
 
@@ -169,7 +170,10 @@ def stackInit(ioMgr, fileList, subImgSize,
                                                   skipMosaic=skipMosaic)
     
     if destWcs == None:
-        pixelScale = wcsDic[0].pixelScale() / 3600.
+        if pScale == 0.0:
+            pixelScale = wcsDic[0].pixelScale() / 3600.
+        else:
+            pixelScale = pScale / 3600.
         wcs, width, height = globalWcs(wcsDic, dims, pixelScale)
     else:
         wcs, width, height, nx, ny = wcsIO(destWcs, "r", workDir=None)
