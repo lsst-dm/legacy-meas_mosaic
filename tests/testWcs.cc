@@ -36,9 +36,9 @@ int main(int argc, char **argv)
     double u, v, xi, eta;
     u = 18000.;
     v = 18000.;
-    coeffs[0]->uvToXiEta(p, u, v, &xi, &eta);
+    coeffs[0]->uvToXiEta(u, v, &xi, &eta);
     std::cout << u << " " << v << " " << xi << " " << eta << std::endl;
-    coeffs[0]->xietaToUV(p, xi, eta, &u, &v);
+    coeffs[0]->xietaToUV(xi, eta, &u, &v);
     std::cout << u << " " << v << " " << xi << " " << eta << std::endl;
 
     CcdSet ccdSet;
@@ -49,7 +49,7 @@ int main(int argc, char **argv)
 	fgets(buf, BUFSIZ, fp);
 	sscanf(buf, "%d %lf %lf %lf", &k, &x, &y, &t);
 	lsst::afw::geom::PointD center = 
-	    lsst::afw::geom::makePointD(x, y);
+	    lsst::afw::geom::Point2D(x, y);
 	lsst::afw::cameraGeom::Orientation orientation(0, 0.0, 0.0, t);
 	lsst::afw::cameraGeom::Ccd::Ptr ccd = lsst::afw::cameraGeom::Ccd::Ptr(new lsst::afw::cameraGeom::Ccd(k, 0.168));
 	ccd->setCenter(center);
@@ -63,11 +63,11 @@ int main(int argc, char **argv)
 	    //    for (size_t j = 0; j < coeffs.size(); j++) {
 	    //	for (size_t i = 0; i < ccdSet.size(); i++) {
 	    Coeff::Ptr c = convertCoeff(coeffs[j], ccdSet[i]);
-	    lsst::afw::image::TanWcs::Ptr wcs = wcsFromCoeff(c);
-	    lsst::afw::image::Exposure<int> exposure(0, 0, *wcs);
+	    lsst::afw::image::TanWcs::ConstPtr wcs = wcsFromCoeff(c);
+	    lsst::afw::image::Exposure<int> exposure(lsst::afw::geom::Extent2I(0,0), *wcs);
 
 	    lsst::afw::coord::Coord::Ptr cp = wcs->pixelToSky(2000, 4000);
-	    std::cout << cp->getLongitude(lsst::afw::coord::DEGREES) << " " << cp->getLatitude(lsst::afw::coord::DEGREES) << std::endl;
+	    std::cout << cp->getLongitude().asDegrees() << " " << cp->getLatitude().asDegrees() << std::endl;
 	    lsst::afw::geom::PointD pt = wcs->skyToPixel(cp);
 	    std::cout << pt[0] << " " << pt[1] << std::endl;
 

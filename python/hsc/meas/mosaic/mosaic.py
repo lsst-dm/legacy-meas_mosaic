@@ -1,371 +1,505 @@
-import os, sys, math
+import os, math
 import datetime
-import eups
-import lsst.afw.image                    as afwImage
-import lsst.afw.coord                    as afwCoord
-import lsst.daf.base                     as dafBase
-import lsst.afw.cameraGeom               as cameraGeom
-import lsst.afw.cameraGeom.utils         as cameraGeomUtils
-import lsst.pex.policy                   as pexPolicy
-import hsc.camera.data                   as data
-import hsc.meas.mosaic.mosaicLib         as hscMosaic
-import hsc.meas.mosaic.stack             as stack
+import numpy
 
-def getBasename(exposureId, ccdId):
-    rootdir = "/data/yasuda/data_cosmos"
-    
-    basename = "%s/dith%d/out-ssb_ccd%03d" % (rootdir, int(exposureId), int(ccdId))
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
-    return basename
+import lsst.pipette.readwrite           as pipReadWrite
+import lsst.obs.hscSim                  as hscSim
+import lsst.obs.suprimecam              as obsSc
+import lsst.afw.cameraGeom              as cameraGeom
+import lsst.afw.cameraGeom.utils        as cameraGeomUtils
+import lsst.afw.image                   as afwImage
+import lsst.afw.coord                   as afwCoord
+import lsst.afw.math                    as afwMath
+import lsst.pex.policy                  as pexPolicy
+import hsc.meas.mosaic.mosaicLib        as hscMosaic
 
-def getOutputFileName(outputDir, exposureId, ccdId):
-    #fname = "dith%d_ccd%03d-wcsh.fits" % (int(exposureId), int(ccdId))
-    fname = "HSCA%05d%03d-wcsh.fits" % (int(exposureId), int(ccdId))
+def readCcd(camera, ccdIds):
 
-    return os.path.join(outputDir, fname)
+    print "Reading CCD info ..."
 
-def mosaic(ditherIds, ccdIds, fitFP, outputDir=".", rerun="DC1-005", progId=""):
-    mgr = data.Manager(instrument="HSC", rerun=rerun)
-    camera = cameraGeomUtils.makeCamera(mgr.getGeomPolicy())
-    
-    rootdir = "/data/yasuda/data_cosmos"
+    ccds = hscMosaic.CcdSet()
+    width = []
+    height = []
+    for i in ccdIds:
+        ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(i)))
+        ccds.push_back(ccd)
+        w = 0;
+        for amp in ccd:
+            w += amp.getDataSec(True).getWidth()
+            h = amp.getDataSec(True).getHeight()
+        width.append(w)
+        height.append(h)
 
-    # Setup wcs dictionary
-    print "Reading WCS ..."
-    wcsDic = hscMosaic.WcsDic()
-    if fitFP:
-        for ditherId in ditherIds:
-            ccdId = ccdIds[0]
-            fname = mgr.getCorrFilename(int(ditherId), int(ccdId))
-            ###fname = "%s/dith%d/out-ssb_ccd%03d-wcs.fits" % (rootdir, int(ditherId), int(ccdId))
-            print fname
-            metadata = afwImage.readMetadata(fname)
-            wcs = afwImage.makeWcs(metadata)
-            ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(ccdId)))
-            offset = ccd.getCenter()
-            wcs.shiftReferencePixel(offset[0]-1, offset[1]-1)
-            ###wcs.shiftReferencePixel(offset[0], offset[1])
-            wcsDic[ditherIds.index(ditherId)] = wcs
-    else:
-        iframe = 0
-        for ditherId in ditherIds:
-            for ccdId in ccdIds:
-                fname = mgr.getCorrFilename(int(ditherId), int(ccdId))
-                ###fname = "%s/dith%d/out-ssb_ccd%03d-wcs.fits" % (rootdir, int(ditherId), int(ccdId))
-                if not os.path.isfile(fname):
-                    continue
-                metadata = afwImage.readMetadata(fname)
-                wcs = afwImage.makeWcs(metadata)
-                wcsDic[iframe] = wcs
-                iframe += 1
-    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+    # Calculate mean position of all CCD chips
+    sx = sy = 0.
+    for i in range(ccds.size()):
+        sx += ccds[i].getCenter()[0] + 0.5 * width[i]
+        sy += ccds[i].getCenter()[1] + 0.5 * height[i]
+    dx = sx / ccds.size()
+    dy = sy / ccds.size()
+
+    # Shift the origin of CCD chips
+    for i in range(ccds.size()):
+        offset = ccds[i].getCenter()
+        offset[0] -= dx
+        offset[1] -= dy
+        ccds[i].setCenter(offset)
         
-    sourceSet = []
-    matchList = []
-    dims = []
+    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    print "Reading catalogs ..."
-    iframe = 0
-    for ditherId in ditherIds:
-        for ccdId in ccdIds:
-            basename = os.path.join(mgr.getOutputDirname(int(ditherId), int(ccdId), dirType="misc"),
-                                    "HSCA%05d%03d" % (int(ditherId), int(ccdId)))
-            ###basename = "%s/dith%d/out-ssb_ccd%03d-pre" % (rootdir, int(ditherId), int(ccdId))
-            fname = mgr.getCorrFilename(int(ditherId), int(ccdId))
-            ###fname = "%s/dith%d/out-ssb_ccd%03d-wcs.fits" % (rootdir, int(ditherId), int(ccdId))
-            if not os.path.isfile(fname):
-                continue
-            #sS, mL, hdrInfo = pipe.io.readFits(basename)
-            if os.path.isfile("%s.fits" % (basename)):
-                sS = hscMosaic.readCat("%s.fits" % (basename))
-            else:
-                sS = []
-            if os.path.isfile("%s.match.fits" % (basename)):
-                mL = hscMosaic.readMatchList("%s.match.fits" % (basename))
-            else:
-                mL = []
-            metadata = afwImage.readMetadata(fname)
-            dims.append([metadata.get("NAXIS1"), metadata.get("NAXIS2")])
-            
-            ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(ccdId)))
-            offset = ccd.getCenter()
-            
-            for s in sS:
-                if fitFP:
-                    x = s.getXAstrom()
-                    y = s.getYAstrom()
-                    s.setXAstrom(x + offset[0])
-                    s.setYAstrom(y + offset[1])
-                    c = wcsDic[ditherIds.index(ditherId)].pixelToSky(s.getXAstrom(), s.getYAstrom())
-                else:
-                    c = wcsDic[iframe].pixelToSky(s.getXAstrom(), s.getYAstrom())
-                s.setRa(c[0])
-                s.setDec(c[1])
-                if fitFP:
-                    s.setAmpExposureId(ditherIds.index(ditherId))
-                else:
-                    s.setAmpExposureId(iframe)
+    return ccds
 
-            S   = 0.0
-            Sx  = 0.0
-            Sxx = 0.0
-            Sy  = 0.0
-            Syy = 0.0
-            for m in mL:
-                ra = m.first.getRa()
-                dec = m.first.getDec()
-                if fitFP:
-                    x2, y2 = wcsDic[ditherIds.index(ditherId)].skyToPixel(ra, dec)
-                    x = m.second.getXAstrom() + offset[0]
-                    y = m.second.getYAstrom() + offset[1]
-                else:
-                    x2, y2 = wcsDic[iframe].skyToPixel(ra, dec)
-                    x = m.second.getXAstrom()
-                    y = m.second.getYAstrom()
-                if (math.fabs(x2-x) < 20 and math.fabs(y2-y) < 20):
-                    S   += 1.0
-                    Sx  += (x2-x)
-                    Sxx += (x2-x)*(x2-x)
-                    Sy  += (y2-y)
-                    Syy += (y2-y)*(y2-y)
-            xMean = Sx / S
-            yMean = Sy / S
-            xSigma= math.sqrt((Sxx-Sx*Sx/S)/S)
-            ySigma= math.sqrt((Syy-Sy*Sy/S)/S)
-            #print ditherId, ccdId, xMean, xSigma, yMean, ySigma
-                
-            for m in mL:
-                ra = m.first.getRa()
-                dec = m.first.getDec()
-                if fitFP:
-                    x2, y2 = wcsDic[ditherIds.index(ditherId)].skyToPixel(ra, dec)
-                    x = m.second.getXAstrom()
-                    y = m.second.getYAstrom()
-                    m.second.setXAstrom(x + offset[0])
-                    m.second.setYAstrom(y + offset[1])
-                    m.second.setAmpExposureId(ditherIds.index(ditherId))
-                else:
-                    x2, y2 = wcsDic[iframe].skyToPixel(ra, dec)
-                    m.second.setAmpExposureId(iframe)
-                x = m.second.getXAstrom()
-                y = m.second.getYAstrom()
-                if (math.fabs(x2-x-xMean) > 3.* xSigma or math.fabs(y2-y-yMean) > 3.* ySigma):
-                    m.second.setFlagForWcs(1)
+def getWcsForCcd(ioMgr, frame, ccd):
 
-            sourceSet.append(sS)
-            matchList.append(mL)
+    data = {'visit': frame, 'ccd':ccd}
 
-            iframe += 1
+    try:
+        md = ioMgr.read('calexp_md', data, ignore=True)[0]
+
+        wcs = afwImage.makeWcs(md)
+    
+        return wcs
+    except Exception, e:
+        print "Failed to read: %s for %s" % (e, data)
+        return None
+
+def readWcs(ioMgr, frameIds, ccdSet):
+        
+    print "Reading WCS ..."
+
+    wcsDic = hscMosaic.WcsDic()
+    frameIdsExist = []
+    i = 0
+    for frameId in frameIds:
+        ccdId = ccdSet[0].getId().getSerial()
+        wcs = getWcsForCcd(ioMgr, frameId, ccdId)
+        if wcs != None:
+            offset = ccdSet[0].getCenter()
+            wcs.shiftReferencePixel(offset[0], offset[1])
+            wcsDic[i] = wcs
+            frameIdsExist.append(frameId)
+            i += 1
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    for k, v in wcsDic.iteritems():
-        print k, v.getPixelOrigin(), v.getSkyOrigin().getPosition()
+    return wcsDic, frameIdsExist
 
-    #productDir = eups.productDir("hscMosaic")
+def getAllForCcd(ioMgr, frame, ccd):
+
+    data = {'visit': frame, 'ccd': ccd}
+
+    butler = ioMgr.inButler
+    try:
+        if not butler.datasetExists('src', data):
+            raise RuntimeError("no data for src %s" % (data))
+        if not butler.datasetExists('calexp_md', data):
+            raise RuntimeError("no data for calexp_md %s" % (data))
+        print data
+        sources = ioMgr.read('src', data, ignore=True)[0].getSources()
+        md = ioMgr.read('calexp_md', data, ignore=True)[0]
+        matches = ioMgr.readMatches(data, ignore=True)[0]
+    except Exception, e:
+        print "failed to read something: %s" % (e)
+        return None, None, None
+
+    wcs = afwImage.makeWcs(md)
+    
+    return sources, matches, wcs
+
+def readCatalog(ioMgr, frameIds, ccdIds):
+    print "Reading catalogs ..."
+    sourceSet = hscMosaic.SourceGroup()
+    matchList = hscMosaic.vvSourceMatch()
+    for frameId in frameIds:
+        ss = []
+        ml = []
+        for ccdId in ccdIds:
+            sources, matches, wcs = getAllForCcd(ioMgr, frameId, ccdId)
+            if sources != None:
+                for s in sources:
+                    if s.getRa() == s.getRa(): # get rid of NaN
+                        s.setAmpExposureId(frameIds.index(frameId)*1000+ccdId)
+                        ss.append(s)
+                for m in matches:
+                    m.second.setAmpExposureId(frameIds.index(frameId)*1000+ccdId)
+                    ml.append(m)
+        sourceSet.push_back(ss)
+        matchList.push_back(ml)
+    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+
+    return sourceSet, matchList
+
+def countObsInSourceGroup(sg):
+    num = 0
+    for s in sg:
+        num += (len(s) - 1)
+
+    return num
+
+def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
+
+    print "Creating kd-tree for matched catalog ..."
+    print 'len(matchList) = ', len(matchList)
+    rootMat = hscMosaic.kdtreeMat(matchList)
+    #rootMat.printMat()
+    allMat = rootMat.mergeMat()
+    print "# of allMat : ", countObsInSourceGroup(allMat)
+    print 'len(allMat) = ', len(allMat)
+    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+    
+    print "Creating kd-tree for source catalog ..."
+    print 'len(sourceSet) = ', len(sourceSet)
+    d_lim_deg = d_lim  / 3600.0
+    rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, nchip, d_lim_deg, nbrightest)
+    #rootSource.printSource()
+    allSource = rootSource.mergeSource()
+    print "# of allSource : ", countObsInSourceGroup(allSource)
+    print 'len(allSource) = ', len(allSource)
+    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+
+    return allMat, allSource
+
+def writeNewWcs(ioMgr, coeffSet, ccdSet, fscale, frameIds, ccdIds):
+    print "Write New WCS ..."
+    exp = afwImage.ExposureI(0,0)
+    for i in range(coeffSet.size()):
+        for j in range(ccdSet.size()):
+            c = hscMosaic.convertCoeff(coeffSet[i], ccdSet[j]);
+            wcs = hscMosaic.wcsFromCoeff(c);
+            scale = fscale[i] * fscale[coeffSet.size()+j]
+            exp.getMetadata().set("FSCALE", scale)
+            exp.setWcs(wcs)
+            try:
+                ioMgr.outButler.put(exp, 'wcs', dict(visit=frameIds[i], ccd=ccdIds[j]))
+            except Exception, e:
+                print "failed to write something: %s" % (e)
+
+    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+
+def plotJCont(num, coeff, ccdSet, outputDir):
+    scale = math.sqrt(math.fabs(coeff.get_a(0) * coeff.get_b(1) - coeff.get_a(1) * coeff.get_b(0)))
+    deg2pix = 1. / scale
+
+    delta = 300.
+    if (ccdSet.size() >= 100):
+        x = numpy.arange(-18000., 18000., delta)
+        y = numpy.arange(-18000., 18000., delta)
+        levels = numpy.linspace(0.81, 1.02, 36)
+    else:
+        x = numpy.arange(-6000., 6000., delta)
+        y = numpy.arange(-6000., 6000., delta)
+        levels = numpy.linspace(0.88, 1.02, 36)
+    X, Y = numpy.meshgrid(x, y)
+    Z = numpy.zeros((len(X),len(Y)))
+
+    for j in range(len(Y)):
+        for i in range(len(X)):
+            Z[i][j] = coeff.detJ(X[i][j], Y[i][j]) * deg2pix ** 2
+
+    plt.clf()
+    plt.contourf(X, Y, Z, levels=levels)
+    plt.colorbar()
+
+    for ccd in ccdSet:
+        w = 0;
+        for amp in ccd:
+            w += amp.getDataSec(True).getWidth()
+            h = amp.getDataSec(True).getHeight()
+        x0 = ccd.getCenter()[0] + coeff.x0
+        y0 = ccd.getCenter()[1] + coeff.y0
+        t0 = ccd.getOrientation().getYaw()
+        x = numpy.array([x0, \
+                         x0 + w * math.cos(t0), \
+                         x0 + w * math.cos(t0) - h * math.sin(t0), \
+                         x0 - h * math.sin(t0), \
+                         x0])
+        y = numpy.array([y0, \
+                         y0 + w * math.sin(t0), \
+                         y0 + w * math.sin(t0) + h * math.cos(t0), \
+                         y0 + h * math.cos(t0), \
+                         y0])
+        plt.plot(x, y, 'k-')
+        
+    plt.savefig(os.path.join(outputDir, "jcont_%d.png" % (num)), format='png')
+
+def clippedStd(a, n):
+    std = a.std()
+    for i in range(n):
+        b = a[numpy.fabs(a) < 2.0*std]
+        std = b.std()
+
+    return std
+
+def saveResPos(matchVec, sourceVec, outputDir):
+    _x = []
+    _y = []
+    _xm = []
+    _ym = []
+    for i in range(matchVec.size()):
+        if (matchVec[i].good == True):
+            _x.append((matchVec[i].xi_fit - matchVec[i].xi) * 3600)
+            _y.append((matchVec[i].eta_fit - matchVec[i].eta) * 3600)
+            _xm.append((matchVec[i].xi_fit - matchVec[i].xi) * 3600)
+            _ym.append((matchVec[i].eta_fit - matchVec[i].eta) * 3600)
+    _xs = []
+    _ys = []
+    if (sourceVec != None):
+        for i in range(sourceVec.size()):
+            if (sourceVec[i].good == True):
+                _x.append((sourceVec[i].xi_fit - sourceVec[i].xi) * 3600)
+                _y.append((sourceVec[i].eta_fit - sourceVec[i].eta) * 3600)
+                _xs.append((sourceVec[i].xi_fit - sourceVec[i].xi) * 3600)
+                _ys.append((sourceVec[i].eta_fit - sourceVec[i].eta) * 3600)
+
+    d_xi = numpy.array(_x)
+    d_eta = numpy.array(_y)
+    d_xi_m = numpy.array(_xm)
+    d_eta_m = numpy.array(_ym)
+    d_xi_s = numpy.array(_xs)
+    d_eta_s = numpy.array(_ys)
+
+    xi_std  = clippedStd(d_xi, 3)
+    eta_std = clippedStd(d_eta, 3)
+    xi_std_m  = clippedStd(d_xi_m, 3)
+    eta_std_m = clippedStd(d_eta_m, 3)
+    xi_std_s  = clippedStd(d_xi_s, 3)
+    eta_std_s = clippedStd(d_eta_s, 3)
+
+    plt.clf()
+    plt.rc('text', usetex=True)
+
+    plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
+    plt.plot(d_xi_m, d_eta_m, 'g,')
+    plt.plot(d_xi_s, d_eta_s, 'r,')
+    plt.xlim(-0.5, 0.5)
+    plt.ylim(-0.5, 0.5)
+
+    plt.xlabel(r'$\Delta\xi$ (arcsec)')
+    plt.ylabel(r'$\Delta\eta$ (arcsec)')
+
+    ax = plt.subplot2grid((5,6),(0,0), colspan=4)
+    plt.hist([d_xi, d_xi_m, d_xi_s], bins=100, normed=False, histtype='step')
+    plt.text(0.75, 0.7, r"$\sigma=$%5.3f" % (xi_std), transform=ax.transAxes, color='blue')
+    plt.text(0.75, 0.5, r"$\sigma=$%5.3f" % (xi_std_m), transform=ax.transAxes, color='green')
+    plt.text(0.75, 0.3, r"$\sigma=$%5.3f" % (xi_std_s), transform=ax.transAxes, color='red')
+    plt.xlim(-0.5, 0.5)
+
+    ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
+    n, bins, patches = plt.hist(d_eta, bins=100, normed=False, orientation='horizontal', histtype='step')
+    plt.hist(d_eta_m, bins=bins, normed=False, orientation='horizontal', histtype='step')
+    plt.hist(d_eta_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
+    plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes, color='blue')
+    plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (eta_std_m), rotation=270, transform=ax.transAxes, color='green')
+    plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (eta_std_s), rotation=270, transform=ax.transAxes, color='red')
+    plt.xticks(rotation=270)
+    plt.yticks(rotation=270)
+    plt.ylim(-0.5, 0.5)
+
+    plt.savefig(os.path.join(outputDir, "res_pos.png"), format='png')
+
+def saveResPos2(matchVec, sourceVec, outputDir):
+    _xi = []
+    _eta = []
+    _x = []
+    _y = []
+    for i in range(matchVec.size()):
+        if (matchVec[i].good == True):
+            _x.append((matchVec[i].xi_fit - matchVec[i].xi) * 3600)
+            _y.append((matchVec[i].eta_fit - matchVec[i].eta) * 3600)
+            _xi.append(matchVec[i].xi * 3600)
+            _eta.append(matchVec[i].eta * 3600)
+    if (sourceVec != None):
+        for i in range(sourceVec.size()):
+            if (sourceVec[i].good == True):
+                _x.append((sourceVec[i].xi_fit - sourceVec[i].xi) * 3600)
+                _y.append((sourceVec[i].eta_fit - sourceVec[i].eta) * 3600)
+                _xi.append(sourceVec[i].xi * 3600)
+                _eta.append(sourceVec[i].eta * 3600)
+
+    xi = numpy.array(_xi)
+    eta = numpy.array(_eta)
+    d_xi = numpy.array(_x)
+    d_eta = numpy.array(_y)
+
+    plt.clf()
+    plt.rc('text', usetex=True)
+
+    plt.subplot(2, 2, 1)
+    plt.plot(xi, d_xi, ',')
+    plt.xlabel(r'$\xi$ (arcsec)')
+    plt.ylabel(r'$\Delta\xi$ (arcsec)')
+
+    plt.subplot(2, 2, 3)
+    plt.plot(xi, d_eta, ',')
+    plt.xlabel(r'$\xi$ (arcsec)')
+    plt.ylabel(r'$\Delta\eta$ (arcsec)')
+
+    plt.subplot(2, 2, 2)
+    plt.plot(eta, d_xi, ',')
+    plt.xlabel(r'$\eta$ (arcsec)')
+    plt.ylabel(r'$\Delta\xi$ (arcsec)')
+
+    plt.subplot(2, 2, 4)
+    plt.plot(eta, d_xi, ',')
+    plt.xlabel(r'$\eta$ (arcsec)')
+    plt.ylabel(r'$\Delta\eta$ (arcsec)')
+
+    plt.savefig(os.path.join(outputDir, "res_pos2.png"), format='png')
+
+def saveResFlux(matchVec, fscale, nexp, ccdSet, outputDir):
+    _x = []
+    _iexp = []
+    _ichip = []
+    for i in range(matchVec.size()):
+        if (matchVec[i].good == True and matchVec[i].mag != -9999 and matchVec[i].jstar != -1):
+            mag = matchVec[i].mag
+            mag0 = matchVec[i].mag0
+            exp_cor = -2.5 * math.log10(fscale[matchVec[i].iexp])
+            chip_cor = -2.5 * math.log10(fscale[nexp+matchVec[i].ichip])
+            mag_cor = mag + exp_cor + chip_cor
+            diff = mag_cor - mag0
+            _x.append(diff)
+            _iexp.append(matchVec[i].iexp)
+            _ichip.append(matchVec[i].ichip)
+
+    d_mag = numpy.array(_x)
+    iexp = numpy.array(_iexp)
+    ichip = numpy.array(_ichip)
+
+    mag_std  = clippedStd(d_mag, 3)
+
+    _r = []
+    _dm = []
+    for i in range(ccdSet.size()):
+        w = 0;
+        for amp in ccdSet[i]:
+            w += amp.getDataSec(True).getWidth()
+            h = amp.getDataSec(True).getHeight()
+        _x0 = ccdSet[i].getCenter()[0] + 0.5 * w
+        _y0 = ccdSet[i].getCenter()[1] + 0.5 * h
+        _r.append(math.sqrt(_x0*_x0 + _y0*_y0))
+        _dm.append(-2.5 * math.log10(fscale[nexp+i]))
+
+    r = numpy.array(_r)
+    dm = numpy.array(_dm)
+
+    plt.clf()
+    plt.rc('text', usetex=True)
+
+    ax = plt.subplot(2, 2, 1)
+    plt.hist(d_mag, bins=100, normed=True, histtype='step')
+    plt.text(0.7, 0.7, r"$\sigma=$%5.3f" % (mag_std), transform=ax.transAxes)
+    plt.xlabel(r'$\Delta mag$ (mag)')
+
+    ax = plt.subplot(2, 2, 2)
+    plt.plot(r, dm, 'o')
+    plt.xlabel(r'Distance from center (pixel)')
+    plt.ylabel(r'Offset in magnitude')
+
+    ax = plt.subplot(2, 2, 3)
+    plt.plot(iexp, d_mag, ',')
+    plt.xlabel(r'Exposure ID')
+    plt.ylabel(r'$\Delta mag$ (mag)')
+    plt.xlim(iexp.min()-1, iexp.max()+1)
+
+    ax = plt.subplot(2, 2, 4)
+    plt.plot(ichip, d_mag, ',')
+    plt.xlabel(r'Chip ID')
+    plt.ylabel(r'$\Delta mag$ (mag)')
+    plt.xlim(ichip.min()-1, ichip.max()+1)
+
+    plt.savefig(os.path.join(outputDir, "res_flux.png"), format='png')
+
+def outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, outputDir="."):
+    f = open(os.path.join(outputDir, "coeffs.dat"), "wt")
+    for i in range(coeffSet.size()):
+        f.write("%ld %12.5e %12.5e\n" % (i, coeffSet[i].A, coeffSet[i].D));
+        f.write("%ld %12.5f %12.5f\n" % (i, coeffSet[i].x0, coeffSet[i].y0));
+        for k in range(coeffSet[i].getNcoeff()):
+            f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" % (i, coeffSet[i].get_a(k), coeffSet[i].get_b(k), coeffSet[i].get_ap(k), coeffSet[i].get_bp(k)));
+        f.write("%5.3f\n" % (fscale[i]))
+    f.close()
+
+    for i in range(coeffSet.size()):
+        plotJCont(i, coeffSet[i], ccdSet, outputDir=outputDir)
+
+    f = open(os.path.join(outputDir, "ccd.dat"), "wt")
+    for i in range(ccdSet.size()):
+        center = ccdSet[i].getCenter()
+        orient = ccdSet[i].getOrientation()
+        f.write("%3ld %10.3f %10.3f %10.7f %5.3f\n" % (i, center[0], center[1], orient.getYaw(), fscale[coeffSet.size()+i]));
+    f.close()
+
+    saveResPos(matchVec, sourceVec, outputDir)
+    saveResPos2(matchVec, sourceVec, outputDir)
+    saveResFlux(matchVec, fscale, coeffSet.size(), ccdSet, outputDir)
+
+def mosaic(ioMgr, frameIds, ccdIds, outputDir=".", debug=False, verbose=False):
+
     package = "hscMosaic"
     productDir = os.environ.get(package.upper() + "_DIR", None)
     policyPath = os.path.join(productDir, "policy", "HscMosaicDictionary.paf")
     policy = pexPolicy.Policy.createPolicy(policyPath)
 
-    print "Merge matched catalog ..."
-    allMat = hscMosaic.mergeMat(matchList)
-#    for mL in allMat:
-#        for i in range(1,len(mL)):
-#            x = mL[i].getXAstrom()
-#            y = mL[i].getYAstrom()
-#            mL[i].setXAstrom(-y)
-#            mL[i].setYAstrom(x)
-    print 'len(allMat) = ', len(allMat)
-    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+    ccdSet = readCcd(ioMgr.inMapper.camera, ccdIds)
 
-    print "Merge source catalog ..."
-    d_lim = 3.0 / 3600.0 * math.pi / 180.0
+    if debug:
+        for ccd in ccdSet:
+            print ccd.getId().getSerial(), ccd.getCenter(), ccd.getOrientation().getYaw()
+
+    wcsDic, frameIdsExist = readWcs(ioMgr, frameIds, ccdSet)
+    print frameIdsExist
+
+    if debug:
+        for i, wcs in wcsDic.iteritems():
+            print i, wcs.getPixelOrigin(), wcs.getSkyOrigin().getPosition(afwCoord.DEGREES)
+
+    sourceSet, matchList = readCatalog(ioMgr, frameIdsExist, ccdIds)
+
+    d_lim = policy.get("radXMatch")
     nbrightest = policy.get("nBrightest")
-    allSource = hscMosaic.mergeSource(sourceSet, allMat, d_lim, nbrightest)
-#    for sS in allSource:
-#        for i in range(1,len(sS)):
-#            x = sS[i].getXAstrom()
-#            y = sS[i].getYAstrom()
-#            sS[i].setXAstrom(-y)
-#            sS[i].setYAstrom(x)
-    print 'len(allSource) = ', len(allSource)
-    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+    if verbose:
+        print "d_lim : ", d_lim
+        print "nbrightest : ", nbrightest
+    allMat, allSource = mergeCatalog(sourceSet, matchList, ccdSet.size(), d_lim, nbrightest)
+
+    nmatch  = allMat.size()
+    nsource = allSource.size()
+    matchVec  = hscMosaic.obsVecFromSourceGroup(allMat,    wcsDic, ccdSet)
+    sourceVec = hscMosaic.obsVecFromSourceGroup(allSource, wcsDic, ccdSet)
 
     print "Solve mosaic ..."
     order = policy.get("fittingOrder")
     internal = policy.get("internalFitting")
-    print "order : ", order, " internal : ", internal
-    verbose = False
-    fscale = hscMosaic.solveMosaic(order, allMat, allSource, wcsDic, internal, verbose)
-    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+    solveCcd = policy.get("solveCcd")
+    allowRotation = policy.get("allowRotation")
 
-    #writeNewWCS(ditherIds, ccdIds, fitFP, wcsDic, fscale, dims, camera, mgr, outputDir)
+    if verbose:
+        print "order : ", order
+        print "internal : ", internal
+        print "solveCcd : ", solveCcd
+        print "allowRotation : ", allowRotation
 
-    outputDiag(progId + "MosaicFitTest.dat", allMat, allSource, wcsDic, internal, outputDir)
-
-    ##if writeNewFits:
-    ##    writeNewFitsFiles(ditherIds, ccdIds, wcsDic, fscale, rootdir, outputName)
-
-def outputDiag(ofname, allMat, allSource, wcsDic, internal, workDir="."):
-    print "Output Diagnostic ..."
-    f = open(os.path.join(workDir, ofname), 'w')
-    for mL in allMat:
-        if mL[0].getFlagForWcs():
-            continue
-        ra = mL[0].getRa() * 180. / math.pi
-        dec = mL[0].getDec() * 180. / math.pi
-        S = 0.0
-        Sr = 0.0
-        Sd = 0.0
-        for i in range(1,len(mL)):
-            x = mL[i].getXAstrom()
-            y = mL[i].getYAstrom()
-            ditherId = mL[i].getAmpExposureId()
-            r0, d0 = wcsDic[ditherId].pixelToSky(x, y).getPosition(afwCoord.DEGREES)
-            S  += 1.
-            Sr += r0
-            Sd += d0
-        ra  = Sr / S
-        dec = Sd / S
-        for i in range(1,len(mL)):
-            if mL[i].getFlagForWcs():
-                continue
-            ditherId = mL[i].getAmpExposureId()
-            x = mL[i].getXAstrom()
-            y = mL[i].getYAstrom()
-            if mL[i].getPsfFlux() > 0.0:
-                mag = -2.5 * math.log10(mL[i].getPsfFlux())
-            else:
-                mag = 99.
-            x0, y0 = wcsDic[ditherId].skyToPixel(ra, dec)
-            r0, d0 = wcsDic[ditherId].pixelToSky(x, y).getPosition(afwCoord.DEGREES)
-            #line = "m %d %9.5f %9.5f %9.3f %9.3f %9.3f %9.3f %6.3f %6.3f %7.3f\n" % (ditherId, ra, dec, x0, y0, x, y, x-x0, y-y0, mag)
-            line = "m %d %9.5f %9.5f %9.3f %9.3f %9.5f %9.5f %9.3f %9.3f %e %e %f %f %7.3f\n" % (ditherId, ra, dec, x, y, r0, d0, x0, y0, ra-r0, dec-d0, x-x0, y-y0, mag)
-            f.write(line)
-
+    fscale = afwMath.vectorD()
     if internal:
-        for sS in allSource:
-            if sS[0].getFlagForWcs():
-                continue
-            ra = sS[0].getRa() * 180. / math.pi
-            dec = sS[0].getDec() * 180. / math.pi
-            for i in range(1,len(sS)):
-                if sS[i].getFlagForWcs():
-                    continue
-                ditherId = sS[i].getAmpExposureId()
-                x = sS[i].getXAstrom()
-                y = sS[i].getYAstrom()
-                if sS[i].getPsfFlux() > 0:
-                    mag = -2.5 * math.log10(sS[i].getPsfFlux())
-                else:
-                    mag = 99.
-                x0, y0 = wcsDic[ditherId].skyToPixel(ra, dec)
-                r0, d0 = wcsDic[ditherId].pixelToSky(x, y).getPosition(afwCoord.DEGREES)
-                #line = "s %d %9.5f %9.5f %9.3f %9.3f %9.3f %9.3f %6.3f %6.3f %7.3f\n" % (ditherId, ra, dec, x0, y0, x, y, x-x0, y-y0, mag)
-                line = "s %d %9.5f %9.5f %9.3f %9.3f %9.5f %9.5f %9.3f %9.3f %e %e %f %f %7.3f\n" % (ditherId, ra, dec, x, y, r0, d0, x0, y0, ra-r0, dec-d0, x-x0, y-y0, mag)
-                f.write(line)
-    f.close()
-       
-    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-
-def writeNewWCS(ditherIds, ccdIds, fitFP, wcsDic, fscale, dims, camera, mgr, outputDir="."):
-    print "Write New WCS ..."
-    iframe = 0;
-    img = afwImage.ImageU(0,0)
-    for ditherId in ditherIds:
-        for ccdId in ccdIds:
-            fname = mgr.getCorrFilename(int(ditherId), int(ccdId))
-            if not os.path.isfile(fname):
-                continue
-            if fitFP:
-                ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(ccdId)))
-                offset = ccd.getCenter()
-                wcs = wcsDic[ditherIds.index(ditherId)].clone()
-                wcs.shiftReferencePixel(-offset[0], -offset[1])
-                scale = fscale[ditherIds.index(ditherId)]
-            else:
-                wcs = wcsDic[iframe]
-                scale = fscale[iframe]
-            dim = dims[iframe]
-            
-            ofname = getOutputFileName(outputDir, int(ditherId), int(ccdId))
-            md = wcs.getFitsMetadata()
-            md.set("FSCALE", scale)
-            md.set("NUMAXIS1", dim[0])
-            md.set("NUMAXIS2", dim[1])
-            img.writeFits(ofname, md)
-            iframe += 1
-    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-    
-def writeNewFitsFiles(ditherIds, ccdIds, wcsDic, fscale, outputDir):
-    print "Write New FITS files ..."
-    iframe = 0;
-    for ditherId in ditherIds:
-        for ccdId in ccdIds:
-            if fitFP:
-                ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(ccdId)))
-                offset = ccd.getCenter()
-                wcs = wcsDic[ditherIds.index(ditherId)].clone()
-                wcs.shiftReferencePixel(-offset[0], -offset[1])
-                scale = fscale[ditherIds.index(ditherId)]
-            else:
-                wcs = wcsDic[iframe]
-                scale = fscale[iframe]
-            #fname = "%s/dith%d/out-ssb_ccd%03d-wcs.fits" % (rootdir, int(ditherId), int(ccdId))
-            basename = getBasename(int(ditherId), int(ccdId))
-            fname = "%s-wcs.fits" % (basename)
-            ofname = getOutputFileName(outputDir, int(ditherId), int(ccdId))
-            md = dafBase.PropertySet()
-            mImg = afwImage.MaskedImageF(fname, 0, md)
-            for name in wcs.getFitsMetadata().names():
-                md.set(name, wcs.getFitsMetadata().get(name))
-            md.set("FSCALE", scale)
-            mImg.writeFits(ofname, md)
-            del mImg
-            iframe += 1
-    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-    
-def main(ditherIds, ccdIds, outputName=None, fitFP=True, skipMosaic=False, makeWarped=False):
-    
-    if outputName == None:
-        outputName = ''
-        for i in range(len(ccdIds)):
-            outputName = outputName + "%d-" % (int(ccdIds[i]))
-
-    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-    
-    if not skipMosaic:
-
-        print "Mosaicing ..."
-        
-        mosaic(ditherIds, ccdIds, outputName, fitFP)
-
-        print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-
-    if makeWarped:
-        flist = []
-        for ditherId in ditherIds:
-            for ccdId in ccdIds:
-                fname = "%sdith%d_ccd%03d-mImg.fits" % (outputName, int(ditherId), int(ccdId))
-                flist.append(fname)
-
-        print "Stacking ..."
-        
-        stack.stack(flist, outputName, subImgSize=2048, fileIO=False)
-        
-        print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-        
-if __name__ == '__main__':
-
-    ditherIds = [0, 1, 2, 3, 4]
-    if (len(sys.argv) == 1):
-        ccdIds = range(100)
+        coeffSet = hscMosaic.solveMosaic_CCD(order, nmatch, nsource, matchVec, sourceVec,
+                                             wcsDic, ccdSet,
+                                             fscale, solveCcd, allowRotation, verbose)
     else:
-        ccdIds = sys.argv[1:]
-    fitFP = True
-    skipMosaic=False
-    makeWarped = False
+        coeffSet = hscMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
+                                                  wcsDic, ccdSet, fscale,
+                                                  solveCcd, allowRotation, verbose)
+    print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    #main(ditherIds, ccdIds, "test-", fitFP, skipMosaic, makeWarped)
-    mosaic(ditherIds, ccdIds, fitFP)
+    writeNewWcs(ioMgr, coeffSet, ccdSet, fscale, frameIdsExist, ccdIds)
+
+#    if internal:
+#        outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, outputDir)
+#    else:
+#        outputDiag(matchVec, None, coeffSet, ccdSet, fscale, outputDir)
+
+    return frameIdsExist

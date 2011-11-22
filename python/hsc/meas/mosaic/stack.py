@@ -28,7 +28,10 @@ def wcsIO(outfile, mode, wcs=None, width=None, height=None, nx=None, ny=None,
         metadata.set("NY", ny)
         img.writeFits(os.path.join(workDir, outfile), metadata)
     elif mode == "r":
-        filename = os.path.join(workDir, outfile)
+        if workDir == None:
+            filename = outfile
+        else:
+            filename = os.path.join(workDir, outfile)
         print "reading WCS from %s" % (filename)
         metadata = afwImage.readMetadata(filename)
         wcs = afwImage.makeWcs(metadata)
@@ -61,7 +64,7 @@ def flistIO(outfile, mode, fileList=None, dims=None, fscale=None, workDir="."):
 
     return fileList
 
-def mkScript(nx, ny, rerun, program, filter, workDir="."):
+def mkScript(nx, ny, rerun, instrument, program, filter, dateObs, workDir="."):
     for ix in range(nx):
         for iy in range(ny):
             fname = "qqq%02d_%02d.sh" % (ix, iy)
@@ -70,13 +73,17 @@ def mkScript(nx, ny, rerun, program, filter, workDir="."):
             f.write("#PBS -l ncpus=1\n");
             f.write("#PBS -l nodes=1\n");
             f.write("#PBS -q default\n");
+            f.write("#PBS -j oe\n");
             f.write("#\n");
             f.write("#OMP_NUM_THREADS=1; export OMP_NUM_THREADS\n");
             f.write("cd $PBS_O_WORKDIR\n");
             f.write("#\n");
-            f.write("#setup -r /home/yasuda/temp/hscMosaic\n");
-            f.write("python run_stack.py --rerun=%s --program=%s --filter=%s %d %d\n" %
-                    (rerun, program, filter, ix, iy));
+            if (dateObs == None):
+                f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --workDir=%s %d %d\n" %
+                        (rerun, instrument, program, filter, workDir, ix, iy))
+            else:
+                f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --dateObs=%s --workDir=%s %d %d\n" %
+                        (rerun, instrument, program, filter, dateObs, workDir, ix, iy))
             f.close()
     
     fname = "qqqEnd.sh"
@@ -85,13 +92,17 @@ def mkScript(nx, ny, rerun, program, filter, workDir="."):
     f.write("#PBS -l ncpus=1\n");
     f.write("#PBS -l nodes=1\n");
     f.write("#PBS -q default\n");
+    f.write("#PBS -j oe\n");
     f.write("#\n");
     f.write("#OMP_NUM_THREADS=1; export OMP_NUM_THREADS\n");
-    f.write("#cd $PBS_O_WORKDIR\n");
+    f.write("cd $PBS_O_WORKDIR\n");
     f.write("#\n");
-    f.write("#setup -r /home/yasuda/temp/hscMosaic\n");
-    f.write("python run_stack.py  --rerun=%s -program=%s --filter=%s End\n" %
-            (rerun, program, filter));
+    if (dateObs == None):
+        f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --workDir=%s End\n" %
+                (rerun, instrument, program, filter, workDir))
+    else:
+        f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --dateObs=%s --workDir=%s End\n" %
+                (rerun, instrument, program, filter, dateObs, workDir))
     f.close()
     
     f = open(os.path.join(workDir, "run_qsub.sh"), "w")
@@ -100,7 +111,7 @@ def mkScript(nx, ny, rerun, program, filter, workDir="."):
             f.write("qsub qqq%02d_%02d.sh\n" % (ix, iy))
     f.close()
 
-def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
+def readParamsFromFileList(fileList, skipMosaic=False):
     wcsDic = hscMosaic.WcsDic()
     dims = []
     fscale = []
@@ -109,21 +120,21 @@ def readParamsFromFileList(fileList, wcsDir=".", skipMosaic=False):
     for fname in fileList:
         # Construct file name for WCS file
         if not skipMosaic:
-            s1 = os.path.basename(fname)
-            s2 = re.sub("CORR", "wcs", s1)
-            wcsname = os.path.join(wcsDir, s2)
+            wcsname = re.sub("CORR", "wcs", fname)
         else:
             wcsname = fname
 
-        print "reading WCS for (%s) from %s" % (i, wcsname)
+        mdOrig = afwImage.readMetadata(fname)
+        dims.append([mdOrig.get('NAXIS1'), mdOrig.get('NAXIS2')])
+        
+        #print "reading WCS for (%s) from %s" % (i, wcsname)
         metadata = afwImage.readMetadata(wcsname)
         wcs = afwImage.makeWcs(metadata)
         wcsDic[i] = wcs
         if not skipMosaic:
-            dims.append([metadata.get('NAXIS1'), metadata.get('NAXIS2')])
-            fscale.append(1.0) #metadata.get('FSCALE'))
+            fscale.append(metadata.get('FSCALE'))
+            #fscale.append(1.0)
         else:
-            dims.append([metadata.get('NAXIS1'), metadata.get('NAXIS2')])
             cal1 = afwImage.Calib(metadata).getFluxMag0()
             zp.append(2.5*math.log10(cal1[0]))
             fscale.append(1.0)
@@ -144,21 +155,28 @@ def stackInit(ioMgr, fileList, subImgSize,
               flistFname="fileList.txt",
               wcsFname="destWcs.fits",
               workDir=".",
-              wcsDir=None,
               skipMosaic=False,
               rerun="please_set_this",
+              instrument="please_set_this",
               program="please_set_this",
-              filter="please_set_this"):
+              filter="please_set_this",
+              pScale=0.0,
+              dateObs=None,
+              destWcs=None):
 
     print "Stack Init ..."
     
-    if not wcsDir:
-        wcsDir = workDir
-        
-    wcsDic, dims, fscale = readParamsFromFileList(fileList, wcsDir=wcsDir,
+    wcsDic, dims, fscale = readParamsFromFileList(fileList,
                                                   skipMosaic=skipMosaic)
     
-    wcs, width, height = globalWcs(wcsDic, dims)
+    if destWcs == None:
+        if pScale == 0.0:
+            pixelScale = wcsDic[0].pixelScale() / 3600.
+        else:
+            pixelScale = pScale / 3600.
+        wcs, width, height = globalWcs(wcsDic, dims, pixelScale)
+    else:
+        wcs, width, height, nx, ny = wcsIO(destWcs, "r", workDir=None)
 
     nx = width  / subImgSize + 1
     ny = height / subImgSize + 1
@@ -173,7 +191,7 @@ def stackInit(ioMgr, fileList, subImgSize,
 
     if (writePBSScript):
         if (fileIO):
-            mkScript(nx, ny, rerun, program, filter, workDir)
+            mkScript(nx, ny, rerun, instrument, program, filter, dateObs, workDir)
         else:
             print "Should define fileIO=True"
             sys.exit(1)
@@ -193,7 +211,8 @@ def setCache(kernel, cacheSize=10000, force=False):
 
     kernel.computeCache(cacheSize)
     
-def stackExec(ioMgr, outputName, ix, iy, subImgSize,
+def stackExec(ioMgr, ix, iy, subImgSize,
+              stackId,
               fileList=None,
               dims=None,
               fscale=None,
@@ -207,19 +226,14 @@ def stackExec(ioMgr, outputName, ix, iy, subImgSize,
               flistFname="fileList.txt",
               wcsFname="destWcs.fits",
               workDir=".",
-              wcsDir=None,
               skipMosaic=False,
               filter="unknown"):
 
     print "Stack Exec ..."
     
-    if not wcsDir:
-        wcsDir = workDir
-        
     if fileIO:
         fileList = flistIO(flistFname, "r", workDir=workDir)
         wcsDic, dims, fscale = readParamsFromFileList(fileList,
-                                                      wcsDir=wcsDir,
                                                       skipMosaic=skipMosaic)
 
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
@@ -268,18 +282,17 @@ def stackExec(ioMgr, outputName, ix, iy, subImgSize,
     if mimgStack != None:
         if fileIO:
             expStack = afwImage.ExposureF(mimgStack, wcs2)
-            ioMgr.outButler.put(expStack, 'stack', dict(stack=11,
+            ioMgr.outButler.put(expStack, 'stack', dict(stack=stackId,
                                                         patch=int("%3d%02d" % (ix, iy)),
                                                         filter=filter))
-            #print os.path.join(workDir, "%s%02d-%02d.fits" % (outputName, ix, iy))
-            #expStack.writeFits(os.path.join(workDir, "%s%02d-%02d.fits" % (outputName, ix, iy)))
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     return mimgStack
 
-def stackEnd(outputName,
+def stackEnd(ioMgr,
              subImgSize,
+             stackId,
              wcs=None,
              width=None,
              height=None,
@@ -289,13 +302,14 @@ def stackEnd(outputName,
              fileIO=False,
              wcsFname="destWcs.fits",
              workDir=".",
-             outputDir="."):
+             filter="unknown"):
 
     print "Stack End ..."
     
     if fileIO:
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
 
+    print width, height
     stackedMI = afwImage.MaskedImageF(width, height)
     stackedMI.getImage().set(float('nan'))
     stackedMI.getMask().set(afwImage.MaskU.getPlaneBitMask("EDGE"))
@@ -303,10 +317,6 @@ def stackEnd(outputName,
     if fileIO:
         for iy in range(ny):
             for ix in range(nx):
-                file = os.path.join(workDir,
-                                    "%s%02d-%02d.fits" % (outputName, ix, iy))
-                if not os.path.isfile(file):
-                    continue
                 if iy == ny - 1:
                     naxis2 = height - iy * subImgSize
                 else:
@@ -316,10 +326,13 @@ def stackEnd(outputName,
                 else:
                     naxis1 = subImgSize
 
-                mimg = afwImage.MaskedImageF(file)
-                llc = afwImage.PointI(ix*subImgSize,          iy*subImgSize)
-                urc = afwImage.PointI(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
-                subImg = stackedMI.Factory(stackedMI, afwImage.BBox(llc, urc))
+                #mimg = afwImage.MaskedImageF(file)
+                mimg = ioMgr.outButler.get('stack', dict(stack=stackId,
+                                                         patch=int("%3d%02d" % (ix, iy)),
+                                                         filter=filter)).getMaskedImage()
+                llc = afwGeom.Point2I(ix*subImgSize,          iy*subImgSize)
+                urc = afwGeom.Point2I(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
+                subImg = stackedMI.Factory(stackedMI, afwGeom.Box2I(llc, urc), afwImage.LOCAL)
                 subImg <<= mimg
                 del mimg
     else:
@@ -336,39 +349,38 @@ def stackEnd(outputName,
             else:
                 naxis1 = subImgSize
 
-            llc = afwImage.PointI(ix*subImgSize,          iy*subImgSize)
-            urc = afwImage.PointI(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
-            subImg = stackedMI.Factory(stackedMI, afwImage.BBox(llc, urc))
+            llc = afwGeom.Point2I(ix*subImgSize,          iy*subImgSize)
+            urc = afwGeom.Point2I(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
+            subImg = stackedMI.Factory(stackedMI, afwGeom.Box2I(llc, urc), afwImage.LOCAL)
             mimgStack = mimgMap[k]
             subImg <<= mimgStack
 
     expStack = afwImage.ExposureF(stackedMI, wcs)
-    expStack.writeFits(os.path.join(outputDir, "%sstacked.fits" % (outputName)))
+    ioMgr.outButler.put(expStack, 'stack', dict(stack=stackId,
+                                                patch=999999,
+                                                filter=filter))
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     return expStack
     
-def stack(fileList, outputName, subImgSize=2048, fileIO=False,
-          workDir=".", wcsDir=None, outputDir=None, skipMosaic=False):
+def stack(ioMgr, fileList, subImgSize, stackId, fileIO=False,
+          workDir=".", skipMosaic=False, filter='unknown',
+          destWcs=None):
 
     print "Stack ..."
 
-    if not wcsDir:
-        wcsDir = workDir
-        
-    if not outputDir:
-        outputDir = workDir
-        
     if fileIO:
-        nx, ny = stackInit(fileList, subImgSize, fileIO,
-                           workDir=workDir, wcsDir=wcsDir,
-                           skipMosaic=skipMosaic)
+        nx, ny = stackInit(ioMgr, fileList, subImgSize, fileIO,
+                           workDir=workDir,
+                           skipMosaic=skipMosaic,
+                           destWcs=destWcs)
     else:
         fileList, dims, fscale, wcs, wcsDic, width, height, nx, ny \
-                  = stackInit(fileList, subImgSize, fileIO,
-                              workDir=workDir, wcsDir=wcsDir,
-                              skipMosaic=skipMosaic)
+                  = stackInit(ioMgr, fileList, subImgSize, fileIO,
+                              workDir=workDir,
+                              skipMosaic=skipMosaic,
+                              destWcs=destWcs)
 
     mimgMap = {}
     
@@ -376,26 +388,28 @@ def stack(fileList, outputName, subImgSize=2048, fileIO=False,
         for ix in range(nx):
 
             if fileIO:
-                stackExec(outputName, ix, iy, subImgSize, fileIO=fileIO,
-                          workDir=workDir, wcsDir=wcsDir,
-                          skipMosaic=skipMosaic)
+                stackExec(ioMgr, ix, iy, subImgSize, stackId, fileIO=fileIO,
+                          workDir=workDir,
+                          skipMosaic=skipMosaic,
+                          filter=filter)
             else:
-                mimgStack = stackExec(outputName, ix, iy, subImgSize,
+                mimgStack = stackExec(ioMgr, ix, iy, subImgSize, stackId,
                                       fileList, dims, fscale,
                                       wcs, wcsDic, width, height,
                                       nx, ny, fileIO,
-                                      skipMosaic=skipMosaic)
+                                      skipMosaic=skipMosaic,
+                                      filter=filter)
 
                 if mimgStack != None:
                     mimgMap["%d %d" % (ix, iy)] = mimgStack
 
     if fileIO:
-        expStack = stackEnd(outputName, subImgSize, fileIO=fileIO,
-                            workDir=workDir, outputDir=outputDir)
+        expStack = stackEnd(ioMgr, subImgSize, stackId, fileIO=fileIO,
+                            workDir=workDir, filter=filter)
     else:
-        expStack = stackEnd(outputName, subImgSize,
+        expStack = stackEnd(ioMgr, subImgSize, stackId,
                             wcs, width, height, nx, ny, mimgMap, fileIO,
-                            workDir=workDir, outputDir=outputDir)
+                            workDir=workDir, filter=filter)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -417,6 +431,7 @@ def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
     for k, v in wcsDic.iteritems():
         isIn = checkOverlap(wcsDic[k], dims[k], points)
         if isIn:
+            print fileList[k]
             originalExposure = afwImage.ExposureF(fileList[k])
             originalExposure.setWcs(v)
             warpedExposure = afwImage.ExposureF(afwImage.MaskedImageF(naxis1, naxis2), wcs2)
@@ -504,8 +519,8 @@ def globalWcs(wcsDic, dims, pixelSize=0.00004667):
 
     print "width = %d height = %d pixel" % (width, height)
 
-    crval = afwGeom.makePointD(0.5*(ramin+ramax), 0.5*(decmin+decmax))
-    crpix = afwGeom.makePointD(width/2., height/2.)
+    crval = afwGeom.Point2D(0.5*(ramin+ramax), 0.5*(decmin+decmax))
+    crpix = afwGeom.Point2D(width/2., height/2.)
     wcs = afwImage.createWcs(crval, crpix, -pixelSize, 0, 0, pixelSize)
 
     return wcs, width, height
@@ -518,12 +533,10 @@ if __name__ == '__main__':
     ccdIds = range(100)
     ccdIds = [9]
 
-    outputName = "test-"
     subImgSize = 2048
     fileIO = True
     writePBSScript = False
     workDir = "."
-    wcsDir = "/data/yasuda/stack"
     
     fileList = []
     for ditherId in ditherIds:
@@ -533,21 +546,21 @@ if __name__ == '__main__':
             
     if (len(sys.argv) == 1):
         stack.stackInit(fileList, subImgSize, fileIO, writePBSScript,
-                        workDir=workDir, wcsDir=wcsDir)
+                        workDir=workDir)
 
     elif (len(sys.argv) == 3):
         ix = int(sys.argv[1])
         iy = int(sys.argv[2])
 
-        stack.stackExec(outputName, ix, iy, subImgSize, fileIO=fileIO,
-                        workDir=workDir, wcsDir=wcsDir)
+        stack.stackExec(ix, iy, subImgSize, fileIO=fileIO,
+                        workDir=workDir)
 
     else:
         if (sys.argv[1] == "End"):
-            stack.stackEnd(outputName, subImgSize, fileIO=fileIO,
+            stack.stackEnd(subImgSize, fileIO=fileIO,
                            workDir=workDir)
         else:
-            stack.stack(fileList, outputName, subImgSize=2048, fileIO=fileIO,
-                        workDir=workDir, wcsDir=wcsDir)
+            stack.stack(fileList, subImgSize=2048, fileIO=fileIO,
+                        workDir=workDir)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
