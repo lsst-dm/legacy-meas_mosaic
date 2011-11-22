@@ -1,11 +1,3 @@
 # -*- python -*-
-import sys
-Import("env")
-
-env.Program("testFit", ["testFit.cc"], LIBS=env.getlibs("hscMosaic"))
-env.Program("testWcs", ["testWcs.cc"], LIBS=env.getlibs("hscMosaic"))
-
-
-#import lsst.tests
-#tests = lsst.tests.Control(env, verbose = True)
-#tests.run("*.cc")
+from lsst.sconsUtils import scripts
+scripts.BasicSConscript.tests()
