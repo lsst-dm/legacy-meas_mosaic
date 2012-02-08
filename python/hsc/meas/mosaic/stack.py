@@ -131,25 +131,21 @@ def readParamsFromFileList(fileList, skipMosaic=False):
         metadata = afwImage.readMetadata(wcsname)
         wcs = afwImage.makeWcs(metadata)
         wcsDic[i] = wcs
-        if not skipMosaic:
-            fscale.append(metadata.get('FSCALE'))
-            #fscale.append(1.0)
-        else:
-            cal1 = afwImage.Calib(metadata).getFluxMag0()
-            zp.append(2.5*math.log10(cal1[0]))
-            fscale.append(1.0)
+        calib = afwImage.Calib(metadata).getFluxMag0()
+        zp.append(2.5*math.log10(calib[0]))
+        fscale.append(1.0)
         i += 1
 
-    if skipMosaic:
-        zp_ref = zp[0]
-        for i in range(len(zp)):
-            zp[i] -= zp_ref
-        for i in range(len(zp)):
-            fscale[i] = math.pow(10., -0.4*zp[i])
+    zp_ref = zp[0]
+    for i in range(len(zp)):
+        zp[i] -= zp_ref
+    for i in range(len(zp)):
+        fscale[i] = math.pow(10., -0.4*zp[i])
 
     return wcsDic, dims, fscale
 
 def stackInit(ioMgr, fileList, subImgSize,
+              imgMargin=256,
               fileIO=False,
               writePBSScript=False,
               flistFname="fileList.txt",
@@ -171,15 +167,19 @@ def stackInit(ioMgr, fileList, subImgSize,
     
     if destWcs == None:
         if pScale == 0.0:
-            pixelScale = wcsDic[0].pixelScale() / 3600.
+            pixelScale = wcsDic[0].pixelScale().asDegrees()
         else:
             pixelScale = pScale / 3600.
         wcs, width, height = globalWcs(wcsDic, dims, pixelScale)
     else:
-        wcs, width, height, nx, ny = wcsIO(destWcs, "r", workDir=None)
+        wcs, width, height, nx, ny = wcsIO(destWcs, "r", workDir)
 
-    nx = width  / subImgSize + 1
-    ny = height / subImgSize + 1
+    nx = width  / (subImgSize - imgMargin) + 1
+    ny = height / (subImgSize - imgMargin) + 1
+    if (width - (subImgSize - imgMargin) * (nx - 1) < imgMargin):
+        nx = nx - 1
+    if (height - (subImgSize - imgMargin) * (ny - 1) < imgMargin):
+        ny = ny - 1
 
     if (fileIO):
         flistIO(flistFname, "w", fileList, dims, fscale, workDir=workDir)
@@ -211,8 +211,9 @@ def setCache(kernel, cacheSize=10000, force=False):
 
     kernel.computeCache(cacheSize)
     
-def stackExec(ioMgr, ix, iy, subImgSize,
-              stackId,
+def stackExec(ioMgr, ix, iy, stackId,
+              subImgSize,
+              imgMargin,
               fileList=None,
               dims=None,
               fscale=None,
@@ -235,10 +236,8 @@ def stackExec(ioMgr, ix, iy, subImgSize,
         fileList = flistIO(flistFname, "r", workDir=workDir)
         wcsDic, dims, fscale = readParamsFromFileList(fileList,
                                                       skipMosaic=skipMosaic)
-
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
         
-    #productDir = eups.productDir("hscMosaic")
     package = "hscMosaic"
     productDir = os.environ.get(package.upper() + "_DIR", None)
     policyPath = os.path.join(productDir, "policy", "HscStackDictionary.paf")
@@ -254,17 +253,16 @@ def stackExec(ioMgr, ix, iy, subImgSize,
     sctrl.setAndMask(~(0x0 or afwImage.MaskU_getPlaneBitMask("DETECTED")))
 
     if ix == nx - 1:
-        naxis1 = width - ix * subImgSize
+        naxis1 = width - ix * (subImgSize - imgMargin)
     else:
         naxis1 = subImgSize
 
     if iy == ny - 1:
-        naxis2 = height - iy * subImgSize
+        naxis2 = height - iy * (subImgSize - imgMargin)
     else:
         naxis2 = subImgSize
                 
     print "interpLength : ", policy.get("interpLength")
-    print ix, iy, nx, ny
     if policy.get("stackMethod") == "MEANCLIP":
         stackFlag = afwMath.MEANCLIP
     elif policy.get("stackMethod") == "MEAN":
@@ -273,7 +271,9 @@ def stackExec(ioMgr, ix, iy, subImgSize,
         stackFlag = afwMath.MEDIAN
     else:
         stackFlag = afwMath.MEANCLIP
-    mimgStack, wcs2 = subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
+
+    mimgStack, wcs2 = subRegionStack(wcs, subImgSize, imgMargin,
+                                     ix, iy, naxis1, naxis2,
                                      wcsDic, dims, fileList, fscale,
                                      kernel, sctrl,
                                      policy.get("interpLength"),
@@ -291,8 +291,9 @@ def stackExec(ioMgr, ix, iy, subImgSize,
     return mimgStack
 
 def stackEnd(ioMgr,
-             subImgSize,
              stackId,
+             subImgSize,
+             imgMargin,
              wcs=None,
              width=None,
              height=None,
@@ -309,7 +310,6 @@ def stackEnd(ioMgr,
     if fileIO:
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
 
-    print width, height
     stackedMI = afwImage.MaskedImageF(width, height)
     stackedMI.getImage().set(float('nan'))
     stackedMI.getMask().set(afwImage.MaskU.getPlaneBitMask("EDGE"))
@@ -318,11 +318,11 @@ def stackEnd(ioMgr,
         for iy in range(ny):
             for ix in range(nx):
                 if iy == ny - 1:
-                    naxis2 = height - iy * subImgSize
+                    naxis2 = height - iy * (subImgSize - imgMargin)
                 else:
                     naxis2 = subImgSize
                 if ix == nx - 1:
-                    naxis1 = width - ix * subImgSize
+                    naxis1 = width - ix * (subImgSize - imgMargin)
                 else:
                     naxis1 = subImgSize
 
@@ -330,8 +330,8 @@ def stackEnd(ioMgr,
                 mimg = ioMgr.outButler.get('stack', dict(stack=stackId,
                                                          patch=int("%3d%02d" % (ix, iy)),
                                                          filter=filter)).getMaskedImage()
-                llc = afwGeom.Point2I(ix*subImgSize,          iy*subImgSize)
-                urc = afwGeom.Point2I(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
+                llc = afwGeom.Point2I(ix*(subImgSize-imgMargin),          iy*(subImgSize-imgMargin))
+                urc = afwGeom.Point2I(ix*(subImgSize-imgMargin)+naxis1-1, iy*(subImgSize-imgMargin)+naxis2-1)
                 subImg = stackedMI.Factory(stackedMI, afwGeom.Box2I(llc, urc), afwImage.LOCAL)
                 subImg <<= mimg
                 del mimg
@@ -341,17 +341,17 @@ def stackEnd(ioMgr,
             iy = int(k.split()[1])
         
             if iy == ny - 1:
-                naxis2 = height - iy * subImgSize
+                naxis2 = height - iy * (subImgSize - imgMargin)
             else:
                 naxis2 = subImgSize
             if ix == nx - 1:
-                naxis1 = width - ix * subImgSize
+                naxis1 = width - ix * (subImgSize - imgMargin)
             else:
                 naxis1 = subImgSize
 
-            llc = afwGeom.Point2I(ix*subImgSize,          iy*subImgSize)
-            urc = afwGeom.Point2I(ix*subImgSize+naxis1-1, iy*subImgSize+naxis2-1)
-            subImg = stackedMI.Factory(stackedMI, afwGeom.Box2I(llc, urc), afwImage.LOCAL)
+            llc = afwGeom.Point2I(ix*(subImgSize-imgMargin),          iy*(subImgSize-imgMargin))
+            urc = afwGeom.Point2I(ix*(subImgSize-imgMargin)+naxis1-1, iy*(subImgSize-imgMargin)+naxis2-1)
+            subImg = stackedMI.Factory(stackedMI, afwImage.BBox(llc, urc))
             mimgStack = mimgMap[k]
             subImg <<= mimgStack
 
@@ -363,21 +363,21 @@ def stackEnd(ioMgr,
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     return expStack
-    
-def stack(ioMgr, fileList, subImgSize, stackId, fileIO=False,
+
+def stack(ioMgr, fileList, stackId, subImgSize, imgMargin, fileIO=False,
           workDir=".", skipMosaic=False, filter='unknown',
           destWcs=None):
 
     print "Stack ..."
 
     if fileIO:
-        nx, ny = stackInit(ioMgr, fileList, subImgSize, fileIO,
+        nx, ny = stackInit(ioMgr, fileList, subImgSize, imgMargin, fileIO,
                            workDir=workDir,
                            skipMosaic=skipMosaic,
                            destWcs=destWcs)
     else:
         fileList, dims, fscale, wcs, wcsDic, width, height, nx, ny \
-                  = stackInit(ioMgr, fileList, subImgSize, fileIO,
+                  = stackInit(ioMgr, fileList, subImgSize, imgMargin, fileIO,
                               workDir=workDir,
                               skipMosaic=skipMosaic,
                               destWcs=destWcs)
@@ -388,12 +388,14 @@ def stack(ioMgr, fileList, subImgSize, stackId, fileIO=False,
         for ix in range(nx):
 
             if fileIO:
-                stackExec(ioMgr, ix, iy, subImgSize, stackId, fileIO=fileIO,
+                stackExec(ioMgr, ix, iy, stackId, subImgSize, imgMargin,
+                          fileIO=fileIO,
                           workDir=workDir,
                           skipMosaic=skipMosaic,
                           filter=filter)
             else:
-                mimgStack = stackExec(ioMgr, ix, iy, subImgSize, stackId,
+                mimgStack = stackExec(ioMgr, ix, iy, stackId,
+                                      subImgSize, imgMargin,
                                       fileList, dims, fscale,
                                       wcs, wcsDic, width, height,
                                       nx, ny, fileIO,
@@ -404,28 +406,50 @@ def stack(ioMgr, fileList, subImgSize, stackId, fileIO=False,
                     mimgMap["%d %d" % (ix, iy)] = mimgStack
 
     if fileIO:
-        expStack = stackEnd(ioMgr, subImgSize, stackId, fileIO=fileIO,
+        expStack = stackEnd(ioMgr, stackId, subImgSize, imgMargin,
+                            fileIO=fileIO,
                             workDir=workDir, filter=filter)
     else:
-        expStack = stackEnd(ioMgr, subImgSize, stackId,
+        expStack = stackEnd(ioMgr, stackId, subImgSize, imgMargin,
                             wcs, width, height, nx, ny, mimgMap, fileIO,
                             workDir=workDir, filter=filter)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
+def subRegionStack(wcs, subImgSize, imgMargin,
+                   ix, iy, naxis1, naxis2,
                    wcsDic, dims, fileList, fscale,
                    kernel, sctrl, interpLength, flag):
     wcs2 = wcs.clone()
-    wcs2.shiftReferencePixel(-ix*subImgSize, -iy*subImgSize)
+    wcs2.shiftReferencePixel(-ix*(subImgSize-imgMargin), -iy*(subImgSize-imgMargin))
     ###print wcs2.getFitsMetadata().toString()
     mimgList = afwImage.vectorMaskedImageF()
-                
-    x = [0, naxis1/2, naxis1, 0, naxis1/2, naxis1, 0, naxis1/2, naxis1]
-    y = [0, 0, 0, naxis2/2, naxis2/2, naxis2/2, naxis2, naxis2, naxis2]
+
+    x = []
+    y = []
+    step = 512
+    x0 = 0
+    while (x0 < naxis1):
+        y0 = 0
+        while (y0 < naxis2):
+            x.append(x0)
+            y.append(y0)
+            y0 = y0 + step
+        y0 = naxis2
+        x.append(x0)
+        y.append(y0)
+        x0 = x0 + step
+    x0 = naxis1
+    while (y0 < naxis2):
+        x.append(x0)
+        y.append(y0)
+        y0 = y0 + step
+    y0 = naxis2
+    x.append(x0)
+    y.append(naxis2)
     points = []
     for i in range(len(x)):
-        p = wcs2.pixelToSky(x[i], y[i])
+        p = wcs2.pixelToSky(x[i], y[i]).getPosition(afwGeom.degrees)
         points.append(p)
     
     for k, v in wcsDic.iteritems():
@@ -434,13 +458,19 @@ def subRegionStack(wcs, subImgSize, ix, iy, naxis1, naxis2,
             print fileList[k]
             originalExposure = afwImage.ExposureF(fileList[k])
             originalExposure.setWcs(v)
+            ffp = hscMosaic.FluxFitParams(afwImage.readMetadata(re.sub("CORR", "fcr", fileList[k])))
+            fcor = hscMosaic.getFCorImg(ffp,
+                                        originalExposure.getWidth(),
+                                        originalExposure.getHeight())
+            mimg = originalExposure.getMaskedImage()
+            mimg *= fcor
+            mimg *= fscale[k]
             warpedExposure = afwImage.ExposureF(afwImage.MaskedImageF(naxis1, naxis2), wcs2)
             # Interpolate WCS every "interlLength" pixels.
             # The value is defined in policy file.
             afwMath.warpExposure(warpedExposure, originalExposure, kernel,
                                  interpLength);
             mimg = warpedExposure.getMaskedImage()
-            mimg *= fscale[k]
             ###print fileList[k]
             ###mimg.writeFits("zzz-%02d-%02d-%03d.fits" % (ix, iy, k))
 
@@ -479,7 +509,7 @@ def skyLimit(wcs, dims):
     x = [0, w, 0, w]
     y = [0, 0, h, h]
     for i in range(4):
-        p = wcs.pixelToSky(x[i], y[i])
+        p = wcs.pixelToSky(x[i], y[i]).getPosition(afwGeom.degrees)
         if (p[0] < ramin):
             ramin = p[0]
         if (p[0] > ramax):
@@ -501,7 +531,7 @@ def globalWcs(wcsDic, dims, pixelSize=0.00004667):
         x = [0, w, 0, w]
         y = [0, 0, h, h]
         for i in range(len(x)):
-            p = wcsDic[k].pixelToSky(x[i],y[i]).getPosition(afwCoord.DEGREES)
+            p = wcsDic[k].pixelToSky(x[i],y[i]).getPosition(afwGeom.degrees)
             if (p[0] < ramin):
                 ramin = p[0]
             if (p[0] > ramax):
@@ -519,9 +549,9 @@ def globalWcs(wcsDic, dims, pixelSize=0.00004667):
 
     print "width = %d height = %d pixel" % (width, height)
 
-    crval = afwGeom.Point2D(0.5*(ramin+ramax), 0.5*(decmin+decmax))
+    crval = afwCoord.Coord(afwGeom.Point2D(0.5*(ramin+ramax), 0.5*(decmin+decmax)))
     crpix = afwGeom.Point2D(width/2., height/2.)
-    wcs = afwImage.createWcs(crval, crpix, -pixelSize, 0, 0, pixelSize)
+    wcs = afwImage.makeWcs(crval, crpix, -pixelSize, 0, 0, pixelSize)
 
     return wcs, width, height
         

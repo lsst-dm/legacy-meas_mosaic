@@ -255,8 +255,8 @@ int main(int argc, char **argv)
 		    matchList[j][i].second->getAmpExposureId() % 1000,
 		    matchList[j][i].second->getXAstrom(),
 		    matchList[j][i].second->getYAstrom(),
-		    matchList[j][i].first->getRa(),
-		    matchList[j][i].first->getDec(),
+		    matchList[j][i].first->getRa().asDegrees(),
+		    matchList[j][i].first->getDec().asDegrees(),
 		    matchList[j][i].second->getPsfFlux());
 	}
     }
@@ -271,8 +271,8 @@ int main(int argc, char **argv)
 		    sourceSetList[j][i]->getAmpExposureId() % 1000,
 		    sourceSetList[j][i]->getXAstrom(),
 		    sourceSetList[j][i]->getYAstrom(),
-		    sourceSetList[j][i]->getRa(),
-		    sourceSetList[j][i]->getDec(),
+		    sourceSetList[j][i]->getRa().asDegrees(),
+		    sourceSetList[j][i]->getDec().asDegrees(),
 		    sourceSetList[j][i]->getPsfFlux());
 	}
     }
@@ -298,8 +298,9 @@ int main(int argc, char **argv)
     ObsVec sourceVec = obsVecFromSourceGroup(allSource, wcsDic, ccdSet);
 
     int order = 11;
+    FluxFitParams::Ptr ffp = FluxFitParams::Ptr(new FluxFitParams(5));
     std::vector<double> fscale;
-    CoeffSet coeffs = solveMosaic_CCD(order, nobs, nSobs, matchVec, sourceVec, wcsDic, ccdSet, fscale);
+    CoeffSet coeffs = solveMosaic_CCD(order, nobs, nSobs, matchVec, sourceVec, wcsDic, ccdSet, ffp, fscale);
 
     fp = fopen("ccd.dat", "wt");
     for (size_t i = 0; i < ccdSet.size(); i++) {

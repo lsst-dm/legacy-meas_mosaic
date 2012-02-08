@@ -17,6 +17,7 @@ SWIG_SHARED_PTR_DERIVED(CcdPtr, lsst::afw::cameraGeom::Detector,
 SWIG_SHARED_PTR(CoeffPtr, hsc::meas::mosaic::Coeff);
 SWIG_SHARED_PTR(KDTreePtr, hsc::meas::mosaic::KDTree);
 SWIG_SHARED_PTR(ObsPtr, hsc::meas::mosaic::Obs);
+SWIG_SHARED_PTR(FluxFitParamsPtr, hsc::meas::mosaic::FluxFitParams);
 
 %include "hsc/meas/mosaic/mosaicfit.h"
 

@@ -30,6 +30,8 @@ namespace hsc {
 		~Poly(void);
 		Poly(const Poly &p);
 		int getIndex(int i, int j);
+		int getXorder(int i) { return xorder[i]; }
+		int getYorder(int i) { return yorder[i]; }
 	    };
 
 	    class Coeff {
@@ -70,6 +72,7 @@ namespace hsc {
 		double detadv(double u, double v);
 		double detJ(double u, double v);
 		int getNcoeff() { return p->ncoeff; }
+		double pixelScale(void);
 	    };
 
 	    class Obs {
@@ -99,6 +102,7 @@ namespace hsc {
 
 		double mag;
 		double mag0;
+		double mag_cat;
 
 		Obs(int id, double ra, double dec, double x, double y, int ichip, int iexp);
 		Obs(int id, double ra, double dec, int ichip, int iexp);
@@ -145,6 +149,34 @@ namespace hsc {
 		double distance(lsst::afw::detection::Source::Ptr s);
 	    };
 
+	    class FluxFitParams {
+	    public:
+		typedef boost::shared_ptr<FluxFitParams> Ptr;
+
+		int order;
+		bool chebyshev;
+		int ncoeff;
+		int *xorder;
+		int *yorder;
+		bool absolute;
+
+		double *coeff;
+		double u_max;
+		double v_max;
+		double x0;
+		double y0;
+
+		FluxFitParams(int order, bool absolute=false, bool chebyshev=false);
+		FluxFitParams(lsst::daf::base::PropertySet::Ptr& metadata);
+		~FluxFitParams();
+		FluxFitParams(const FluxFitParams &p);
+		double eval(double u, double v);
+		int getXorder(int i) { return xorder[i]; }
+		int getYorder(int i) { return yorder[i]; }
+		int getCoeff(int i) { return coeff[i]; }
+		int getIndex(int i, int j);
+	    };
+
 	    typedef std::vector<lsst::afw::cameraGeom::Ccd::Ptr> CcdSet;
 	    typedef std::vector<Coeff::Ptr> CoeffSet;
 	    typedef std::vector<Obs::Ptr> ObsVec;
@@ -164,6 +196,7 @@ namespace hsc {
 					  ObsVec &matchVec,
 					  WcsDic &wcsDic,
 					  CcdSet &ccdSet,
+					  FluxFitParams::Ptr &ffp,
 					  std::vector<double> &fscale,
 					  bool solveCcd = true,
 					  bool allowRotation = true,
@@ -176,18 +209,50 @@ namespace hsc {
 				     ObsVec &sourceVec,
 				     WcsDic &wcsDic,
 				     CcdSet &ccdSet,
+				     FluxFitParams::Ptr &ffp,
 				     std::vector<double> &fscale,
 				     bool solveCcd = true,
 				     bool allowRotation = true,
 				     bool verbose = false);
 
-	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff,
+				    lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+
 	    lsst::afw::image::TanWcs::Ptr wcsFromCoeff(Coeff::Ptr& coeff);
 
-	    std::vector<double>	solveFlux(SourceGroup const &allSource,
-					  WcsDic &wcsDic,
-					  CcdSet &ccdSet);
+	    FluxFitParams::Ptr
+	      convertFluxFitParams(Coeff::Ptr& coeff,
+				   lsst::afw::cameraGeom::Ccd::Ptr& ccd,
+				   FluxFitParams::Ptr& ffp);
 
+	    lsst::daf::base::PropertySet::Ptr
+	      metadataFromFluxFitParams(FluxFitParams::Ptr& ffp);
+
+	    lsst::afw::image::Image<float>::Ptr
+	      getJImg(Coeff::Ptr& coeff,
+		      lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+
+	    lsst::afw::image::Image<float>::Ptr
+	      getJImg(lsst::afw::image::Wcs::Ptr& wcs,
+		      int width, int height);
+
+	    lsst::afw::image::Image<float>::Ptr
+	      getJImg(lsst::afw::image::Wcs::Ptr& wcs,
+		      lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+
+	    lsst::afw::image::Image<float>::Ptr
+	      getFCorImg(FluxFitParams::Ptr& p,
+			 lsst::afw::cameraGeom::Ccd::Ptr& ccd,
+			 Coeff::Ptr& coeff);
+
+	    lsst::afw::image::Image<float>::Ptr
+	      getFCorImg(FluxFitParams::Ptr& p, int width, int height);
+
+	    lsst::afw::image::Image<float>::Ptr
+	      getFCorImg(FluxFitParams::Ptr& p,
+			 lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+
+#include "chebyshev.h"
     }
   }
 }

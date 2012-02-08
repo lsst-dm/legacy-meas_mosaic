@@ -9,7 +9,7 @@ definitions: {
         description: "number of stars used for fitting per exposure"
 	minOccurs: 0
 	maxOccurs: 1
-	default: 200
+	default: 300
 	min: 100
     }
     radXMatch: {
@@ -17,7 +17,7 @@ definitions: {
         description: "radius to cross-match objects between expsoures in arcsec"
 	minOccurs: 0
 	maxOccurs: 1
-	default: 3.0
+	default: 5.0
 	min: 3.0
     }
     fittingOrder: {
@@ -25,7 +25,7 @@ definitions: {
         description: "fitting order"
 	minOccurs: 0
 	maxOccurs: 1
-	default: 11
+	default: 5
 	min: 5
     }
     internalFitting: {
@@ -48,6 +48,28 @@ definitions: {
 	minOccurs: 0
 	maxOccurs: 1
 	default: true
+    }
+    Chebyshev: {
+        type: "bool"
+        description: "Flux fitting polynomial type"
+	minOccurs: 0
+	maxOccurs: 1
+	default: true
+    }
+    fluxFitOrder: {
+        type: "int"
+        description: "flux fitting order"
+	minOccurs: 0
+	maxOccurs: 1
+	default: 5
+	min: 0
+    }
+    fluxFitAbsolute: {
+        type: "bool"
+        description: "Fit to catalog flux"
+	minOccurs: 0
+	maxOccurs: 1
+	default: false
     }
 }
 

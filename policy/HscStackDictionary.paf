@@ -9,7 +9,7 @@ definitions: {
         description: "warping kernel"
 	minOccurs: 0
 	maxOccurs: 1
-	default: "bilinear"
+	default: "lanczos3"
 	allowed: {
 	    value: "bilinear"
 	    description: "use bilinear"
