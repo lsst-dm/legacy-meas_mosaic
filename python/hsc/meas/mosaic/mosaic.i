@@ -7,17 +7,16 @@
 %include "std_map.i"
 
 #if 1
-SWIG_SHARED_PTR(DetectorPtr, lsst::afw::cameraGeom::Detector);
-SWIG_SHARED_PTR_DERIVED(CcdPtr, lsst::afw::cameraGeom::Detector,
-				lsst::afw::cameraGeom::Ccd);
+%shared_ptr(lsst::afw::cameraGeom::Detector);
+%shared_ptr(lsst::afw::cameraGeom::Ccd);
 #else
 %import "lsst/afw/cameraGeom/cameraGeom.i"
 #endif
 
-SWIG_SHARED_PTR(CoeffPtr, hsc::meas::mosaic::Coeff);
-SWIG_SHARED_PTR(KDTreePtr, hsc::meas::mosaic::KDTree);
-SWIG_SHARED_PTR(ObsPtr, hsc::meas::mosaic::Obs);
-SWIG_SHARED_PTR(FluxFitParamsPtr, hsc::meas::mosaic::FluxFitParams);
+%shared_ptr(hsc::meas::mosaic::Coeff);
+%shared_ptr(hsc::meas::mosaic::KDTree);
+%shared_ptr(hsc::meas::mosaic::Obs);
+%shared_ptr(hsc::meas::mosaic::FluxFitParams);
 
 %include "hsc/meas/mosaic/mosaicfit.h"
 

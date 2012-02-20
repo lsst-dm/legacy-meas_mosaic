@@ -135,7 +135,7 @@ int main(int argc, char **argv)
 	    lsst::afw::geom::Point2D(ccd[i].x0, ccd[i].y0);
 	lsst::afw::cameraGeom::Orientation orientation(0, 0.0, 0.0, ccd[i].theta);
 	lsst::afw::cameraGeom::Ccd::Ptr ccd = lsst::afw::cameraGeom::Ccd::Ptr(new lsst::afw::cameraGeom::Ccd(i, 0.168));
-	ccd->setCenter(center);
+	ccd->setCenter(lsst::afw::cameraGeom::FpPoint(center));
 	ccd->setOrientation(orientation);
 	ccdSet.push_back(ccd);
     }
@@ -304,7 +304,7 @@ int main(int argc, char **argv)
 
     fp = fopen("ccd.dat", "wt");
     for (size_t i = 0; i < ccdSet.size(); i++) {
-	lsst::afw::geom::PointD center = ccdSet[i]->getCenter();
+	lsst::afw::geom::PointD center = ccdSet[i]->getCenter().getPixels(1.0);
 	lsst::afw::cameraGeom::Orientation orientation = ccdSet[i]->getOrientation();
 	fprintf(fp, "%3ld %11.4f %11.4f %10.7f %5.3f\n",
 		i, center[0], center[1], orientation.getYaw(), fscale[coeffs.size()+i]);

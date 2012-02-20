@@ -5,8 +5,8 @@
 #include <vector>
 #include "lsst/afw/image.h"
 #include "lsst/afw/geom.h"
-#include "lsst/afw/detection/SourceMatch.h"
-#include "lsst/afw/cameraGeom/Ccd.h"
+#include "lsst/afw/cameraGeom.h"
+#include "lsst/afw/detection.h"
 #include "boost/enable_shared_from_this.hpp"
 
 namespace hsc {
@@ -106,8 +106,7 @@ namespace hsc {
 
 		Obs(int id, double ra, double dec, double x, double y, int ichip, int iexp);
 		Obs(int id, double ra, double dec, int ichip, int iexp);
-		void setUV(lsst::afw::cameraGeom::Ccd::Ptr const &ccd);
-		void setUV(lsst::afw::cameraGeom::Ccd::Ptr const &ccd, double x0, double y0);
+		void setUV(lsst::afw::cameraGeom::Ccd::Ptr const &ccd, double x0=0, double y0=0);
 		void setXiEta(double ra_c, double dec_c);
 		void setFitVal(Coeff::Ptr& c, Poly::Ptr p);
 		void setFitVal2(Coeff::Ptr& c, Poly::Ptr p);
