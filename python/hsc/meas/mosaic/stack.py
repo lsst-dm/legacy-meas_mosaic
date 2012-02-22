@@ -6,9 +6,9 @@ import lsst.afw.coord                    as afwCoord
 import lsst.afw.geom                     as afwGeom
 import lsst.daf.base                     as dafBase
 import lsst.afw.math                     as afwMath
-import lsst.pex.policy                   as pexPolicy
 import lsst.pex.exceptions               as pexExceptions
 import hsc.meas.mosaic.mosaicLib         as hscMosaic
+import hsc.meas.mosaic.config            as hscMosaicConfig
 
 def getBasename(exposureId, ccdId):
     rootdir = "/data/yasuda/data_cosmos"
@@ -144,7 +144,7 @@ def readParamsFromFileList(fileList, skipMosaic=False):
 
     return wcsDic, dims, fscale
 
-def stackInit(ioMgr, fileList, subImgSize,
+def stackInit(butler, fileList, subImgSize,
               imgMargin=256,
               fileIO=False,
               writePBSScript=False,
@@ -203,15 +203,7 @@ def stackInit(ioMgr, fileList, subImgSize,
     else:
         return fileList, dims, fscale, wcs, wcsDic, width, height, nx, ny
 
-def setCache(kernel, cacheSize=10000, force=False):
-    """Set the cache size (or don't if it wouldn't help). Always set if force is True"""
-    if not force:
-        if re.search("BilinearFunction", kernel.getKernelRowFunction().toString()):
-            cacheSize = 0
-
-    kernel.computeCache(cacheSize)
-    
-def stackExec(ioMgr, ix, iy, stackId,
+def stackExec(butler, ix, iy, stackId,
               subImgSize,
               imgMargin,
               fileList=None,
@@ -237,17 +229,12 @@ def stackExec(ioMgr, ix, iy, stackId,
         wcsDic, dims, fscale = readParamsFromFileList(fileList,
                                                       skipMosaic=skipMosaic)
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
-        
-    package = "hscMosaic"
-    productDir = os.environ.get(package.upper() + "_DIR", None)
-    policyPath = os.path.join(productDir, "policy", "HscStackDictionary.paf")
-    policy = pexPolicy.Policy.createPolicy(policyPath)
 
-    print "warpingKernel : ", policy.get("warpingKernel")
-    kernel = afwMath.makeWarpingKernel(policy.get("warpingKernel"))
-    print "cacheSize : ", policy.get("cacheSize")
-    setCache(kernel, policy.get("cacheSize"))
-        
+
+    config = hscMosaicConfig.StackConfig()
+    # XXX overrides???
+
+    warper = afwMath.Warper.fromConfig(config.warper)
     sctrl = afwMath.StatisticsControl()
     sctrl.setWeighted(True)
     sctrl.setAndMask(~(0x0 or afwImage.MaskU_getPlaneBitMask("DETECTED")))
@@ -262,35 +249,24 @@ def stackExec(ioMgr, ix, iy, stackId,
     else:
         naxis2 = subImgSize
                 
-    print "interpLength : ", policy.get("interpLength")
-    if policy.get("stackMethod") == "MEANCLIP":
-        stackFlag = afwMath.MEANCLIP
-    elif policy.get("stackMethod") == "MEAN":
-        stackFlag = afwMath.MEAN
-    elif policy.get("stackMethod") == "MEDIAN":
-        stackFlag = afwMath.MEDIAN
-    else:
-        stackFlag = afwMath.MEANCLIP
-
     mimgStack, wcs2 = subRegionStack(wcs, subImgSize, imgMargin,
                                      ix, iy, naxis1, naxis2,
                                      wcsDic, dims, fileList, fscale,
-                                     kernel, sctrl,
-                                     policy.get("interpLength"),
+                                     warper, sctrl,
                                      stackFlag)
 
     if mimgStack != None:
         if fileIO:
             expStack = afwImage.ExposureF(mimgStack, wcs2)
-            ioMgr.outButler.put(expStack, 'stack', dict(stack=stackId,
-                                                        patch=int("%3d%02d" % (ix, iy)),
-                                                        filter=filter))
+            butler.put(expStack, 'stack', dict(stack=stackId,
+                                               patch=int("%3d%02d" % (ix, iy)),
+                                               filter=filter))
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     return mimgStack
 
-def stackEnd(ioMgr,
+def stackEnd(butler,
              stackId,
              subImgSize,
              imgMargin,
@@ -327,9 +303,9 @@ def stackEnd(ioMgr,
                     naxis1 = subImgSize
 
                 #mimg = afwImage.MaskedImageF(file)
-                mimg = ioMgr.outButler.get('stack', dict(stack=stackId,
-                                                         patch=int("%3d%02d" % (ix, iy)),
-                                                         filter=filter)).getMaskedImage()
+                mimg = butler.get('stack', dict(stack=stackId,
+                                                patch=int("%3d%02d" % (ix, iy)),
+                                                filter=filter)).getMaskedImage()
                 llc = afwGeom.Point2I(ix*(subImgSize-imgMargin),          iy*(subImgSize-imgMargin))
                 urc = afwGeom.Point2I(ix*(subImgSize-imgMargin)+naxis1-1, iy*(subImgSize-imgMargin)+naxis2-1)
                 subImg = stackedMI.Factory(stackedMI, afwGeom.Box2I(llc, urc), afwImage.LOCAL)
@@ -356,28 +332,28 @@ def stackEnd(ioMgr,
             subImg <<= mimgStack
 
     expStack = afwImage.ExposureF(stackedMI, wcs)
-    ioMgr.outButler.put(expStack, 'stack', dict(stack=stackId,
-                                                patch=999999,
-                                                filter=filter))
+    butler.put(expStack, 'stack', dict(stack=stackId,
+                                       patch=999999,
+                                       filter=filter))
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     return expStack
 
-def stack(ioMgr, fileList, stackId, subImgSize, imgMargin, fileIO=False,
+def stack(butler, fileList, stackId, subImgSize, imgMargin, fileIO=False,
           workDir=".", skipMosaic=False, filter='unknown',
           destWcs=None):
 
     print "Stack ..."
 
     if fileIO:
-        nx, ny = stackInit(ioMgr, fileList, subImgSize, imgMargin, fileIO,
+        nx, ny = stackInit(butler, fileList, subImgSize, imgMargin, fileIO,
                            workDir=workDir,
                            skipMosaic=skipMosaic,
                            destWcs=destWcs)
     else:
         fileList, dims, fscale, wcs, wcsDic, width, height, nx, ny \
-                  = stackInit(ioMgr, fileList, subImgSize, imgMargin, fileIO,
+                  = stackInit(butler, fileList, subImgSize, imgMargin, fileIO,
                               workDir=workDir,
                               skipMosaic=skipMosaic,
                               destWcs=destWcs)
@@ -388,13 +364,13 @@ def stack(ioMgr, fileList, stackId, subImgSize, imgMargin, fileIO=False,
         for ix in range(nx):
 
             if fileIO:
-                stackExec(ioMgr, ix, iy, stackId, subImgSize, imgMargin,
+                stackExec(butler, ix, iy, stackId, subImgSize, imgMargin,
                           fileIO=fileIO,
                           workDir=workDir,
                           skipMosaic=skipMosaic,
                           filter=filter)
             else:
-                mimgStack = stackExec(ioMgr, ix, iy, stackId,
+                mimgStack = stackExec(butler, ix, iy, stackId,
                                       subImgSize, imgMargin,
                                       fileList, dims, fscale,
                                       wcs, wcsDic, width, height,
@@ -406,11 +382,11 @@ def stack(ioMgr, fileList, stackId, subImgSize, imgMargin, fileIO=False,
                     mimgMap["%d %d" % (ix, iy)] = mimgStack
 
     if fileIO:
-        expStack = stackEnd(ioMgr, stackId, subImgSize, imgMargin,
+        expStack = stackEnd(butler, stackId, subImgSize, imgMargin,
                             fileIO=fileIO,
                             workDir=workDir, filter=filter)
     else:
-        expStack = stackEnd(ioMgr, stackId, subImgSize, imgMargin,
+        expStack = stackEnd(butler, stackId, subImgSize, imgMargin,
                             wcs, width, height, nx, ny, mimgMap, fileIO,
                             workDir=workDir, filter=filter)
 
@@ -419,7 +395,7 @@ def stack(ioMgr, fileList, stackId, subImgSize, imgMargin, fileIO=False,
 def subRegionStack(wcs, subImgSize, imgMargin,
                    ix, iy, naxis1, naxis2,
                    wcsDic, dims, fileList, fscale,
-                   kernel, sctrl, interpLength, flag):
+                   warper, sctrl, flag):
     wcs2 = wcs.clone()
     wcs2.shiftReferencePixel(-ix*(subImgSize-imgMargin), -iy*(subImgSize-imgMargin))
     ###print wcs2.getFitsMetadata().toString()
@@ -465,11 +441,7 @@ def subRegionStack(wcs, subImgSize, imgMargin,
             mimg = originalExposure.getMaskedImage()
             mimg *= fcor
             mimg *= fscale[k]
-            warpedExposure = afwImage.ExposureF(afwImage.MaskedImageF(naxis1, naxis2), wcs2)
-            # Interpolate WCS every "interlLength" pixels.
-            # The value is defined in policy file.
-            afwMath.warpExposure(warpedExposure, originalExposure, kernel,
-                                 interpLength);
+            warpedExposure = warper.warpExposure(wcs2, originalExposure)
             mimg = warpedExposure.getMaskedImage()
             ###print fileList[k]
             ###mimg.writeFits("zzz-%02d-%02d-%03d.fits" % (ix, iy, k))

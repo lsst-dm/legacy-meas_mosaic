@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import lsst.pex.config as pexConfig
+import lsst.afw.math as afwMath
 
 class HscMosaicConfig(pexConfig.Config):
     nBrightest = pexConfig.RangeField(
@@ -42,27 +43,61 @@ class HscMosaicConfig(pexConfig.Config):
 
 
 class HscStackConfig(pexConfig.Config):
-    warpingKernel = pexConfig.ChoiceField(
-        doc="warping kernel",
+    filterName = pexConfig.Field(
+        doc="Filter name",
         dtype=str,
-        allowed={'bilinear': "bilinear kernel",
-                 'lanczos3': "3rd order Lanczos kernel",
-                 }
-        default="lanczos3")
-    cacheSize = pexConfig.RangeField(
-        doc="warping kernel cache size",
+        )
+    stackId = pexConfig.Field(
+        doc="Stack identifier",
         dtype=int,
-        default=10000, min=0)
-    interpLength = pexConfig.RangeField(
-        doc="interp WCS every this number of pixels",
+        )
+    program = pexConfig.Field(
+        doc="Field name to stack",
+        dtype=str,
+        )
+    dateObs = pexConfig.Field(
+        doc="Date of observation",
+        dtype=str,
+        )
+    subImageSize = pexConfig.RangeField(
+        doc="Size of sub-image (pixels, square)",
         dtype=int,
-        default=25, min=0)
+        min=0, default=4096,
+        )
+    imageMargin = pexConfig.RangeField(
+        doc="Size of margin around image (pixels)",
+        dtype=int,
+        min=0, default=256
+        )
+    fileIO = pexConfig.Field(
+        doc="Do file input/output?",
+        dtype=bool,
+        default=True,
+        )
+    writePbsScript = pexConfig.Field(
+        doc="Write a PBS script?",
+        dtype=bool,
+        default=False,
+        )
+    skipMosaic = pexConfig.Field(
+        doc="Skip mosaicking?",
+        dtype=bool,
+        default=False,
+        )
+    workDirRoot = pexConfig.Field(
+        doc="Working directory root name",
+        dtype=str,
+        )
+    warper = pexConfig.ConfigField(
+        doc="Warping configuration",
+        dtype=afwMath.WarperConfig,
+        )
     stackMethod = pexConfig.ChoiceField(
         doc="Stacking method",
-        dtype=str,
-        allowed={'MEANCLIP': "N-sigma clipped mean",
-                 'MEAN': "Ordinary mean, no clipping",
-                 'MEDIAN': "Ordinary median, no clipping",
+        dtype=int,
+        allowed={afwMath.MEANCLIP: "N-sigma clipped mean",
+                 afwMath.MEAN: "Ordinary mean, no clipping",
+                 afwMath.MEDIAN: "Ordinary median, no clipping",
                  },
-        default="MEANCLIP")
+        default=afwMath.MEANCLIP)
         
