@@ -1,4 +1,4 @@
-setupRequired(pipette)
+setupRequired(hscPipe) # Circular... will fix it later
 setupOptional(mkl)
 
 envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
