@@ -783,7 +783,7 @@ def mosaic(butler, frameIds, ccdIds, config=hscMosaicConfig.HscMosaicConfig(),
     solveCcd = config.solveCcd
     allowRotation = config.allowRotation
     fluxFitOrder = config.fluxFitOrder
-    chebyshev = config.Chebyshev
+    chebyshev = config.chebyshev
     absolute = config.fluxFitAbsolute
 
     ffp = hscMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
