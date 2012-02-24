@@ -8,6 +8,7 @@ import hsc.pipe.base.camera             as hscCamera
 import lsst.obs.hscSim                  as hscSim
 import lsst.obs.suprimecam              as obsSc
 import hsc.meas.mosaic.mosaic           as mosaic
+import hsc.meas.mosaic.config           as hscMosaicConfig
 
 def main():
     parser = optparse.OptionParser()
@@ -51,6 +52,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None, ou
         
     frameIds = butler.queryMetadata('calexp', None, 'visit', dataId)
     print frameIds
+    ccdIds = range(hscCamera.getNumCcds(instrument))
 
     if (len(frameIds) == 0):
         print "There is no frameIds"

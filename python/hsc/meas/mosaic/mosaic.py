@@ -13,8 +13,9 @@ import lsst.afw.coord                   as afwCoord
 import lsst.afw.math                    as afwMath
 import lsst.afw.detection               as afwDet
 import lsst.meas.algorithms.utils       as malgUtils
-import lsst.meas.astrom                 as measAstrom
+import lsst.meas.astrom.astrom          as measAstrom
 import hsc.meas.mosaic.mosaicLib        as hscMosaic
+import hsc.meas.mosaic.config           as hscMosaicConfig
 
 def readCcd(camera, ccdIds):
 
@@ -36,17 +37,16 @@ def readCcd(camera, ccdIds):
     # Calculate mean position of all CCD chips
     sx = sy = 0.
     for i in range(ccds.size()):
-        sx += ccds[i].getCenter()[0] + 0.5 * width[i]
-        sy += ccds[i].getCenter()[1] + 0.5 * height[i]
+        center = ccds[i].getCenter().getPixels(ccds[i].getPixelSize())
+        sx += center[0] + 0.5 * width[i]
+        sy += center[1] + 0.5 * height[i]
     dx = sx / ccds.size()
     dy = sy / ccds.size()
 
     # Shift the origin of CCD chips
     for i in range(ccds.size()):
-        offset = ccds[i].getCenter()
-        offset[0] -= dx
-        offset[1] -= dy
-        ccds[i].setCenter(offset)
+        pixelSize = ccds[i].getPixelSize()
+        ccds[i].setCenter(ccds[i].getCenter() - cameraGeom.FpPoint(dx * pixelSize, dy * pixelSize))
         
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -74,7 +74,7 @@ def readWcs(butler, frameIds, ccdSet):
         ccdId = ccdSet[0].getId().getSerial()
         wcs = getWcsForCcd(butler, frameId, ccdId)
         if wcs != None:
-            offset = ccdSet[0].getCenter()
+            offset = ccdSet[0].getCenter().getPixels(ccdSet[0].getPixelSize())
             wcs.shiftReferencePixel(offset[0], offset[1])
             wcsDic[i] = wcs
             frameIdsExist.append(frameId)
@@ -265,8 +265,8 @@ def plotJCont(num, coeff, ccdSet, outputDir):
         for amp in ccd:
             w += amp.getDataSec(True).getWidth()
             h = amp.getDataSec(True).getHeight()
-        x0 = ccd.getCenter()[0] + coeff.x0
-        y0 = ccd.getCenter()[1] + coeff.y0
+        x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeff.x0
+        y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + coeff.y0
         t0 = ccd.getOrientation().getYaw()
         x = numpy.array([x0, \
                          x0 + w * math.cos(t0), \
@@ -308,8 +308,8 @@ def plotFCorCont(num, coeff, ccdSet, ffp, outputDir):
         for amp in ccd:
             w += amp.getDataSec(True).getWidth()
             h = amp.getDataSec(True).getHeight()
-        x0 = ccd.getCenter()[0] + coeff.x0
-        y0 = ccd.getCenter()[1] + coeff.y0
+        x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeff.x0
+        y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + coeff.y0
         t0 = ccd.getOrientation().getYaw()
         x = numpy.array([x0, \
                          x0 + w * math.cos(t0), \
@@ -367,8 +367,8 @@ def saveResPos3(matchVec, sourceVec, num, coeff, ccdSet, outputDir):
     for ccd in ccdSet:
         w = ccd.getAllPixels(True).getWidth()
         h = ccd.getAllPixels(True).getHeight()
-        x0 = ccd.getCenter()[0] + coeff.x0
-        y0 = ccd.getCenter()[1] + coeff.y0
+        x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeff.x0
+        y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + coeff.y0
         t0 = ccd.getOrientation().getYaw()
         x = numpy.array([x0, \
                          x0 + w * math.cos(t0), \
@@ -547,8 +547,8 @@ def saveResFlux(matchVec, fscale, nexp, ccdSet, ffp, outputDir):
         for amp in ccdSet[i]:
             w += amp.getDataSec(True).getWidth()
             h = amp.getDataSec(True).getHeight()
-        _x0 = ccdSet[i].getCenter()[0] + 0.5 * w
-        _y0 = ccdSet[i].getCenter()[1] + 0.5 * h
+        _x0 = ccdSet[i].getCenter().getPixels(ccd.getPixelSize())[0] + 0.5 * w
+        _y0 = ccdSet[i].getCenter().getPixels(ccd.getPixelSize())[1] + 0.5 * h
         _r.append(math.sqrt(_x0*_x0 + _y0*_y0))
         _dm.append(-2.5 * math.log10(fscale[nexp+i]))
 
@@ -707,7 +707,7 @@ def outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir="."
 
     f = open(os.path.join(outputDir, "ccd.dat"), "wt")
     for i in range(ccdSet.size()):
-        center = ccdSet[i].getCenter()
+        center = ccdSet[i].getCenter().getPixels(ccdSet[i].getPixelSize())
         orient = ccdSet[i].getOrientation()
         f.write("%3ld %10.3f %10.3f %10.7f %5.3f\n" % (i, center[0], center[1], orient.getYaw(), fscale[coeffSet.size()+i]));
     f.close()
@@ -736,7 +736,8 @@ def getExtent(matchVec):
 
     return u_max, v_max
 
-def mosaic(butler, frameIds, ccdIds, config, outputDir=".", debug=False, verbose=False):
+def mosaic(butler, frameIds, ccdIds, config=hscMosaicConfig.HscMosaicConfig(),
+           outputDir=".", debug=False, verbose=False):
 
     ccdSet = readCcd(butler.mapper.camera, ccdIds)
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
@@ -744,7 +745,8 @@ def mosaic(butler, frameIds, ccdIds, config, outputDir=".", debug=False, verbose
 
     if debug:
         for ccd in ccdSet:
-            print ccd.getId().getSerial(), ccd.getCenter(), ccd.getOrientation().getYaw()
+            print (ccd.getId().getSerial(), ccd.getCenter().getPixels(ccd.getPixelSize()),
+                   ccd.getOrientation().getYaw())
 
     wcsDic, frameIdsExist = readWcs(butler, frameIds, ccdSet)
     print frameIdsExist
