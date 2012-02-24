@@ -161,7 +161,7 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
     
     print "Creating kd-tree for source catalog ..."
-    print 'len(sourceSet) = ', len(sourceSet)
+    print 'len(sourceSet) = ', len(sourceSet), [len(sources) for sources in sourceSet]
     d_lim_deg = d_lim  / 3600.0
     rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, nchip, d_lim_deg, nbrightest)
     #rootSource.printSource()

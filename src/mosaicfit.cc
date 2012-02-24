@@ -1048,7 +1048,10 @@ hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
     }
     //std::cout << "(2) " << set.size() << std::endl;
 
-    KDTree::Ptr rootSource = KDTree::Ptr(new KDTree(set, 0));
+    KDTree::Ptr rootSource;
+    if (set.size() > 0) {
+        rootSource = KDTree::Ptr(new KDTree(set, 0));
+    }
 
     //std::cout << "(3) " << rootSource->count() << std::endl;
     for (size_t j = 1; j < sourceSet.size(); j++) {
@@ -1056,11 +1059,16 @@ hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 	    int k = sourceSet[j][i]->getAmpExposureId() % 1000;
 	    if (sourceSet[j][i]->getPsfFlux() >= fluxlim[j*nchip+k] &&
 		rootMat->findSource(sourceSet[j][i]) == NULL) {
-		KDTree::Ptr leaf = rootSource->findNearest(sourceSet[j][i]);
-		if (leaf->distance(sourceSet[j][i]) < d_lim)
-		    leaf->set.push_back(sourceSet[j][i]);
-		else
-		    rootSource->add(sourceSet[j][i]);
+                if (rootSource) {
+                    KDTree::Ptr leaf = rootSource->findNearest(sourceSet[j][i]);
+                    if (leaf->distance(sourceSet[j][i]) < d_lim) {
+                        leaf->set.push_back(sourceSet[j][i]);
+                    } else {
+                        rootSource->add(sourceSet[j][i]);
+                    }
+                } else {
+                    rootSource = KDTree::Ptr(new KDTree(sourceSet[j][i], 0));
+                }
 	    }
 	}
 	//std::cout << "(3) " << rootSource->count() << std::endl;
