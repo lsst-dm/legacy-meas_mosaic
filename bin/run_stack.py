@@ -154,7 +154,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         if destWcs != None:
             destWcs = os.path.abspath(destWcs)
 
-        nx, ny = stack.stackInit(ioMgr, fileList, subImgSize, imgMargin,
+        nx, ny, fileList, wcs = stack.stackInit(ioMgr, fileList, subImgSize, imgMargin,
                                  fileIO,
                                  workDir=workDir,
                                  skipMosaic=skipMosaic,
