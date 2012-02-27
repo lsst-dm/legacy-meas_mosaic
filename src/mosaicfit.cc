@@ -226,29 +226,78 @@ double Coeff::pixelScale(void) {
     return sqrt(fabs(a[0] * b[1] - a[1] * b[0]));
 }
 
-Obs::Obs(int id, double ra, double dec, double x, double y, int ichip, int iexp) {
-    this->id    = id;
-    this->ra    = ra;
-    this->dec   = dec;
-    this->x     = x;
-    this->y     = y;
-    this->ichip = ichip;
-    this->iexp  = iexp;
-    this->xi_fit  = 0.0;
-    this->eta_fit = 0.0;
-    this->u_fit   = 0.0;
-    this->v_fit   = 0.0;
-    this->good = true;
-}
+Obs::Obs(int id_, double ra_, double dec_, double x_, double y_, int ichip_, int iexp_) :
+    ra(ra_),
+    dec(dec_),
+    xi(std::numeric_limits<double>::quiet_NaN()),
+    eta(std::numeric_limits<double>::quiet_NaN()),
+    xi_a(std::numeric_limits<double>::quiet_NaN()),
+    xi_d(std::numeric_limits<double>::quiet_NaN()),
+    eta_a(std::numeric_limits<double>::quiet_NaN()),
+    eta_d(std::numeric_limits<double>::quiet_NaN()),
+    xi_A(std::numeric_limits<double>::quiet_NaN()),
+    xi_D(std::numeric_limits<double>::quiet_NaN()),
+    eta_A(std::numeric_limits<double>::quiet_NaN()),
+    eta_D(std::numeric_limits<double>::quiet_NaN()),
+    x(x_),
+    y(y_), 
+    u(std::numeric_limits<double>::quiet_NaN()),
+    v(std::numeric_limits<double>::quiet_NaN()),
+    u0(std::numeric_limits<double>::quiet_NaN()),
+    v0(std::numeric_limits<double>::quiet_NaN()),
+    U(std::numeric_limits<double>::quiet_NaN()),
+    V(std::numeric_limits<double>::quiet_NaN()),
+    xi_fit(std::numeric_limits<double>::quiet_NaN()),
+    eta_fit(std::numeric_limits<double>::quiet_NaN()),
+    u_fit(std::numeric_limits<double>::quiet_NaN()),
+    v_fit(std::numeric_limits<double>::quiet_NaN()),
+    id(id_), 
+    istar(-1),
+    jstar(-1),
+    iexp(iexp_),
+    ichip(ichip_),
+    good(true),
+    mag(std::numeric_limits<double>::quiet_NaN()),
+    mag0(std::numeric_limits<double>::quiet_NaN()),
+    mag_cat(std::numeric_limits<double>::quiet_NaN())
+{}
 
-Obs::Obs(int id, double ra, double dec, int ichip, int iexp) {
-    this->id    = id;
-    this->ra    = ra;
-    this->dec   = dec;
-    this->ichip = ichip;
-    this->iexp  = iexp;
-    this->good = true;
-}
+
+Obs::Obs(int id_, double ra_, double dec_, int ichip_, int iexp_) :
+    ra(ra_),
+    dec(dec_),
+    xi(std::numeric_limits<double>::quiet_NaN()),
+    eta(std::numeric_limits<double>::quiet_NaN()),
+    xi_a(std::numeric_limits<double>::quiet_NaN()),
+    xi_d(std::numeric_limits<double>::quiet_NaN()),
+    eta_a(std::numeric_limits<double>::quiet_NaN()),
+    eta_d(std::numeric_limits<double>::quiet_NaN()),
+    xi_A(std::numeric_limits<double>::quiet_NaN()),
+    xi_D(std::numeric_limits<double>::quiet_NaN()),
+    eta_A(std::numeric_limits<double>::quiet_NaN()),
+    eta_D(std::numeric_limits<double>::quiet_NaN()),
+    x(std::numeric_limits<double>::quiet_NaN()),
+    y(std::numeric_limits<double>::quiet_NaN()), 
+    u(std::numeric_limits<double>::quiet_NaN()),
+    v(std::numeric_limits<double>::quiet_NaN()),
+    u0(std::numeric_limits<double>::quiet_NaN()),
+    v0(std::numeric_limits<double>::quiet_NaN()),
+    U(std::numeric_limits<double>::quiet_NaN()),
+    V(std::numeric_limits<double>::quiet_NaN()),
+    xi_fit(std::numeric_limits<double>::quiet_NaN()),
+    eta_fit(std::numeric_limits<double>::quiet_NaN()),
+    u_fit(std::numeric_limits<double>::quiet_NaN()),
+    v_fit(std::numeric_limits<double>::quiet_NaN()),
+    id(id_), 
+    istar(-1),
+    jstar(-1),
+    iexp(iexp_),
+    ichip(ichip_),
+    good(true),
+    mag(std::numeric_limits<double>::quiet_NaN()),
+    mag0(std::numeric_limits<double>::quiet_NaN()),
+    mag_cat(std::numeric_limits<double>::quiet_NaN())
+{}
 
 void Obs::setUV(lsst::afw::cameraGeom::Ccd::Ptr const &ccd, double x0, double y0) {
     lsst::afw::geom::PointD  center = ccd->getCenter().getPixels(1.0);
@@ -300,18 +349,20 @@ void Obs::setFitVal2(Coeff::Ptr& c, Poly::Ptr p) {
     }
 }
 
-FluxFitParams::FluxFitParams(int order, bool absolute, bool chebyshev) {
-    this->order = order;
-    this->absolute = absolute;
-    this->chebyshev = chebyshev;
-    this->u_max = this->v_max = 1.0;
-    this->x0 = this->y0 = 0.0;
 
-    this->ncoeff = (order+1) * (order+2) / 2;
-    xorder = new int[ncoeff];
-    yorder = new int[ncoeff];
-    coeff = new double[ncoeff];
-
+FluxFitParams::FluxFitParams(int order_, bool absolute_, bool chebyshev_) :
+    order(order_),
+    chebyshev(chebyshev_),
+    ncoeff((order+1) * (order+2) / 2),
+    xorder(new int[ncoeff]),
+    yorder(new int[ncoeff]),
+    absolute(absolute_),
+    coeff(new double[ncoeff]),
+    u_max(1.0),
+    v_max(1.0),
+    x0(0.0),
+    y0(0.0)
+{
     int k = 0;
     for (int j = 0; j <= order; j++) {
 	for (int i = 0; i <= j; i++) {
@@ -321,22 +372,22 @@ FluxFitParams::FluxFitParams(int order, bool absolute, bool chebyshev) {
 	    k++;
 	}
     }
+    assert(k == ncoeff);
 }
 
-FluxFitParams::FluxFitParams(lsst::daf::base::PropertySet::Ptr& metadata) {
-    this->order = metadata->getAsInt("ORDER");
-    this->absolute = metadata->getAsBool("ABSOLUTE");
-    this->chebyshev = metadata->getAsBool("CHEBYSHEV");
-    this->u_max = metadata->getAsDouble("U_MAX");
-    this->v_max = metadata->getAsDouble("V_MAX");
-    this->x0 = metadata->getAsDouble("X0");
-    this->y0 = metadata->getAsDouble("Y0");
-
-    this->ncoeff = (order+1) * (order+2) / 2;
-    xorder = new int[ncoeff];
-    yorder = new int[ncoeff];
-    coeff = new double[ncoeff];
-
+FluxFitParams::FluxFitParams(lsst::daf::base::PropertySet::Ptr& metadata) :
+    order(metadata->getAsInt("ORDER")),
+    chebyshev(metadata->getAsBool("CHEBYSHEV")),
+    ncoeff((order+1) * (order+2) / 2),
+    xorder(new int[ncoeff]),
+    yorder(new int[ncoeff]),
+    absolute(metadata->getAsBool("ABSOLUTE")),
+    coeff(new double[ncoeff]),
+    u_max(metadata->getAsDouble("U_MAX")),
+    v_max(metadata->getAsDouble("V_MAX")),
+    x0(metadata->getAsDouble("X0")),
+    y0(metadata->getAsDouble("Y0"))
+{
     int k = 0;
     for (int j = 0; j <= order; j++) {
 	for (int i = 0; i <= j; i++) {
@@ -347,7 +398,9 @@ FluxFitParams::FluxFitParams(lsst::daf::base::PropertySet::Ptr& metadata) {
 	    k++;
 	}
     }
+    assert(k == ncoeff);
 }
+
 
 FluxFitParams::~FluxFitParams(void) {
     delete [] xorder;
@@ -1128,24 +1181,16 @@ double calEta_D(double a, double d, double A, double D) {
 double* solveMatrix_GSL(int size, double *a_data, double *b_data) {
     gsl_matrix_view a = gsl_matrix_view_array(a_data, size, size);
     gsl_vector_view b = gsl_vector_view_array(b_data, size);
-
-    gsl_vector *c = gsl_vector_alloc(size);
+    double *c_data = new double[size];
+    gsl_vector_view c = gsl_vector_view_array(c_data, size);
 
     int s;
-
     gsl_permutation *p = gsl_permutation_alloc(size);
 
     gsl_linalg_LU_decomp(&a.matrix, p, &s);
-    gsl_linalg_LU_solve(&a.matrix, p, &b.vector, c);
-
-    double *c_data = new double[size];
-
-    for (int i = 0; i < size; i++) {
-        c_data[i] = c->data[i];
-    }
+    gsl_linalg_LU_solve(&a.matrix, p, &b.vector, &c.vector);
 
     gsl_permutation_free(p);
-    gsl_vector_free(c);
 
     return c_data;
 }
@@ -1543,8 +1588,8 @@ solveLinApprox(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, int nchip, Poly::Pt
 	}
     }
 
-    free(a);
-    free(b);
+    delete [] a;
+    delete [] b;
 
 #if defined(USE_GSL)
     double *coeff = solveMatrix_GSL(size, a_data, b_data);
@@ -1906,8 +1951,8 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 	}
     }
 
-    free(a);
-    free(b);
+    delete [] a;
+    delete [] b;
 
 #if defined(USE_GSL)
     double *coeff = solveMatrix_GSL(size, a_data, b_data);
