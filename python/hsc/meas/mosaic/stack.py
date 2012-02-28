@@ -254,13 +254,14 @@ def getPsf(exp, kernelWidth=25):
     # psf selector and determiner
     secondMomentStarSelectorPolicy = pexPolicy.Policy.createPolicy(
         pexPolicy.DefaultPolicyFile("meas_algorithms", "policy/secondMomentStarSelectorDictionary.paf"))
+    #secondMomentStarSelectorPolicy.set("fluxLim", 10000.0)
     starSelector = measAlg.makeStarSelector("secondMomentStarSelector", secondMomentStarSelectorPolicy)
 
     pcaPsfDeterminerPolicy = pexPolicy.Policy.createPolicy(
         pexPolicy.DefaultPolicyFile("meas_algorithms", "policy/pcaPsfDeterminerDictionary.paf"))
-    pcaPsfDeterminerPolicy.set('sizeCellX', 512)
-    pcaPsfDeterminerPolicy.set('sizeCellY', 512)
-    pcaPsfDeterminerPolicy.set('reducedChi2ForPsfCandidates', 3.5)
+    #pcaPsfDeterminerPolicy.set('sizeCellX', 512)
+    #pcaPsfDeterminerPolicy.set('sizeCellY', 512)
+    #pcaPsfDeterminerPolicy.set('reducedChi2ForPsfCandidates', 2.0)
     psfDeterminer = measAlg.makePsfDeterminer("pcaPsfDeterminer", pcaPsfDeterminerPolicy)
 
     ###############
@@ -294,35 +295,29 @@ def getPsf(exp, kernelWidth=25):
     if len(sourceList) < 3:
         print "Unable to select PSF candidate stars.  Only ", len(sourceList), " stars detected."
         return None, None
-    
-    if False:
+
+    display = False #True
+    if display:
         print "nStars: ", len(sourceList)
         settings = {'scale': 'zscale', 'zoom': 'to fit', 'mask': 'transparency 70'}
         ds9.mtv(exp, frame=1, title="exp in getPsf", settings=settings)
-        for s in sourceList:
-            x, y = s.getXAstrom(), s.getYAstrom()
-            ds9.dot("+", x, y, ctype='red', frame=1, size=10)
+	with ds9.Buffering():
+	    for s in sourceList:
+		x, y = s.getXAstrom(), s.getYAstrom()
+		ds9.dot("+", x, y, ctype='red', frame=1, size=10)
 
     # select psf stars
     psfCandidateList = starSelector.selectStars(exp, sourceList)
 
-    if False:
-        for p in psfCandidateList:
-            s = p.getSource()
-            x, y = s.getXAstrom(), s.getYAstrom()
-            ds9.dot("o", x, y, ctype='green', frame=1, size=10)
+    if display:
+	with ds9.Buffering():
+	    for p in psfCandidateList:
+		s = p.getSource()
+		x, y = s.getXAstrom(), s.getYAstrom()
+		ds9.dot("o", x, y, ctype='green', frame=1, size=10)
 
-    
     # make psf
-    if False:
-        psf, cellSet = psfDeterminer.determinePsf(exp, psfCandidateList)
-    else:
-        try:
-            psf, cellSet = psfDeterminer.determinePsf(exp, psfCandidateList)
-        except Exception, e:
-            print "Unable to determinePsf() with ",len(psfCandidateList)," candidates."
-            print e
-            return None, None
+    psf, cellSet = psfDeterminer.determinePsf(exp, psfCandidateList)
     
 
     # get the Gaussian width
@@ -433,7 +428,10 @@ def stackEnd(ioMgr,
     print "Stack End ..."
     
     if fileIO:
-        wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
+	wcsInfo = wcsIO(wcsFname, "r", workDir=workDir)
+	wcs = wcsInfo[0]
+	width, height, nx, ny = wcsInfo[1:]
+
 
     stackedMI = afwImage.MaskedImageF(width, height)
     stackedMI.getImage().set(float('nan'))
@@ -541,15 +539,11 @@ def stackMeasureWarpedPsf(fitsfile, wcs, ioMgr=None, fileIO=False, skipMosaic=Fa
     
 def cullFileList(fileList, wcsDic, ixs, iys, wcs, subImgSize, width, height, dims, fscale, nx, ny):
 
-
-    
     wcsDicNew = hscMosaic.WcsDic()
     fileListNew = []
     dimsNew = []
     fscaleNew = []
     iFile = 0
-
-
     
     for ix in ixs:
         for iy in iys:
@@ -576,7 +570,7 @@ def cullFileList(fileList, wcsDic, ixs, iys, wcs, subImgSize, width, height, dim
             
             points = []
             for i in range(len(x)):
-                p = wcsNoEdge.pixelToSky(x[i], y[i])
+                p = wcsNoEdge.pixelToSky(x[i], y[i]).getPosition(afwGeom.degrees)
                 points.append(p)
 
             for k, v in wcsDic.iteritems():
@@ -588,14 +582,7 @@ def cullFileList(fileList, wcsDic, ixs, iys, wcs, subImgSize, width, height, dim
                     dimsNew.append(dims[k])
                     fscaleNew.append(fscale[k])
                     iFile += 1
-            
-    #fileListNew = [fileListNew[0]]
-    #dimsNew = [dimsNew[0]]
-    #fscaleNew = [fscaleNew[0]]
-    #wcsDicNew2 = hscMosaic.WcsDic()
-    #wcsDicNew2[0] = wcsDicNew[0]
-    #wcsDicNew = wcsDicNew2
-    
+                
     return fileListNew, wcsDicNew, dimsNew, fscaleNew
 
 
@@ -632,8 +619,8 @@ def stack(ioMgr, fileList, stackId, subImgSize, imgMargin, fileIO=False,
     # be sure to del the exposures as soon as we're done with them
     psfDict = {}
     matchPsf = None
-    ixs = [2]#range(nx)
-    iys = [0]#range(ny)
+    ixs = range(nx)
+    iys = range(ny)
 
 
     if not fileIO:
@@ -661,8 +648,8 @@ def stack(ioMgr, fileList, stackId, subImgSize, imgMargin, fileIO=False,
         
     mimgMap = {}
     
-    for iy in range(ny):
-        for ix in range(nx):
+    for iy in ixs:
+	for ix in iys:
 
             if fileIO:
                 stackExec(ioMgr, ix, iy, stackId, subImgSize, imgMargin,
@@ -731,6 +718,48 @@ def readPsf(filename):
 
 
 
+# get a bbox for the valid (non-NaN) pixels wrt *exp1*, where exp2 overlaps exp1 
+def getValidBbox(exp1, wcs1, exp2, wcs2): 
+
+    # get the xy0, and width and heights of the exposures                                    
+    xy01, w1, h1 = exp1.getXY0(), exp1.getWidth(), exp1.getHeight()                          
+    x01, y01 = xy01.getX(), xy01.getY()                                                      
+    xy02, w2, h2 = exp2.getXY0(), exp2.getWidth(), exp2.getHeight()                          
+    x02, y02 = xy02.getX(), xy02.getY()                                                      
+    
+    # define the corners                                                                     
+    c1 = [(x01, y01), (x01, y01+h1), (x01+w1,y01+h1), (x01+w1,y01)]                          
+    c2 = [(x02, y02), (x02, y02+h2), (x02+w2,y02+h2), (x02+w2,y02)]                          
+
+    xmin, xmax, ymin, ymax = exp1.getWidth(), 0, exp1.getHeight(), 0                         
+    # get the exp1 pixel coord of x,y from exp2                                              
+    # so ... for a corner of exp2, where is it (in pix) in exp1                              
+    # This is a conservative estimate.  An exp2 corner which is outside                      
+    #  exp1 will still shift the min,max, but not beyond the 0,width limits of exp1          
+    buff = 0#25                                                                              
+    for c in c2:                                                                             
+        x2, y2 = c                                                                           
+        p2 = afwGeom.Point2D(x2, y2)                                                         
+        radecXy2 = wcs2.pixelToSky(p2)                                                       
+        x1, y1 = wcs1.skyToPixel(radecXy2)                                                   
+        xmin = min(x1-buff, xmin)                                                            
+        xmax = max(x1+buff, xmax)                                                            
+        ymin = min(y1-buff, ymin)                                                            
+        ymax = max(y1+buff, ymax)                                                            
+
+    wcsNew = wcs1.clone()                                                                    
+    wcsNew.shiftReferencePixel(-int(xmin), -int(ymin))                                       
+
+    xmin = int(max(xmin, 0))                                                                 
+    xmax = int(min(xmax, w1-1))                                                              
+    ymin = int(max(ymin, 0))                                                                 
+    ymax = int(min(ymax, h1-1))                                                                       
+    box = afwGeom.Box2I(afwGeom.Point2I(xmin, ymin), afwGeom.Extent2I(xmax-xmin, ymax-ymin))          
+
+    return box, wcsNew                                                                                
+
+
+
 def subRegionStack(wcs, subImgSize, imgMargin,
                    ix, iy, naxis1_in, naxis2_in,
                    wcsDic, dims, fileList, fscale,
@@ -749,7 +778,7 @@ def subRegionStack(wcs, subImgSize, imgMargin,
     #   any kernel width
     edge = 0
     if matchPsf:
-        edge = 256 #512+256
+        edge = 256 
         
     naxis1 = naxis1_in + 2*edge
     naxis2 = naxis2_in + 2*edge
@@ -764,10 +793,6 @@ def subRegionStack(wcs, subImgSize, imgMargin,
     wcsNoEdge = wcs.clone()
     wcsNoEdge.shiftReferencePixel(shiftX, shiftY)
     
-
-    #wcs2 = wcs.clone()
-    #wcs2.shiftReferencePixel(-ix*(subImgSize-imgMargin), -iy*(subImgSize-imgMargin))
-    ###print wcs2.getFitsMetadata().toString()
     mimgList = afwImage.vectorMaskedImageF()
 
     x = []
@@ -819,9 +844,8 @@ def subRegionStack(wcs, subImgSize, imgMargin,
             afwMath.warpExposure(warpedExposure, originalExposure, kernel,
                                  interpLength);
             mimg = warpedExposure.getMaskedImage()
-            ###print fileList[k]
-            ###mimg.writeFits("zzz-%02d-%02d-%03d.fits" % (ix, iy, k))
-
+	    #mimg *= fscale[k]
+	    
 
             # load the PSF
             psf = None
@@ -849,20 +873,30 @@ def subRegionStack(wcs, subImgSize, imgMargin,
 
                 # set the PSF, but we'll be adjusting the xy0 of it in-situ later
                 warpedExposure.setPsf(psf)
-                
                 warpedExpShallow = warpedExposure
-                
+                validWcs = warpedExposure.getWcs()
+
+                # get the part of the warped image which contains valid pixels 
+                if True:
+                    validBbox, validWcs = getValidBbox(warpedExposure, wcs2, originalExposure, v)
+                    print "boxinfo", ix, iy, validBbox.getMinX(), validBbox.getMinY(), \
+                        validBbox.getWidth(), validBbox.getHeight()
+
+                    # shallow copy the warpedExposure inside the bbox
+                    #  the PSF is only valid in this region.
+                    warpedExpShallow = afwImage.ExposureF(warpedExposure, validBbox)
                 
                 psfType, kwid0, kwid0, sigma1, sigma2, peakRatio = matchPsf
                 psf0 = afwDet.createPsf(psfType, kwid, kwid, sigma1, sigma2, peakRatio)
 
-                # if we've done things correctly, trueSigma should be smaller than sigma1
-                # (recall sigma1 is the largest PSF's sigma)
-                # post-warping, this might skew slightly negative for similar-sized PSFs
-                # So, we'll rail the main basis function at min sigma of 0.7
-                dSigma = math.sqrt(abs(sigma1**2 - trueSigma**2))
-                convKernSigma = max(dSigma, 0.7)
-                
+		# In a perfect Gaussian world, the convolution kernel should have width
+		# sigmaConv = sqrt(sigmaBigger**2 - sigmaSmaller**2)
+		# I had hoped that such a sigmaConv could be used for the width of the
+		# alard-lupton kernels, but that fails badly.  Instead, 0.7 is used for the smallest
+		# It works reasably well.
+                ##  this FAILs --> dSigma = math.sqrt(abs(sigma1**2 - trueSigma**2))
+		
+                convKernSigma = 0.7
                 policy = ipDiffim.makeDefaultPolicy()
                 policy.set("kernelBasisSet",     "alard-lupton")
                 policy.set("alardNGauss",        3)
@@ -873,12 +907,6 @@ def subRegionStack(wcs, subImgSize, imgMargin,
                 policy.add("alardDegGauss",      3)
                 policy.add("alardDegGauss",      4)
 
-                # we're matching to a PSF which will have to be created at many locations
-                # to create an appropriate spatial model of the convolution kernel
-                # make this as small as possible to get the best resolution
-                # - don't need to worry that there are no stars in cell
-                #   they'll be created in matchPsf() via kernel.computeImage()
-                
                 validNx, validNy = warpedExpShallow.getWidth(), warpedExpShallow.getHeight()
                 policy.set('sizeCellX', validNx/5)
                 policy.set('sizeCellY', validNy/5)
@@ -886,19 +914,19 @@ def subRegionStack(wcs, subImgSize, imgMargin,
                 newPolicy = ipDiffim.modifyForModelPsfMatch(policy)
                 modelMatch = ipDiffim.ModelPsfMatch(newPolicy)
 
-                #ds9.mtv(warpedExposure, title="x:%d y:%d i:%d" % (ix, iy, iWcs), frame=iWcs, settings={'scale':'zscale', 'zoom': 'to fit', 'mask': 'transparency 70'})
-
+		# *** perform the PSF matching ***
                 expMatch, kern, cellset = modelMatch.matchExposure(warpedExpShallow, psf0)
 
-                # store this example
+                # store the images for this ix,iy region 
                 writeDebugFits = False
+		debugdir = "debug"
                 if writeDebugFits:
-                    warpedExpShallow.writeFits("warpExp%02d-%02d-%02d.fits" % (ix, iy, iWcs))
-                    expMatch.writeFits("expMatch%02d-%02d-%02d.fits" % (ix, iy, iWcs))
-                    fp = open("psfInfo%02d-%02d-%02d.dat" % (ix, iy, iWcs), 'w')
+                    warpedExpShallow.writeFits(debugdir+"/warpExp%02d-%02d-%02d.fits" % (ix, iy, iWcs))
+                    expMatch.writeFits(debugdir+"/expMatch%02d-%02d-%02d.fits" % (ix, iy, iWcs))
+                    fp = open(debugdir+"/psfInfo%02d-%02d-%02d.dat" % (ix, iy, iWcs), 'w')
                     fp.write("%s %d %d %.2f %.2f %.2f\n" % (psfType, kwid, kwid, sigma1, sigma2, peakRatio))
                     fp.close()
-                    psfFile = "psf%02d-%02d-%02d.boost" % (ix, iy, iWcs)
+                    psfFile = debugdir+"/psf%02d-%02d-%02d.boost" % (ix, iy, iWcs)
                     writePsf(warpedExpShallow.getPsf(), psfFile)
 
                 
@@ -908,13 +936,11 @@ def subRegionStack(wcs, subImgSize, imgMargin,
                 warpMimgShallow <<= matchMimg
 
                 
-                #mimg = expMatch.getMaskedImage()
                 mimg = warpedExposure.getMaskedImage()
 
-                if writeDebugFits:
-                    mimg.writeFits("warpExp%02d-%02d-%02d.fits" % (ix, iy, iWcs))
+		if False: #writeDebugFits:
+                    mimg.writeFits(debugdir+"/warpExp%02d-%02d-%02d.fits" % (ix, iy, iWcs))
                 
-                #mimgNoEdge = afwImage.MaskedImageF(naxis1_in, naxis2_in)
                 bbox = afwGeom.Box2I(afwGeom.Point2I(edge, edge), afwGeom.Extent2I(naxis1_in, naxis2_in))
                 mimgNoEdge = afwImage.MaskedImageF(mimg, bbox)
                 

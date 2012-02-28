@@ -1,4 +1,5 @@
 setupRequired(pipette)
+setupRequired(ip_diffim)
 setupOptional(mkl)
 
 envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
