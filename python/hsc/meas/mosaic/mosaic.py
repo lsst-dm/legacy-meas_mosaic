@@ -1,3 +1,4 @@
+import re
 import os, math
 import datetime
 import numpy
@@ -231,6 +232,8 @@ def writeFcr(butler, coeffSet, ccdSet, fscale, frameIds, ccdIds, ffp):
             exp.setCalib(calib)
             try:
                 butler.put(exp, 'fcr', dict(visit=frameIds[i], ccd=ccdIds[j]))
+                #filename = butler.get("calexp_filename", dict(visit=frameIds[i], ccd=ccdIds[j]))[0]
+                #exp.writeFits(re.sub("CORR", "fcr", filename))
             except Exception, e:
                 print "failed to write something: %s" % (e)
 

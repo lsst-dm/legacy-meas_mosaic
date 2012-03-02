@@ -223,7 +223,7 @@ def stackExec(butler, ix, iy, stackId,
               filter="unknown"):
 
     print "Stack Exec ..."
-    
+
     if fileIO:
         fileList = flistIO(flistFname, "r", workDir=workDir)
         wcsDic, dims, fscale = readParamsFromFileList(fileList,
@@ -231,7 +231,7 @@ def stackExec(butler, ix, iy, stackId,
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
 
 
-    config = hscMosaicConfig.StackConfig()
+    config = hscMosaicConfig.HscStackConfig()
     # XXX overrides???
 
     warper = afwMath.Warper.fromConfig(config.warper)
@@ -253,7 +253,7 @@ def stackExec(butler, ix, iy, stackId,
                                      ix, iy, naxis1, naxis2,
                                      wcsDic, dims, fileList, fscale,
                                      warper, sctrl,
-                                     stackFlag)
+                                     config.stackMethod)
 
     if mimgStack != None:
         if fileIO:
@@ -428,6 +428,7 @@ def subRegionStack(wcs, subImgSize, imgMargin,
         p = wcs2.pixelToSky(x[i], y[i]).getPosition(afwGeom.degrees)
         points.append(p)
     
+    targetBBox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(naxis1, naxis2))
     for k, v in wcsDic.iteritems():
         isIn = checkOverlap(wcsDic[k], dims[k], points)
         if isIn:
@@ -441,7 +442,9 @@ def subRegionStack(wcs, subImgSize, imgMargin,
             mimg = originalExposure.getMaskedImage()
             mimg *= fcor
             mimg *= fscale[k]
-            warpedExposure = warper.warpExposure(wcs2, originalExposure)
+
+            
+            warpedExposure = warper.warpExposure(wcs2, originalExposure, destBBox=targetBBox)
             mimg = warpedExposure.getMaskedImage()
             ###print fileList[k]
             ###mimg.writeFits("zzz-%02d-%02d-%03d.fits" % (ix, iy, k))
