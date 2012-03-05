@@ -21,17 +21,18 @@ except:
     pass
 
 
-WarpInputs = collections.namedtuple('WarpInputs', ['fileIO', 'f', 'skipMosaic', 'instrument', 'rerun'])
+WarpInputs = collections.namedtuple('WarpInputs', ['fileIO', 'f', 'wcs', 'skipMosaic', 'instrument', 'rerun'])
 
 def runStackWarp(warpInputs):
 
     fileIO     = warpInputs.fileIO
     f          = warpInputs.f
+    wcs        = warpInputs.wcs
     skipMosaic = warpInputs.skipMosaic
     instrument = warpInputs.instrument
     rerun      = warpInputs.rerun
     
-    wcsDic, dims, fscale = stack.readParamsFromFileList([f], skipMosaic=skipMosaic)
+    # wcsDic, dims, fscale = stack.readParamsFromFileList([f], skipMosaic=skipMosaic)
 
     if instrument.lower() in ["hsc"]:
         mapper = obsHsc.HscSimMapper(rerun=rerun)
@@ -41,7 +42,7 @@ def runStackWarp(warpInputs):
     
     trueSigma = -1.0
     try:
-	warpResult = stack.stackMeasureWarpedPsf(f, wcsDic[0], ioMgr=ioMgr,
+	warpResult = stack.stackMeasureWarpedPsf(f, wcs, ioMgr=ioMgr,
 					    skipMosaic=skipMosaic, fileIO=fileIO)
 	if fileIO:
 	    trueSigma = warpResult
@@ -221,7 +222,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
 
 	warpInputs = list()
 	for f in fileList:
-	    warpInputs.append(WarpInputs(fileIO=fileIO, f=f,
+	    warpInputs.append(WarpInputs(fileIO=fileIO, f=f, wcs=wcs,
 					 skipMosaic=skipMosaic, instrument=instrument, rerun=rerun))
 
 	# process the job
