@@ -5,11 +5,7 @@ import datetime
 import shutil
 import optparse
 import hsc.meas.mosaic.stack             as stack
-
-import lsst.obs.hscSim as obsHsc
-import lsst.obs.suprimecam              as obsSc
-import lsst.pipette.readwrite as pipReadWrite
-import lsst.pipette.runHsc as runHsc
+import hsc.pipe.base.camera as hscCamera
 
 try:
     from IPython.core.debugger import Tracer
@@ -61,21 +57,15 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         destWcs=None, workDir=None, workDirRoot=None):
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    if instrument.lower() in ["hsc"]:
-        mapper = obsHsc.HscSimMapper(rerun=rerun)
-        ccdIds = range(100)
-    elif instrument.lower() in ["suprimecam", "suprime-cam", "sc"]:
-        mapper = obsSc.SuprimecamMapper(rerun=rerun)
-        ccdIds = range(10)
+    butler = hscCamera.getButler(instrument, rerun)
+    ccdIds = range(hscCamera.getNumCcds(instrument))
 
-    config = {}
-    ioMgr = pipReadWrite.ReadWrite(mapper, ['visit', 'ccd'], config=config)
-    if (dateObs == None):
-        frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=program, filter=filter))
-        pointings = ioMgr.inButler.queryMetadata('calexp', None, 'pointing', dict(field=program, filter=filter))
-    else:
-        frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=program, filter=filter, dateObs=dateObs))
-        pointings = ioMgr.inButler.queryMetadata('calexp', None, 'pointing', dict(field=program, filter=filter, dateObs=dateObs))
+    dataId = dict(field=program, filter=filter)
+    if dateObs is not None:
+        dataId['dateObs'] = dateObs
+    frameIds = butler.queryMetadata('calexp', None, 'visit', dateId)
+    pointings = butler.queryMetadata('calexp', None, 'pointing', dataId)
+
     print frameIds
     print pointings
 
@@ -92,7 +82,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         for frameId in frameIds:
             for ccdId in ccdIds:
                 try:
-                    fname = ioMgr.read('calexp_filename', dict(visit=frameId, ccd=ccdId))[0][0]
+                    fname = butler.get('calexp_filename', dict(visit=frameId, ccd=ccdId))[0]
                 except Exception, e:
                     print "failed to get file for %s:%s" % (frameId, ccdId)
                     continue
@@ -110,7 +100,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         #shutil.copyfile(os.path.join(productDir, "example/run_stack.py"),
         #                os.path.join(workDir, "run_stack.py"))
             
-        stack.stackInit(ioMgr, fileList, subImgSize, fileIO, writePBSScript,
+        stack.stackInit(butler, fileList, subImgSize, fileIO, writePBSScript,
                         workDir=workDir, skipMosaic=skipMosaic,
                         rerun=rerun, instrument=instrument, program=program,
                         filter=filter, dateObs=dateObs, destWcs=destWcs)
@@ -119,20 +109,20 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         ix = int(sys.argv[1])
         iy = int(sys.argv[2])
 
-        stack.stackExec(ioMgr, ix, iy, subImgSize, stackId, fileIO=fileIO,
+        stack.stackExec(butler, ix, iy, subImgSize, stackId, fileIO=fileIO,
                         workDir=workDir, skipMosaic=skipMosaic,
                         filter=filter)
 
     else:
         if (sys.argv[1] == "End"):
-            stack.stackEnd(ioMgr, subImgSize, stackId, fileIO=fileIO,
+            stack.stackEnd(butler, subImgSize, stackId, fileIO=fileIO,
                            workDir=workDir, filter=filter)
         else:
             fileList = []
             for frameId in frameIds:
                 for ccdId in ccdIds:
                     try:
-                        fname = ioMgr.read('calexp_filename', dict(visit=frameId, ccd=ccdId))[0][0]
+                        fname = butler.get('calexp_filename', dict(visit=frameId, ccd=ccdId))[0]
                     except Exception, e:
                         print "failed to get file for %s:%s" % (frameId, ccdId)
                         continue
@@ -141,7 +131,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                     else:
                         print "file %s does not exist " % (fname)
             
-            stack.stack(ioMgr, fileList, subImgSize, stackId, fileIO=False,
+            stack.stack(butler, fileList, subImgSize, stackId, fileIO=False,
                         workDir=workDir, skipMosaic=skipMosaic, filter=filter,
                         destWcs=destWcs)
 

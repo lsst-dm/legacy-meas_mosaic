@@ -2,9 +2,7 @@ import sys
 import optparse
 import datetime
 
-import lsst.pipette.readwrite           as pipReadWrite
-import lsst.obs.hscSim                  as hscSim
-import lsst.obs.suprimecam              as obsSc
+import hsc.pipe.base.camera as hscCamera
 import hsc.meas.mosaic.mosaic            as mosaic
 
 def main():
@@ -54,16 +52,10 @@ def run(rerun=None, instrument=None, frameid=None, outputDir=None):
 
     print frameIds
 
-    if instrument.lower() in ["hsc"]:
-        mapper = hscSim.HscSimMapper(rerun=rerun)
-        ccdIds = range(100)
-    elif instrument.lower() in ["suprimecam", "suprime-cam", "sc"]:
-        mapper = obsSc.SuprimecamMapper(rerun=rerun)
-        ccdIds = range(10)
+    butler = hscCamera.getButler(instrument, rerun)
+    ccdIds = range(hscCamera.getNumCcds(instrument))
 
-    ioMgr = pipReadWrite.ReadWrite(mapper, ['visit', 'ccd'], config={})
-
-    mosaic.mosaic(ioMgr, frameIds, ccdIds, outputDir=outputDir, verbose=True)
+    mosaic.mosaic(butler, frameIds, ccdIds, outputDir=outputDir, verbose=True)
 
 if __name__ == '__main__':
     main()

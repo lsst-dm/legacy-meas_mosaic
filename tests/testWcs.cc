@@ -52,7 +52,7 @@ int main(int argc, char **argv)
 	    lsst::afw::geom::Point2D(x, y);
 	lsst::afw::cameraGeom::Orientation orientation(0, 0.0, 0.0, t);
 	lsst::afw::cameraGeom::Ccd::Ptr ccd = lsst::afw::cameraGeom::Ccd::Ptr(new lsst::afw::cameraGeom::Ccd(k, 0.168));
-	ccd->setCenter(center);
+	ccd->setCenter(lsst::afw::cameraGeom::FpPoint(center));
 	ccd->setOrientation(orientation);
 	ccdSet.push_back(ccd);
     }
@@ -64,7 +64,7 @@ int main(int argc, char **argv)
 	    //	for (size_t i = 0; i < ccdSet.size(); i++) {
 	    Coeff::Ptr c = convertCoeff(coeffs[j], ccdSet[i]);
 	    lsst::afw::image::TanWcs::ConstPtr wcs = wcsFromCoeff(c);
-	    lsst::afw::image::Exposure<int> exposure(lsst::afw::geom::Extent2I(0,0), *wcs);
+	    lsst::afw::image::Exposure<int> exposure(lsst::afw::geom::Extent2I(0,0), wcs);
 
 	    lsst::afw::coord::Coord::Ptr cp = wcs->pixelToSky(2000, 4000);
 	    std::cout << cp->getLongitude().asDegrees() << " " << cp->getLatitude().asDegrees() << std::endl;

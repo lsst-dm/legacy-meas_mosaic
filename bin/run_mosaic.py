@@ -4,10 +4,11 @@ import sys
 import optparse
 import datetime
 
-import lsst.pipette.readwrite           as pipReadWrite
+import hsc.pipe.base.camera             as hscCamera
 import lsst.obs.hscSim                  as hscSim
 import lsst.obs.suprimecam              as obsSc
 import hsc.meas.mosaic.mosaic           as mosaic
+import hsc.meas.mosaic.config           as hscMosaicConfig
 
 def main():
     parser = optparse.OptionParser()
@@ -43,27 +44,21 @@ def main():
             filter=opts.filter, dateObs=opts.dateObs, outputDir=opts.outputDir)
 
 def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None, outputDir=None):
-    if instrument.lower() in ["hsc"]:
-        mapper = hscSim.HscSimMapper(rerun=rerun)
-        ccdIds = range(100)
-    elif instrument.lower() in ["suprimecam", "suprime-cam", "sc"]:
-        mapper = obsSc.SuprimecamMapper(rerun=rerun)
-        ccdIds = range(10)
-
     print program, filter, dateObs
-    config = {}
-    ioMgr = pipReadWrite.ReadWrite(mapper, ['visit', 'ccd'], config=config)
-    if (dateObs == None):
-        frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=program, filter=filter))
-    else:
-        frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=program, filter=filter, dateObs=dateObs))
+    butler = hscCamera.getButler(instrument, rerun)
+    dataId = dict(field=program, filter=filter)
+    if dateObs is not None:
+        dataId['dateObs'] = dateObs
+        
+    frameIds = butler.queryMetadata('calexp', None, 'visit', dataId)
     print frameIds
+    ccdIds = range(hscCamera.getNumCcds(instrument))
 
     if (len(frameIds) == 0):
         print "There is no frameIds"
         sys.exit(1)
     else:
-        mosaic.mosaic(ioMgr, frameIds, ccdIds, outputDir=outputDir, verbose=True)
+        mosaic.mosaic(butler, frameIds, ccdIds, outputDir=outputDir, verbose=True)
 
 if __name__ == '__main__':
     main()

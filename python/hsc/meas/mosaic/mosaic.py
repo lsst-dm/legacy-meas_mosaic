@@ -1,3 +1,4 @@
+import re
 import os, math
 import datetime
 import numpy
@@ -6,18 +7,16 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-import lsst.pipette.readwrite           as pipReadWrite
-import lsst.obs.hscSim                  as hscSim
-import lsst.obs.suprimecam              as obsSc
 import lsst.afw.cameraGeom              as cameraGeom
 import lsst.afw.cameraGeom.utils        as cameraGeomUtils
 import lsst.afw.image                   as afwImage
 import lsst.afw.coord                   as afwCoord
 import lsst.afw.math                    as afwMath
 import lsst.afw.detection               as afwDet
-import lsst.pex.policy                  as pexPolicy
 import lsst.meas.algorithms.utils       as malgUtils
+import lsst.meas.astrom.astrom          as measAstrom
 import hsc.meas.mosaic.mosaicLib        as hscMosaic
+import hsc.meas.mosaic.config           as hscMosaicConfig
 
 def readCcd(camera, ccdIds):
 
@@ -39,37 +38,33 @@ def readCcd(camera, ccdIds):
     # Calculate mean position of all CCD chips
     sx = sy = 0.
     for i in range(ccds.size()):
-        sx += ccds[i].getCenter()[0] + 0.5 * width[i]
-        sy += ccds[i].getCenter()[1] + 0.5 * height[i]
+        center = ccds[i].getCenter().getPixels(ccds[i].getPixelSize())
+        sx += center[0] + 0.5 * width[i]
+        sy += center[1] + 0.5 * height[i]
     dx = sx / ccds.size()
     dy = sy / ccds.size()
 
     # Shift the origin of CCD chips
     for i in range(ccds.size()):
-        offset = ccds[i].getCenter()
-        offset[0] -= dx
-        offset[1] -= dy
-        ccds[i].setCenter(offset)
+        pixelSize = ccds[i].getPixelSize()
+        ccds[i].setCenter(ccds[i].getCenter() - cameraGeom.FpPoint(dx * pixelSize, dy * pixelSize))
         
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     return ccds
 
-def getWcsForCcd(ioMgr, frame, ccd):
+def getWcsForCcd(butler, frame, ccd):
 
     data = {'visit': frame, 'ccd':ccd}
 
     try:
-        md = ioMgr.read('calexp_md', data, ignore=True)[0]
-
-        wcs = afwImage.makeWcs(md)
-    
-        return wcs
+        md = butler.get('calexp_md', data)
+        return afwImage.makeWcs(md)
     except Exception, e:
         print "Failed to read: %s for %s" % (e, data)
         return None
 
-def readWcs(ioMgr, frameIds, ccdSet):
+def readWcs(butler, frameIds, ccdSet):
         
     print "Reading WCS ..."
 
@@ -78,9 +73,9 @@ def readWcs(ioMgr, frameIds, ccdSet):
     i = 0
     for frameId in frameIds:
         ccdId = ccdSet[0].getId().getSerial()
-        wcs = getWcsForCcd(ioMgr, frameId, ccdId)
+        wcs = getWcsForCcd(butler, frameId, ccdId)
         if wcs != None:
-            offset = ccdSet[0].getCenter()
+            offset = ccdSet[0].getCenter().getPixels(ccdSet[0].getPixelSize())
             wcs.shiftReferencePixel(offset[0], offset[1])
             wcsDic[i] = wcs
             frameIdsExist.append(frameId)
@@ -106,27 +101,26 @@ def selectStars(sources):
             stars.append(source)
     return stars
 
-def getAllForCcd(ioMgr, frame, ccd):
+def getAllForCcd(butler, frame, ccd):
 
     data = {'visit': frame, 'ccd': ccd}
 
-    butler = ioMgr.inButler
     try:
         if not butler.datasetExists('src', data):
             raise RuntimeError("no data for src %s" % (data))
         if not butler.datasetExists('calexp_md', data):
             raise RuntimeError("no data for calexp_md %s" % (data))
-        md = ioMgr.read('calexp_md', data, ignore=True)[0]
+        md = butler.get('calexp_md', data)
         wcs = afwImage.makeWcs(md)
-        sources = selectStars(ioMgr.read('src', data, ignore=True)[0].getSources())
-        matches = selectStars(ioMgr.readMatches(data, ignore=True)[0])
+        sources = selectStars(butler.get('src', data).getSources())
+        matches = selectStars(measAstrom.readMatches(butler, data))
     except Exception, e:
         print "Failed to read: %s" % (e)
         return None, None, None
     
     return sources, matches, wcs
 
-def readCatalog(ioMgr, frameIds, ccdIds):
+def readCatalog(butler, frameIds, ccdIds):
     print "Reading catalogs ..."
     sourceSet = hscMosaic.SourceGroup()
     matchList = hscMosaic.vvSourceMatch()
@@ -134,7 +128,7 @@ def readCatalog(ioMgr, frameIds, ccdIds):
         ss = []
         ml = []
         for ccdId in ccdIds:
-            sources, matches, wcs = getAllForCcd(ioMgr, frameId, ccdId)
+            sources, matches, wcs = getAllForCcd(butler, frameId, ccdId)
             if sources != None:
                 for s in sources:
                     if s.getRa() == s.getRa(): # get rid of NaN
@@ -168,7 +162,7 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
     
     print "Creating kd-tree for source catalog ..."
-    print 'len(sourceSet) = ', len(sourceSet)
+    print 'len(sourceSet) = ', len(sourceSet), [len(sources) for sources in sourceSet]
     d_lim_deg = d_lim  / 3600.0
     rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, nchip, d_lim_deg, nbrightest)
     #rootSource.printSource()
@@ -179,7 +173,7 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
 
     return allMat, allSource
 
-def writeNewWcs(ioMgr, coeffSet, ccdSet, fscale, frameIds, ccdIds):
+def writeNewWcs(butler, coeffSet, ccdSet, fscale, frameIds, ccdIds):
     print "Write New WCS ..."
     exp = afwImage.ExposureI(0,0)
     for i in range(coeffSet.size()):
@@ -192,39 +186,39 @@ def writeNewWcs(ioMgr, coeffSet, ccdSet, fscale, frameIds, ccdIds):
             calib.setFluxMag0(1.0/scale)
             exp.setCalib(calib)
             try:
-                ioMgr.outButler.put(exp, 'wcs', dict(visit=frameIds[i], ccd=ccdIds[j]))
+                butler.put(exp, 'wcs', dict(visit=frameIds[i], ccd=ccdIds[j]))
             except Exception, e:
                 print "failed to write something: %s" % (e)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-def writeDetJImg(ioMgr, coeffSet, ccdSet, frameIds, ccdIds):
+def writeDetJImg(butler, coeffSet, ccdSet, frameIds, ccdIds):
     print "Write detJ Imgs ..."
     for i in range(coeffSet.size()):
         for j in range(ccdSet.size()):
             img = hscMosaic.getJImg(ccdSet[j], coeffSet[i])
             exp = afwImage.ExposureF(afwImage.MaskedImageF(img))
             try:
-                ioMgr.outButler.put(exp, 'detj', dict(visit=frameIds[i], ccd=ccdIds[j]))
+                butler.put(exp, 'detj', dict(visit=frameIds[i], ccd=ccdIds[j]))
             except Exception, e:
                 print "failed to write something: %s" % (e)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-def writeDCorImg(ioMgr, coeffSet, ccdSet, frameIds, ccdIds, ffp):
+def writeDCorImg(butler, coeffSet, ccdSet, frameIds, ccdIds, ffp):
     print "Write DCor Imgs ..."
     for i in range(coeffSet.size()):
         for j in range(ccdSet.size()):
             img = hscMosaic.getFCorImg(ccdSet[j], coeffSet[i], ffp)
             exp = afwImage.ExposureF(afwImage.MaskedImageF(img))
             try:
-                ioMgr.outButler.put(exp, 'dcor', dict(visit=frameIds[i], ccd=ccdIds[j]))
+                butler.put(exp, 'dcor', dict(visit=frameIds[i], ccd=ccdIds[j]))
             except Exception, e:
                 print "failed to write something: %s" % (e)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-def writeFcr(ioMgr, coeffSet, ccdSet, fscale, frameIds, ccdIds, ffp):
+def writeFcr(butler, coeffSet, ccdSet, fscale, frameIds, ccdIds, ffp):
     print "Write Fcr ..."
     for i in range(coeffSet.size()):
         for j in range(ccdSet.size()):
@@ -237,7 +231,9 @@ def writeFcr(ioMgr, coeffSet, ccdSet, fscale, frameIds, ccdIds, ffp):
             calib.setFluxMag0(1.0/scale)
             exp.setCalib(calib)
             try:
-                ioMgr.outButler.put(exp, 'fcr', dict(visit=frameIds[i], ccd=ccdIds[j]))
+                butler.put(exp, 'fcr', dict(visit=frameIds[i], ccd=ccdIds[j]))
+                #filename = butler.get("calexp_filename", dict(visit=frameIds[i], ccd=ccdIds[j]))[0]
+                #exp.writeFits(re.sub("CORR", "fcr", filename))
             except Exception, e:
                 print "failed to write something: %s" % (e)
 
@@ -272,8 +268,8 @@ def plotJCont(num, coeff, ccdSet, outputDir):
         for amp in ccd:
             w += amp.getDataSec(True).getWidth()
             h = amp.getDataSec(True).getHeight()
-        x0 = ccd.getCenter()[0] + coeff.x0
-        y0 = ccd.getCenter()[1] + coeff.y0
+        x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeff.x0
+        y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + coeff.y0
         t0 = ccd.getOrientation().getYaw()
         x = numpy.array([x0, \
                          x0 + w * math.cos(t0), \
@@ -315,8 +311,8 @@ def plotFCorCont(num, coeff, ccdSet, ffp, outputDir):
         for amp in ccd:
             w += amp.getDataSec(True).getWidth()
             h = amp.getDataSec(True).getHeight()
-        x0 = ccd.getCenter()[0] + coeff.x0
-        y0 = ccd.getCenter()[1] + coeff.y0
+        x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeff.x0
+        y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + coeff.y0
         t0 = ccd.getOrientation().getYaw()
         x = numpy.array([x0, \
                          x0 + w * math.cos(t0), \
@@ -374,8 +370,8 @@ def saveResPos3(matchVec, sourceVec, num, coeff, ccdSet, outputDir):
     for ccd in ccdSet:
         w = ccd.getAllPixels(True).getWidth()
         h = ccd.getAllPixels(True).getHeight()
-        x0 = ccd.getCenter()[0] + coeff.x0
-        y0 = ccd.getCenter()[1] + coeff.y0
+        x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeff.x0
+        y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + coeff.y0
         t0 = ccd.getOrientation().getYaw()
         x = numpy.array([x0, \
                          x0 + w * math.cos(t0), \
@@ -554,8 +550,8 @@ def saveResFlux(matchVec, fscale, nexp, ccdSet, ffp, outputDir):
         for amp in ccdSet[i]:
             w += amp.getDataSec(True).getWidth()
             h = amp.getDataSec(True).getHeight()
-        _x0 = ccdSet[i].getCenter()[0] + 0.5 * w
-        _y0 = ccdSet[i].getCenter()[1] + 0.5 * h
+        _x0 = ccdSet[i].getCenter().getPixels(ccd.getPixelSize())[0] + 0.5 * w
+        _y0 = ccdSet[i].getCenter().getPixels(ccd.getPixelSize())[1] + 0.5 * h
         _r.append(math.sqrt(_x0*_x0 + _y0*_y0))
         _dm.append(-2.5 * math.log10(fscale[nexp+i]))
 
@@ -714,7 +710,7 @@ def outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir="."
 
     f = open(os.path.join(outputDir, "ccd.dat"), "wt")
     for i in range(ccdSet.size()):
-        center = ccdSet[i].getCenter()
+        center = ccdSet[i].getCenter().getPixels(ccdSet[i].getPixelSize())
         orient = ccdSet[i].getOrientation()
         f.write("%3ld %10.3f %10.3f %10.7f %5.3f\n" % (i, center[0], center[1], orient.getYaw(), fscale[coeffSet.size()+i]));
     f.close()
@@ -743,22 +739,19 @@ def getExtent(matchVec):
 
     return u_max, v_max
 
-def mosaic(ioMgr, frameIds, ccdIds, outputDir=".", debug=False, verbose=False):
+def mosaic(butler, frameIds, ccdIds, config=hscMosaicConfig.HscMosaicConfig(),
+           outputDir=".", debug=False, verbose=False):
 
-    package = "hscMosaic"
-    productDir = os.environ.get(package.upper() + "_DIR", None)
-    policyPath = os.path.join(productDir, "policy", "HscMosaicDictionary.paf")
-    policy = pexPolicy.Policy.createPolicy(policyPath)
-
-    ccdSet = readCcd(ioMgr.inMapper.camera, ccdIds)
+    ccdSet = readCcd(butler.mapper.camera, ccdIds)
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
     print "(Memory) After readCcd : ", mem
 
     if debug:
         for ccd in ccdSet:
-            print ccd.getId().getSerial(), ccd.getCenter(), ccd.getOrientation().getYaw()
+            print (ccd.getId().getSerial(), ccd.getCenter().getPixels(ccd.getPixelSize()),
+                   ccd.getOrientation().getYaw())
 
-    wcsDic, frameIdsExist = readWcs(ioMgr, frameIds, ccdSet)
+    wcsDic, frameIdsExist = readWcs(butler, frameIds, ccdSet)
     print frameIdsExist
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
     print "(Memory) After readWcs : ", mem
@@ -767,12 +760,12 @@ def mosaic(ioMgr, frameIds, ccdIds, outputDir=".", debug=False, verbose=False):
         for i, wcs in wcsDic.iteritems():
             print i, wcs.getPixelOrigin(), wcs.getSkyOrigin().getPosition(afwCoord.DEGREES)
 
-    sourceSet, matchList = readCatalog(ioMgr, frameIdsExist, ccdIds)
+    sourceSet, matchList = readCatalog(butler, frameIdsExist, ccdIds)
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
     print "(Memory) After readCatalog : ", mem
 
-    d_lim = policy.get("radXMatch")
-    nbrightest = policy.get("nBrightest")
+    d_lim = config.radXMatch
+    nbrightest = config.nBrightest
     if verbose:
         print "d_lim : ", d_lim
         print "nbrightest : ", nbrightest
@@ -788,13 +781,13 @@ def mosaic(ioMgr, frameIds, ccdIds, outputDir=".", debug=False, verbose=False):
     print "(Memory) After obsVecFromSourceGroup : ", mem
 
     print "Solve mosaic ..."
-    order = policy.get("fittingOrder")
-    internal = policy.get("internalFitting")
-    solveCcd = policy.get("solveCcd")
-    allowRotation = policy.get("allowRotation")
-    fluxFitOrder = policy.get("fluxFitOrder")
-    chebyshev = policy.get("Chebyshev")
-    absolute = policy.get("fluxFitAbsolute")
+    order = config.fittingOrder
+    internal = config.internalFitting
+    solveCcd = config.solveCcd
+    allowRotation = config.allowRotation
+    fluxFitOrder = config.fluxFitOrder
+    chebyshev = config.chebyshev
+    absolute = config.fluxFitAbsolute
 
     ffp = hscMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
     u_max, v_max = getExtent(matchVec)
@@ -820,15 +813,15 @@ def mosaic(ioMgr, frameIds, ccdIds, outputDir=".", debug=False, verbose=False):
     print "(Memory) After solveMosaic_CCD : ", mem
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    writeNewWcs(ioMgr, coeffSet, ccdSet, fscale, frameIds, ccdIds)
-    writeFcr(ioMgr, coeffSet, ccdSet, fscale, frameIds, ccdIds, ffp)
+    writeNewWcs(butler, coeffSet, ccdSet, fscale, frameIds, ccdIds)
+    writeFcr(butler, coeffSet, ccdSet, fscale, frameIds, ccdIds, ffp)
 
     #if internal:
     #    outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir)
     #else:
     #    outputDiag(matchVec, None, coeffSet, ccdSet, fscale, ffp, outputDir)
 
-    #writeDetJImg(ioMgr, coeffSet, ccdSet, frameIds, ccdIds)
-    #writeDCorImg(ioMgr, coeffSet, ccdSet, frameIds, ccdIds, ffp)
+    #writeDetJImg(butler, coeffSet, ccdSet, frameIds, ccdIds)
+    #writeDCorImg(butler, coeffSet, ccdSet, frameIds, ccdIds, ffp)
 
     return frameIdsExist

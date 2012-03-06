@@ -8,12 +8,8 @@ import collections
 import multiprocessing
 import hsc.meas.mosaic.mosaicLib  as hscMosaic
 import hsc.meas.mosaic.stack             as stack
+import hsc.pipe.base.camera as hscCamera
 
-import lsst.obs.hscSim as obsHsc
-import lsst.obs.suprimecam              as obsSc
-import lsst.pipette.readwrite as pipReadWrite
-import lsst.pipette.runHsc as runHsc
-import lsst.afw.image as afwImage
 try:
     from IPython.core.debugger import Tracer
     debug_here = Tracer()
@@ -33,23 +29,18 @@ def runStackWarp(warpInputs):
     rerun      = warpInputs.rerun
     
     # wcsDic, dims, fscale = stack.readParamsFromFileList([f], skipMosaic=skipMosaic)
-
-    if instrument.lower() in ["hsc"]:
-        mapper = obsHsc.HscSimMapper(rerun=rerun)
-    elif instrument.lower() in ["suprimecam", "suprime-cam", "sc"]:
-        mapper = obsSc.SuprimecamMapper(rerun=rerun)
-    ioMgr = pipReadWrite.ReadWrite(mapper, ['visit', 'ccd'], config={})
+    butler = hscCamera.getButler(instrument, rerun=rerun)
     
     trueSigma = -1.0
     try:
-	warpResult = stack.stackMeasureWarpedPsf(f, wcs, ioMgr=ioMgr,
-					    skipMosaic=skipMosaic, fileIO=fileIO)
-	if fileIO:
-	    trueSigma = warpResult
-	else:
-	    psf, trueSigma = warpResult
+        warpResult = stack.stackMeasureWarpedPsf(f, wcs, butler=butler,
+                                            skipMosaic=skipMosaic, fileIO=fileIO)
+        if fileIO:
+            trueSigma = warpResult
+        else:
+            psf, trueSigma = warpResult
     finally:
-	return trueSigma
+        return trueSigma
 
 
 Inputs = collections.namedtuple('Inputs', ['rerun', 'instrument', 'ix', 'iy', 'subImgSize', 'stackId', 'imgMargin', 'fileIO', 'workDir', 'skipMosaic', 'filter', 'matchPsf'])
@@ -69,14 +60,10 @@ def runStackExec(inputs):
     matchPsf= inputs.matchPsf
 
     print 'runStackExec ', ix, iy
-    if instrument.lower() in ["hsc"]:
-        mapper = obsHsc.HscSimMapper(rerun=rerun)
-    elif instrument.lower() in ["suprimecam", "suprime-cam", "sc"]:
-        mapper = obsSc.SuprimecamMapper(rerun=rerun)
-    ioMgr = pipReadWrite.ReadWrite(mapper, ['visit', 'ccd'], config={})
 
-    try:	
-        stack.stackExec(ioMgr, ix, iy, stackId,
+    butler = hscCamera.getButler(instrument, rerun)
+
+        stack.stackExec(butler, ix, iy, stackId,
                         subImgSize, imgMargin,
                         fileIO=fileIO,
                         workDir=workDir,
@@ -118,8 +105,8 @@ def main():
                       type="float", default=0.0,
                       help="destination pixel scale in arcsec")
     parser.add_option("-m", "--doMatchPsf",
-		      default=False, action='store_true',
-		      help="match PSFs before stacking (default=%default)")
+                      default=False, action='store_true',
+                      help="match PSFs before stacking (default=%default)")
     
     (opts, args) = parser.parse_args()
 
@@ -140,21 +127,14 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         destWcs=None, pScale=0.0, workDir=None, workDirRoot=None, threads=None, doMatchPsf=False):
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    if instrument.lower() in ["hsc"]:
-        mapper = obsHsc.HscSimMapper(rerun=rerun)
-        ccdIds = range(100)
-    elif instrument.lower() in ["suprimecam", "suprime-cam", "sc"]:
-        mapper = obsSc.SuprimecamMapper(rerun=rerun)
-        ccdIds = range(10)
+    butler = hscCamera.getButler(instrument, rerun)
+    ccdIds = range(hscCamera.getNumCcds(instrument))
+    dataId = dict(field=program, filter=filter)
 
-    config = {}
-    ioMgr = pipReadWrite.ReadWrite(mapper, ['visit', 'ccd'], config=config)
-    if (dateObs == None):
-        frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=program, filter=filter))
-        pointings = ioMgr.inButler.queryMetadata('calexp', None, 'pointing', dict(field=program, filter=filter))
-    else:
-        frameIds = ioMgr.inButler.queryMetadata('calexp', None, 'visit', dict(field=program, filter=filter, dateObs=dateObs))
-        pointings = ioMgr.inButler.queryMetadata('calexp', None, 'pointing', dict(field=program, filter=filter, dateObs=dateObs))
+    if dateObs is not None:
+        dataId['dateObs'] = dateObs
+    frameIds = butler.queryMetadata('calexp', None, 'visit', dataId)
+    pointings = butler.queryMetadata('calexp', None, 'pointing', dataId)
     print frameIds
     print pointings
 
@@ -172,7 +152,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         for frameId in frameIds:
             for ccdId in ccdIds:
                 try:
-                    fname = ioMgr.read('calexp_filename', dict(visit=frameId, ccd=ccdId))[0][0]
+                    fname = butler.get('calexp_filename', dict(visit=frameId, ccd=ccdId))[0]
                 except Exception, e:
                     print "failed to get file for %s:%s" % (frameId, ccdId)
                     continue
@@ -181,7 +161,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                 else:
                     print "file %s does not exist " % (fname)
 
-#        stack.stack(ioMgr, fileList, subImgSize, stackId, imgMargin=256, fileIO=True,
+#        stack.stack(butler, fileList, subImgSize, stackId, imgMargin=256, fileIO=True,
 #                    workDir=workDir, skipMosaic=skipMosaic, filter=filter,
 #                    destWcs=destWcs)
         try:
@@ -192,49 +172,49 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         if destWcs != None:
             destWcs = os.path.abspath(destWcs)
 
-	#############################################################
-	#  Init
-	#############################################################
-        nx, ny, fileList, wcs = stack.stackInit(ioMgr, fileList, subImgSize, imgMargin,
+        #############################################################
+        #  Init
+        #############################################################
+        nx, ny, fileList, wcs = stack.stackInit(butler, fileList, subImgSize, imgMargin,
                                  fileIO,
                                  workDir=workDir,
                                  skipMosaic=skipMosaic,
                                  destWcs=destWcs)
 
 
-	#############################################################
-	#  measure warped PSF
-	#############################################################
-	ixs = range(nx)
-	iys = range(ny)
+        #############################################################
+        #  measure warped PSF
+        #############################################################
+        ixs = range(nx)
+        iys = range(ny)
 
-	maxWidth = (max(ixs)+1)*subImgSize
-	maxHeight = (max(iys)+1)*subImgSize
+        maxWidth = (max(ixs)+1)*subImgSize
+        maxHeight = (max(iys)+1)*subImgSize
 
-	
-	wcsDic, dims, fscale = stack.readParamsFromFileList(fileList,
-						      skipMosaic=skipMosaic)
+        
+        wcsDic, dims, fscale = stack.readParamsFromFileList(fileList,
+                                                      skipMosaic=skipMosaic)
 
-	# get a list of files which overlap the ixs,iys requested
-	# This makes it possible to hack the code easily to run a single ix,iy for debugging
-	fileList, wcsDic, dims, fscale = \
-		  stack.cullFileList(fileList, wcsDic, ixs, iys, wcs, subImgSize, maxWidth, maxHeight, dims, fscale, nx, ny)
+        # get a list of files which overlap the ixs,iys requested
+        # This makes it possible to hack the code easily to run a single ix,iy for debugging
+        fileList, wcsDic, dims, fscale = \
+                  stack.cullFileList(fileList, wcsDic, ixs, iys, wcs, subImgSize, maxWidth, maxHeight, dims, fscale, nx, ny)
 
-	warpInputs = list()
-	for f in fileList:
-	    warpInputs.append(WarpInputs(fileIO=fileIO, f=f, wcs=wcs,
-					 skipMosaic=skipMosaic, instrument=instrument, rerun=rerun))
+        warpInputs = list()
+        for f in fileList:
+            warpInputs.append(WarpInputs(fileIO=fileIO, f=f, wcs=wcs,
+                                         skipMosaic=skipMosaic, instrument=instrument, rerun=rerun))
 
-	# process the job
+        # process the job
         pool = multiprocessing.Pool(processes=threads)
         sigmas = pool.map(runStackWarp, warpInputs)
         pool.close()
         pool.join()
 
-	# use the largest sigma to determine the size of the double Gaussian PSF we want to match to.
-	# we must *degrade* to worst seeing
-	print "sigmas: ", sigmas
-	matchPsf = None
+        # use the largest sigma to determine the size of the double Gaussian PSF we want to match to.
+        # we must *degrade* to worst seeing
+        print "sigmas: ", sigmas
+        matchPsf = None
         if sigmas:
             maxSigma = max(sigmas)
             sigma1 = maxSigma
@@ -244,41 +224,41 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
             matchPsf = ['DoubleGaussian', kwid, kwid, sigma1, sigma2, peakRatio]
 
 
-	
-	#############################################################
-	#  Exec
-	#############################################################
+        
+        #############################################################
+        #  Exec
+        #############################################################
         inputs = list()
 
-	for iy in iys:
-	    for ix in ixs: 
+        for iy in iys:
+            for ix in ixs: 
                 inputs.append(Inputs(rerun=rerun,instrument=instrument,ix=ix, iy=iy,
                                      stackId=stackId, subImgSize=subImgSize, imgMargin=imgMargin,
                                      fileIO=fileIO, workDir=workDir, skipMosaic=skipMosaic, filter=filter,
-				     matchPsf=matchPsf
-				     ))
+                                     matchPsf=matchPsf
+                                     ))
 
         pool = multiprocessing.Pool(processes=threads)
         pool.map(runStackExec, inputs)
         pool.close()
         pool.join()
 
-	
-	#############################################################
-	#  Stack *END*
-	#############################################################
-        expStack = stack.stackEnd(ioMgr, stackId, subImgSize, imgMargin,
+        
+        #############################################################
+        #  Stack *END*
+        #############################################################
+        expStack = stack.stackEnd(butler, stackId, subImgSize, imgMargin,
                                   fileIO=fileIO, width=maxWidth, height=maxHeight,
-				  nx=max(ixs)+1, ny=max(iys)+1,
+                                  nx=max(ixs)+1, ny=max(iys)+1,
                                   workDir=workDir, filter=filter)
 
-	expStack.writeFits('expStack.fits')
-	
+        expStack.writeFits('expStack.fits')
+        
     elif (len(sys.argv) == 3):
         ix = int(sys.argv[1])
         iy = int(sys.argv[2])
 
-        stack.stackExec(ioMgr, ix, iy, stackId, subImgSize, imgMargin,
+        stack.stackExec(butler, ix, iy, stackId, subImgSize, imgMargin,
                         fileIO=fileIO,
                         workDir=workDir, skipMosaic=skipMosaic,
                         filter=filter)
@@ -289,7 +269,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
             for frameId in frameIds:
                 for ccdId in ccdIds:
                     try:
-                        fname = ioMgr.read('calexp_filename', dict(visit=frameId, ccd=ccdId))[0][0]
+                        fname = butler.get('calexp_filename', dict(visit=frameId, ccd=ccdId))[0]
                     except Exception, e:
                         print "failed to get file for %s:%s" % (frameId, ccdId)
                         continue
@@ -307,7 +287,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
             #shutil.copyfile(os.path.join(productDir, "example/run_stack.py"),
             #                os.path.join(workDir, "run_stack.py"))
             
-            stack.stackInit(ioMgr, fileList, subImgSize, imgMargin, 
+            stack.stackInit(butler, fileList, subImgSize, imgMargin, 
                             fileIO, writePBSScript,
                             workDir=workDir, skipMosaic=skipMosaic,
                             rerun=rerun, instrument=instrument, program=program,
@@ -315,10 +295,10 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                             pScale=pScale)
 
         elif (sys.argv[1] == "End"):
-            stack.stackEnd(ioMgr, stackId, subImgSize, imgMargin,
+            stack.stackEnd(butler, stackId, subImgSize, imgMargin,
                            fileIO=fileIO,
                            workDir=workDir, filter=filter)
-	    
+            
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
 if __name__ == '__main__':

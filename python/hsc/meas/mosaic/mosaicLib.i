@@ -10,6 +10,7 @@ Python interface to hsc::meas::fit
 
 %{
 #include "lsst/afw/image.h"
+#include "lsst/pex/logging.h"
 %}
 
 %include "lsst/p_lsstSwig.i"
