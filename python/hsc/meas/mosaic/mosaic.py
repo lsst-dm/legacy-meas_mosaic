@@ -123,7 +123,7 @@ def getAllForCcd(butler, frame, ccd):
 def readCatalog(butler, frameIds, ccdIds):
     print "Reading catalogs ..."
     sourceSet = hscMosaic.SourceGroup()
-    matchList = hscMosaic.vvSourceMatch()
+    matchList = hscMosaic.SourceMatchGroup()
     for frameId in frameIds:
         ss = []
         ml = []
@@ -137,7 +137,7 @@ def readCatalog(butler, frameIds, ccdIds):
                         src.setChip(ccdId)
                         ss.append(src)
                 for m in matches:
-                    match = SourceMatch(hscMosaic.Source(m.first), hscMosaic.Source(m.second))
+                    match = hscMosaic.SourceMatch(hscMosaic.Source(m.first), hscMosaic.Source(m.second))
                     match.second.setExp(frameIds.index(frameId))
                     match.second.setChip(ccdId)
                     ml.append(match)
