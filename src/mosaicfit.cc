@@ -585,7 +585,7 @@ void KDTree::_initializeSources(SourceSet& s, int depth)
 }    
 
 
-void KDTree::_initializeMatches(SourceMatchVector &m, int depth) {
+void KDTree::_initializeMatches(SourceMatchSet &m, int depth) {
     this->depth = depth;
     this->axis = depth % 2;
 

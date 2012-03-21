@@ -62,7 +62,7 @@ namespace hsc {
 
             typedef std::vector<PTR(Source)> SourceSet;
 	    typedef std::vector<std::vector<PTR(Source)> > SourceGroup;
-            typedef std::vector<SourceMatch> SourceMatchVector;
+            typedef std::vector<SourceMatch> SourceMatchSet;
 	    typedef std::vector<std::vector<SourceMatch> > SourceMatchGroup;
 
 	    typedef std::map<int, lsst::afw::image::Wcs::Ptr> WcsDic;
@@ -182,7 +182,7 @@ namespace hsc {
                 KDTree(SourceSet& s, int depth) { _initializeSources(s, depth); }
 		KDTree(PTR(Source) s, int depth);
 
-                KDTree(SourceMatchVector m, int depth) { _initializeMatches(m, depth); }
+                KDTree(SourceMatchSet m, int depth) { _initializeMatches(m, depth); }
                 KDTree(SourceMatch const& m, int depth);
 
 		~KDTree();
@@ -204,7 +204,7 @@ namespace hsc {
 
             private:
                 void _initializeSources(SourceSet& s, int depth);
-                void _initializeMatches(SourceMatchVector& m, int depth);
+                void _initializeMatches(SourceMatchSet& m, int depth);
             };
 
 	    class FluxFitParams {
