@@ -11,6 +11,8 @@ Python interface to hsc::meas::fit
 %{
 #include "lsst/afw/image.h"
 #include "lsst/pex/logging.h"
+#include "lsst/afw/detection.h"
+#include "lsst/afw/math.h"
 %}
 
 %include "lsst/p_lsstSwig.i"
@@ -40,5 +42,6 @@ def version(HeadURL = r"$HeadURL: ssh://hsc-gw2.mtk.nao.ac.jp/ana/hgrepo/hscMosa
 %import "lsst/afw/image/imageLib.i"
 %import "lsst/afw/geom/geomLib.i"
 %import "lsst/afw/detection/detectionLib.i"
+%import "lsst/afw/math/mathLib.i"
 
 %include "mosaic.i"

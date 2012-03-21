@@ -3,8 +3,8 @@
 #include "fitsio.h"
 
 #include "hsc/meas/mosaic/mosaicfit.h"
-#include "lsst/afw/detection/Source.h"
 #include "lsst/afw/coord/Coord.h"
+#include "lsst/afw/table/Match.h"
 #include "boost/make_shared.hpp"
 #include "boost/format.hpp"
 
@@ -12,7 +12,6 @@
 #define R2D (180./M_PI)
 
 using namespace hsc::meas::mosaic;
-using namespace lsst::afw::detection;
 
 #if defined(USE_GSL)
 #include <gsl/gsl_linalg.h>
@@ -487,10 +486,10 @@ int FluxFitParams::getIndex(int i, int j) {
     return -1;
 }
 
-class SourceMatchCmpRa
+struct SourceMatchCmpRa
 {
-public:
-    bool operator()( const SourceMatch& lhs, const SourceMatch& rhs ) const
+    template<class MatchT>
+    bool operator()(MatchT const& lhs, MatchT const& rhs) const
     {
         return lhs.first->getRa() < rhs.first->getRa();
     }
@@ -499,7 +498,8 @@ public:
 class SourceMatchCmpDec
 {
 public:
-    bool operator()( const SourceMatch& lhs, const SourceMatch& rhs ) const
+    template<class MatchT>
+    bool operator()(MatchT const& lhs, MatchT const& rhs) const
     {
         return lhs.first->getDec() < rhs.first->getDec();
     }
@@ -508,7 +508,8 @@ public:
 class SourceCmpRa
 {
 public:
-    bool operator()( const Source::Ptr& lhs, const Source::Ptr& rhs ) const
+    template<class SourceT>
+    bool operator()(SourceT const& lhs, SourceT const& rhs) const
     {
         return lhs->getRa() < rhs->getRa();
     }
@@ -517,111 +518,35 @@ public:
 class SourceCmpDec
 {
 public:
-    bool operator()( const Source::Ptr& lhs, const Source::Ptr& rhs ) const
+    template<class SourceT>
+    bool operator()(SourceT const& lhs, SourceT const& rhs ) const
     {
         return lhs->getDec() < rhs->getDec();
     }
 };
 
-KDTree::KDTree(SourceMatch m, int depth) {
-    this->depth = depth;
-    this->axis = depth % 2;
-
-    this->location[0] = m.first->getRa();
-    this->location[1] = m.first->getDec();
-    this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
-				      lsst::afw::geom::Angle(this->location[1]));
-
-    this->set.push_back(m.first);
-    this->set.push_back(m.second);
-
-    this->left  = KDTree::Ptr();
-    this->right = KDTree::Ptr();
+KDTree::KDTree(PTR(Source) s, int depth) {
+    SourceSet set;
+    set.push_back(s);
+    _initializeSources(set, depth);
 }
 
-KDTree::KDTree(std::vector<SourceMatch> v, int depth) {
-    this->depth = depth;
-    this->axis = depth % 2;
-
-    if (v.size() == 1) {
-
-	this->location[0] = v[0].first->getRa();
-	this->location[1] = v[0].first->getDec();
-	this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
-					  lsst::afw::geom::Angle(this->location[1]));
-
-	this->set.push_back(v[0].first);
-	this->set.push_back(v[0].second);
-
-	this->left  = KDTree::Ptr();
-	this->right = KDTree::Ptr();
-
-    } else {
-
-	if (this->axis == 0)
-	    std::sort(v.begin(), v.end(), SourceMatchCmpRa());
-	else
-	    std::sort(v.begin(), v.end(), SourceMatchCmpDec());
-
-	this->location[0] = v[v.size()/2].first->getRa();
-	this->location[1] = v[v.size()/2].first->getDec();
-	this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
-					  lsst::afw::geom::Angle(this->location[1]));
-
-	this->set.push_back(v[v.size()/2].first);
-	this->set.push_back(v[v.size()/2].second);
-
-	std::vector<SourceMatch> v_left;
-	for (size_t i = 0; i < v.size()/2; i++) {
-	    v_left.push_back(v[i]);
-	}
-
-	std::vector<SourceMatch> v_right;
-	for (size_t i = v.size()/2+1; i < v.size(); i++) {
-	    v_right.push_back(v[i]);
-	}
-
-	if (v_left.size() > 0) {
-	    this->left  = KDTree::Ptr(new KDTree(v_left,  depth+1));
-	} else {
-	    this->left  = KDTree::Ptr();
-	}
-
-	if (v_right.size() > 0) {
-	    this->right = KDTree::Ptr(new KDTree(v_right, depth+1));
-	} else {
-	    this->right = KDTree::Ptr();
-	}
-
-    }
+KDTree::KDTree(SourceMatch const& m, int depth) {
+    std::vector<SourceMatch> matches;
+    matches.push_back(m);
+    _initializeMatches(matches, depth);
 }
 
-KDTree::KDTree(Source::Ptr s, int depth) {
+void KDTree::_initializeSources(SourceSet& s, int depth)
+{
     this->depth = depth;
     this->axis = depth % 2;
-
-    this->location[0] = s->getRa();
-    this->location[1] = s->getDec();
-    this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
-				      lsst::afw::geom::Angle(this->location[1]));
-
-    this->set.push_back(s);
-
-    this->left  = KDTree::Ptr();
-    this->right = KDTree::Ptr();
-}
-
-KDTree::KDTree(SourceSet& s, int depth) {
-    this->depth = depth;
-    this->axis = depth % 2;
-
+    
     if (s.size() == 1) {
 
 	this->location[0] = s[0]->getRa();
 	this->location[1] = s[0]->getDec();
-	this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
-					  lsst::afw::geom::Angle(this->location[1]));
-
+	this->c = lsst::afw::coord::Coord(this->location[0], this->location[1]);
 	this->set.push_back(s[0]);
 
 	this->left  = KDTree::Ptr();
@@ -636,20 +561,13 @@ KDTree::KDTree(SourceSet& s, int depth) {
 
 	this->location[0] = s[s.size()/2]->getRa();
 	this->location[1] = s[s.size()/2]->getDec();
-	this->c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(this->location[0]),
-					  lsst::afw::geom::Angle(this->location[1]));
+	this->c = lsst::afw::coord::Coord(this->location[0], this->location[1]);
 
 	this->set.push_back(s[s.size()/2]);
 
-	SourceSet s_left;
-	for (size_t i = 0; i < s.size()/2; i++) {
-	    s_left.push_back(s[i]);
-	}
-
-	SourceSet s_right;
-	for (size_t i = s.size()/2+1; i < s.size(); i++) {
-	    s_right.push_back(s[i]);
-	}
+        size_t middle = s.size() / 2;
+        SourceSet s_left(s.begin(), s.begin() + middle);
+        SourceSet s_right(s.begin() + middle, s.end());
 
 	if (s_left.size() > 0) {
 	    this->left  = KDTree::Ptr(new KDTree(s_left,  depth+1));
@@ -659,6 +577,56 @@ KDTree::KDTree(SourceSet& s, int depth) {
 
 	if (s_right.size() > 0) {
 	    this->right = KDTree::Ptr(new KDTree(s_right, depth+1));
+	} else {
+	    this->right = KDTree::Ptr();
+	}
+
+    }
+}    
+
+
+void KDTree::_initializeMatches(SourceMatchVector &m, int depth) {
+    this->depth = depth;
+    this->axis = depth % 2;
+
+    if (m.size() == 1) {
+
+	this->location[0] = m[0].first->getRa();
+	this->location[1] = m[0].first->getDec();
+	this->c = lsst::afw::coord::Coord(this->location[0], this->location[1]);
+
+	this->set.push_back(m[0].first);
+	this->set.push_back(m[0].second);
+
+	this->left  = KDTree::Ptr();
+	this->right = KDTree::Ptr();
+
+    } else {
+        if (this->axis == 0) {
+            std::sort(m.begin(), m.end(), SourceMatchCmpRa());
+        } else {
+            std::sort(m.begin(), m.end(), SourceMatchCmpDec());
+        }
+
+	this->location[0] = m[m.size()/2].first->getRa();
+	this->location[1] = m[m.size()/2].first->getDec();
+	this->c = lsst::afw::coord::Coord(this->location[0], this->location[1]);
+
+	this->set.push_back(m[m.size()/2].first);
+	this->set.push_back(m[m.size()/2].second);
+
+        size_t middle = m.size() / 2;
+        std::vector<SourceMatch> m_left(m.begin(), m.begin() + middle);
+        std::vector<SourceMatch> m_right(m.begin() + middle, m.end());
+
+	if (m_left.size() > 0) {
+	    this->left  = KDTree::Ptr(new KDTree(m_left, depth+1));
+	} else {
+	    this->left  = KDTree::Ptr();
+	}
+
+	if (m_right.size() > 0) {
+	    this->right = KDTree::Ptr(new KDTree(m_right, depth+1));
 	} else {
 	    this->right = KDTree::Ptr();
 	}
@@ -676,10 +644,10 @@ KDTree::~KDTree() {
     }
 }
 
-KDTree::Ptr KDTree::search(SourceMatch m) {
+KDTree::ConstPtr KDTree::search(lsst::afw::coord::Coord const& sky) const {
 
-    double ra  = m.first->getRa();
-    double dec = m.first->getDec();
+    double ra  = sky.getLongitude();
+    double dec = sky.getLatitude();
 
     double val;
     if (this->axis == 0)
@@ -689,18 +657,17 @@ KDTree::Ptr KDTree::search(SourceMatch m) {
 
     if (this->set[0]->getRa()  == ra &&
 	this->set[0]->getDec() == dec) {
-	//return boost::make_shared<KDTree>(*this);
 	return shared_from_this();
     } else {
 	if (val < this->location[this->axis]) {
 	    if (this->left != NULL) {
-		return this->left->search(m);
+		return this->left->search(sky);
 	    } else {
 		return KDTree::Ptr();
 	    }
 	} else {
 	    if (this->right != NULL) {
-		return this->right->search(m);
+		return this->right->search(sky);
 	    } else {
 		return KDTree::Ptr();
 	    }
@@ -708,7 +675,7 @@ KDTree::Ptr KDTree::search(SourceMatch m) {
     }
 }
 
-void KDTree::add(SourceMatch m) {
+void KDTree::add(SourceMatch const& m) {
 
     double ra  = m.first->getRa();
     double dec = m.first->getDec();
@@ -751,10 +718,10 @@ int KDTree::count(void) {
     return n;
 }
 
-KDTree::Ptr KDTree::findSource(Source::Ptr s) {
+KDTree::ConstPtr KDTree::findSource(Source const& s) const {
 
-    double ra  = s->getRa();
-    double dec = s->getDec();
+    double ra  = s.getRa();
+    double dec = s.getDec();
 
     double val;
     if (this->axis == 0)
@@ -762,13 +729,11 @@ KDTree::Ptr KDTree::findSource(Source::Ptr s) {
     else
 	val = dec;
 
+    lsst::afw::coord::Coord coord(s.getRa(), s.getDec());
     for (size_t i = 0; i < this->set.size(); i++) {
-	//if (this->set[i]->getRa()  == ra &&
-	//    this->set[i]->getDec() == dec) {
-	//if (fabs(this->set[i]->getRa()  - ra)  < 1.0e-05 &&
-	//    fabs(this->set[i]->getDec() - dec) < 1.0e-05) {
-	if (fabs(this->set[i]->getXAstrom() - s->getXAstrom()) < 0.001 &&
-	    fabs(this->set[i]->getYAstrom() - s->getYAstrom()) < 0.001) {
+        // Previous code compared x,y, but those aren't available always now so using RA,Dec.
+        // Is this too slow?
+        if (coord.angularSeparation(set[i]->getSky()).asArcseconds() < 0.01) {
 	    return shared_from_this();
 	}
     }
@@ -789,18 +754,7 @@ KDTree::Ptr KDTree::findSource(Source::Ptr s) {
 
 }
 
-double KDTree::distance(Source::Ptr s) {
-
-    double ra  = s->getRa();
-    double dec = s->getDec();
-    lsst::afw::coord::Coord c = lsst::afw::coord::Coord(lsst::afw::geom::Angle(ra),
-							lsst::afw::geom::Angle(dec));
-    double d = this->c.angularSeparation(c).asDegrees();
-
-    return d;
-}
-
-KDTree::Ptr KDTree::findNearest(Source::Ptr s) {
+KDTree::Ptr KDTree::findNearest(Source const& s) {
 
     if (this->isLeaf()) {
         return shared_from_this();
@@ -809,9 +763,9 @@ KDTree::Ptr KDTree::findNearest(Source::Ptr s) {
     KDTree::Ptr leaf;
     double val;
     if (this->axis == 0) {
-	val = s->getRa();
+	val = s.getRa();
     } else {
-	val = s->getDec();
+	val = s.getDec();
     }
 
     if (val < this->location[this->axis]) {
@@ -868,10 +822,19 @@ KDTree::Ptr KDTree::findNearest(Source::Ptr s) {
     }
 }
 
-void KDTree::add(Source::Ptr s) {
-
+void KDTree::add(PTR(Source) s, double d_lim) {
     double ra  = s->getRa();
     double dec = s->getDec();
+
+    if (d_lim <= 0) {
+        for (size_t i = 0; i < this->set.size(); i++) {
+            if (fabs(this->set[i]->getRa()  - ra)  < d_lim &&
+                fabs(this->set[i]->getDec() - dec) < d_lim) {
+                this->set.push_back(s);
+                return;
+            }
+        }
+    }
 
     double val;
     if (this->axis == 0)
@@ -881,89 +844,34 @@ void KDTree::add(Source::Ptr s) {
 
     if (val < this->location[this->axis]) {
 	if (this->left != NULL) {
-	    this->left->add(s);
+	    this->left->add(s, d_lim);
 	} else {
 	    this->left = KDTree::Ptr(new KDTree(s, this->depth+1));
 	}
     } else {
 	if (this->right != NULL) {
-	    this->right->add(s);
+	    this->right->add(s, d_lim);
 	} else {
 	    this->right = KDTree::Ptr(new KDTree(s, this->depth+1));
 	}
     }
 }
 
-void KDTree::add(Source::Ptr s, double d_lim) {
-    double ra  = s->getRa();
-    double dec = s->getDec();
-
-    bool match = false;
-    for (size_t i = 0; i < this->set.size(); i++) {
-	if (fabs(this->set[i]->getRa()  - ra)  < d_lim &&
-	    fabs(this->set[i]->getDec() - dec) < d_lim) {
-	    this->set.push_back(s);
-	    match = true;
-	    break;
-	}
-    }
-
-    if (!match) {
-	if (this->axis == 0) {
-	    if (ra < this->location[0]) {
-		if (this->left != NULL) {
-		    this->left->add(s, d_lim);
-		} else {
-		    this->left = KDTree::Ptr(new KDTree(s, this->depth+1));
-		}
-	    } else {
-		if (this->right != NULL) {
-		    this->right->add(s, d_lim);
-		} else {
-		    this->right = KDTree::Ptr(new KDTree(s, this->depth+1));
-		}
-	    }
-	} else {
-	    if (dec < this->location[1]) {
-		if (this->left != NULL) {
-		    this->left->add(s, d_lim);
-		} else {
-		    this->left = KDTree::Ptr(new KDTree(s, this->depth+1));
-		}
-	    } else {
-		if (this->right != NULL) {
-		    this->right->add(s, d_lim);
-		} else {
-		    this->right = KDTree::Ptr(new KDTree(s, this->depth+1));
-		}
-	    }
-	}
-    }
-}
-
-bool KDTree::isLeaf(void) {
-  if (this->left == NULL &&
-      this->right == NULL)
-      return true;
-  else
-      return false;
-}
-
-SourceGroup KDTree::mergeMat() {
+SourceGroup KDTree::mergeMat() const {
     SourceGroup sg;
     sg.push_back(this->set);
 
     if (this->left != NULL) {
-	SourceGroup sg_left = this->left->mergeMat();
-	for (size_t i = 0; i < sg_left.size(); i++) {
-	    sg.push_back(sg_left[i]);
-	}
+        SourceGroup sg_left = this->left->mergeMat();
+        for (size_t i = 0; i < sg_left.size(); i++) {
+            sg.push_back(sg_left[i]);
+        }
     }
     if (this->right != NULL) {
-	SourceGroup sg_right = this->right->mergeMat();
-	for (size_t i = 0; i < sg_right.size(); i++) {
-	    sg.push_back(sg_right[i]);
-	}
+        SourceGroup sg_right = this->right->mergeMat();
+        for (size_t i = 0; i < sg_right.size(); i++) {
+            sg.push_back(sg_right[i]);
+        }
     }
 
     return sg;
@@ -979,17 +887,15 @@ SourceGroup KDTree::mergeSource() {
 	for (size_t i = 0; i < set.size(); i++) {
 	    sr += set[i]->getRa();
 	    sd += set[i]->getDec();
-	    sm += set[i]->getPsfFlux();
+	    sm += set[i]->getFlux();
 	    sn += 1.0;
 	}
 	double ra  = sr / sn;
 	double dec = sd / sn;
 	double mag = sm / sn;
-	Source::Ptr s = Source::Ptr(new Source());
-	s->setRa(lsst::afw::geom::Angle(ra));
-	s->setDec(lsst::afw::geom::Angle(dec));
-	s->setPsfFlux(mag);
-	this->set.insert(set.begin(), s);
+        PTR(Source) source(new Source(lsst::afw::coord::Coord(lsst::afw::geom::Point2D(ra, dec),
+                                                              lsst::afw::geom::degrees), mag));
+        this->set.insert(set.begin(), source);
 	sg.push_back(this->set);
     }
 
@@ -1009,9 +915,9 @@ SourceGroup KDTree::mergeSource() {
     return sg;
 }
 
-void KDTree::printMat() {
-    double ra = set[0]->getRa() * R2D;
-    double dec = set[0]->getDec() * R2D;
+void KDTree::printMat() const {
+    double ra = set[0]->getRa();
+    double dec = set[0]->getDec();
 
     std::cout << "circle(" << ra << "," << dec << ",5.0\") # color=magenta" << std::endl;
 
@@ -1023,7 +929,7 @@ void KDTree::printMat() {
     }
 }
 
-void KDTree::printSource() {
+void KDTree::printSource() const {
     double sr = 0.0;
     double sd = 0.0;
     double sn = 0.0;
@@ -1032,8 +938,8 @@ void KDTree::printSource() {
 	sd += set[i]->getDec();
 	sn += 1.0;
     }
-    double ra  = sr / sn * R2D;
-    double dec = sd / sn * R2D;
+    double ra  = sr / sn;
+    double dec = sd / sn;
 
     if (sn >= 2.0)
 	std::cout << "circle(" << ra << "," << dec << ",5.0\") # color=red" << std::endl;
@@ -1049,7 +955,7 @@ void KDTree::printSource() {
 }
 
 KDTree::Ptr
-hsc::meas::mosaic::kdtreeMat(vvSourceMatch const &matchList) {
+hsc::meas::mosaic::kdtreeMat(SourceMatchGroup &matchList) {
 
     KDTree::Ptr root = KDTree::Ptr(new KDTree(matchList[0], 0));
     //std::cout << "root->count() : " << root->count() << std::endl;
@@ -1077,8 +983,8 @@ hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 	for (int k = 0; k < nchip; k++) {
 	    std::vector<double> v;
 	    for (size_t i = 0; i < sourceSet[j].size(); i++) {
-		if (sourceSet[j][i]->getAmpExposureId() % 1000 == k) {
-		    v.push_back(sourceSet[j][i]->getPsfFlux());
+		if (sourceSet[j][i]->getChip() == k) {
+		    v.push_back(sourceSet[j][i]->getFlux());
 		}
 	    }
 	    if (nbrightest < v.size()) {
@@ -1093,9 +999,9 @@ hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 
     SourceSet set;
     for (size_t i = 0; i < sourceSet[0].size(); i++) {
-	int k = sourceSet[0][i]->getAmpExposureId() % 1000;
-        if (sourceSet[0][i]->getPsfFlux() >= fluxlim[k] &&
-	    rootMat->findSource(sourceSet[0][i]) == NULL) {
+	int k = sourceSet[0][i]->getChip();
+        if (sourceSet[0][i]->getFlux() >= fluxlim[k] &&
+	    rootMat->findSource(*sourceSet[0][i]) == NULL) {
 	    set.push_back(sourceSet[0][i]);
 	}
     }
@@ -1109,12 +1015,12 @@ hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
     //std::cout << "(3) " << rootSource->count() << std::endl;
     for (size_t j = 1; j < sourceSet.size(); j++) {
 	for (size_t i = 0; i < sourceSet[j].size(); i++) {
-	    int k = sourceSet[j][i]->getAmpExposureId() % 1000;
-	    if (sourceSet[j][i]->getPsfFlux() >= fluxlim[j*nchip+k] &&
-		rootMat->findSource(sourceSet[j][i]) == NULL) {
+	    int k = sourceSet[j][i]->getChip();
+	    if (sourceSet[j][i]->getFlux() >= fluxlim[j*nchip+k] &&
+		rootMat->findSource(*sourceSet[j][i]) == NULL) {
                 if (rootSource) {
-                    KDTree::Ptr leaf = rootSource->findNearest(sourceSet[j][i]);
-                    if (leaf->distance(sourceSet[j][i]) < d_lim) {
+                    KDTree::Ptr leaf = rootSource->findNearest(*sourceSet[j][i]);
+                    if (leaf->distance(*sourceSet[j][i]) < d_lim) {
                         leaf->set.push_back(sourceSet[j][i]);
                     } else {
                         rootSource->add(sourceSet[j][i]);
@@ -2640,12 +2546,12 @@ hsc::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 {
     std::vector<Obs::Ptr> obsVec;
     for (size_t i = 0; i < all.size(); i++) {
-	SourceSet ss = all[i];
+        SourceSet ss = all[i];
 	double ra  = ss[0]->getRa();
 	double dec = ss[0]->getDec();
 	double mag_cat;
-	if (ss[0]->getPsfFlux() > 0.0) {
-	    mag_cat = -2.5*log10(ss[0]->getPsfFlux());
+	if (ss[0]->getFlux() > 0.0) {
+	    mag_cat = -2.5*log10(ss[0]->getFlux());
 	} else {
 	    mag_cat = -9999;
 	}
@@ -2653,10 +2559,10 @@ hsc::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	//std::cout << mag0 << std::endl;
 	for (size_t j = 1; j < ss.size(); j++) {
 	    int id    = ss[j]->getId();
-	    int iexp  = ss[j]->getAmpExposureId() / 1000;
-	    int ichip = ss[j]->getAmpExposureId() % 1000;
-	    double x = ss[j]->getXAstrom();
-	    double y = ss[j]->getYAstrom();
+	    int iexp  = ss[j]->getExp();
+	    int ichip = ss[j]->getChip();
+	    double x = ss[j]->getX();
+	    double y = ss[j]->getY();
 	    Obs::Ptr o = Obs::Ptr(new Obs(id, ra, dec, x, y, ichip, iexp));
 	    o->mag_cat = mag_cat;
 	    o->mag0 = mag_cat;
@@ -2665,12 +2571,11 @@ hsc::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	    o->setXiEta(crval[0], crval[1]);
 	    o->setUV(ccdSet[ichip]);
 	    o->istar = i;
-	    if (ss[0]->getFlagForWcs() == 1 ||
-		ss[j]->getFlagForWcs() == 1) {
+	    if (!ss[0]->getAstrom() || !ss[j]->getAstrom() == 1) {
 		o->good = false;
 	    }
-	    if (ss[j]->getPsfFlux() > 0.0) {
-		o->mag = -2.5*log10(ss[j]->getPsfFlux());
+	    if (ss[j]->getFlux() > 0.0) {
+		o->mag = -2.5*log10(ss[j]->getFlux());
 	    } else {
 		o->mag = -9999;
 	    }
@@ -3157,7 +3062,7 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 	flagObj2(matchVec, coeffVec, p, 3.0*e2);
     }
 
-    Eigen::Matrix2d cd[nexp];
+    std::vector<Eigen::Matrix2d> cd(nexp);
     for (int i = 0; i < nexp; i++) {
 	cd[i] << coeffVec[i]->a[0], coeffVec[i]->a[1], coeffVec[i]->b[0], coeffVec[i]->b[1];
     }
@@ -3328,7 +3233,7 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 	flagObj2(sourceVec, coeffVec, p, 9.0*e2);
     }
 
-    Eigen::Matrix2d cd[nexp];
+    std::vector<Eigen::Matrix2d> cd(nexp);
     for (int i = 0; i < nexp; i++) {
 	cd[i] << coeffVec[i]->a[0], coeffVec[i]->a[1], coeffVec[i]->b[0], coeffVec[i]->b[1];
     }

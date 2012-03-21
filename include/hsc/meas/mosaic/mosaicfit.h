@@ -6,15 +6,65 @@
 #include "lsst/afw/image.h"
 #include "lsst/afw/geom.h"
 #include "lsst/afw/cameraGeom.h"
-#include "lsst/afw/detection.h"
+#include "lsst/afw/table.h"
 #include "boost/enable_shared_from_this.hpp"
 
 namespace hsc {
     namespace meas {
 	namespace mosaic {
 
-	    typedef std::vector<lsst::afw::detection::SourceSet> SourceGroup;
-	    typedef std::vector<lsst::afw::detection::SourceMatchVector> vvSourceMatch;
+            class Source {
+            public:
+                enum { UNSET = -1 };
+                typedef long IdType;
+                typedef int ChipType;
+                typedef int ExpType;
+                explicit Source(lsst::afw::table::SourceRecord const& record) :
+                    _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
+                    _pixels(record.getX(), record.getY()), _flux(record.getPsfFlux()),
+                    _astrom(record.getCentroidFlag()) {}
+                Source(lsst::afw::table::SimpleRecord const& record, lsst::afw::image::Wcs const& wcs) :
+                    _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
+                    _pixels(wcs.skyToPixel(_sky)), _flux(std::numeric_limits<double>::quiet_NaN()),
+                    _astrom(true) {}
+                Source(lsst::afw::coord::Coord coord, double flux=std::numeric_limits<double>::quiet_NaN()) :
+                    _id(-1), _chip(UNSET), _exp(UNSET), _sky(coord),
+                    _pixels(lsst::afw::geom::Point2D(std::numeric_limits<double>::quiet_NaN(),
+                                                     std::numeric_limits<double>::quiet_NaN())),
+                    _flux(flux), _astrom(true) {}
+
+                IdType getId() const { return _id; }
+                ChipType getChip() const { return _chip; }
+                ExpType getExp() const { return _exp; }
+                lsst::afw::coord::Coord getSky() const { return _sky; }
+                lsst::afw::geom::Angle getRa() const { return getSky().getLongitude(); }
+                lsst::afw::geom::Angle getDec() const { return getSky().getLatitude(); }
+                lsst::afw::geom::Point2D getPixels() const { return _pixels; }
+                double getX() const { return getPixels().getX(); }
+                double getY() const { return getPixels().getY(); }
+                double getFlux() const { return _flux; }
+                bool getAstrom() const { return _astrom; }
+
+                void setChip(ChipType chip) { _chip = chip; }
+                void setExp(ExpType exp) { _exp = exp; }
+                
+            private:
+                IdType _id;                       // Identifier
+                ChipType _chip;                   // Chip identifier
+                ExpType _exp;                     // Exposure identifier
+                lsst::afw::coord::Coord _sky;     // Sky coordinates
+                lsst::afw::geom::Point2D _pixels; // Pixel coordinates
+                double _flux;                     // Flux
+                bool _astrom;                     // Astrometry good?
+            };
+
+            typedef std::pair<PTR(Source), PTR(Source)> SourceMatch;
+
+            typedef std::vector<PTR(Source)> SourceSet;
+	    typedef std::vector<std::vector<PTR(Source)> > SourceGroup;
+            typedef std::vector<SourceMatch> SourceMatchVector;
+	    typedef std::vector<std::vector<SourceMatch> > SourceMatchGroup;
+
 	    typedef std::map<int, lsst::afw::image::Wcs::Ptr> WcsDic;
 
 	    class Poly {
@@ -119,34 +169,43 @@ namespace hsc {
 	    {
 	    public:
 		typedef boost::shared_ptr<KDTree> Ptr;
+		typedef boost::shared_ptr<const KDTree> ConstPtr;
 
 		int depth;
 		int axis;
-		double location[2];
+                lsst::afw::geom::Angle location[2];
 		lsst::afw::coord::Coord c;
 		KDTree::Ptr left;
 		KDTree::Ptr right;
-		lsst::afw::detection::SourceSet set;
+                SourceSet set;
 
-		KDTree(lsst::afw::detection::SourceMatch m, int depth);
-		KDTree(std::vector<lsst::afw::detection::SourceMatch> v, int depth);
-		KDTree(lsst::afw::detection::SourceSet& s, int depth);
-		KDTree(lsst::afw::detection::Source::Ptr s, int depth);
+                KDTree(SourceSet& s, int depth) { _initializeSources(s, depth); }
+		KDTree(PTR(Source) s, int depth);
+
+                KDTree(SourceMatchVector m, int depth) { _initializeMatches(m, depth); }
+                KDTree(SourceMatch const& m, int depth);
+
 		~KDTree();
-		KDTree::Ptr search(lsst::afw::detection::SourceMatch m);
-		KDTree::Ptr findSource(lsst::afw::detection::Source::Ptr s);
-		void add(lsst::afw::detection::SourceMatch m);
-		void add(lsst::afw::detection::Source::Ptr s);
-		void add(lsst::afw::detection::Source::Ptr s, double d_lim);
+                ConstPtr search(lsst::afw::coord::Coord const& sky) const;
+		ConstPtr findSource(Source const& s) const;
+                void add(SourceMatch const& m);
+		void add(PTR(Source) s, double d_lim=0);
 		int count(void);
-		SourceGroup mergeMat();
+		SourceGroup mergeMat() const;
 		SourceGroup mergeSource();
-		void printMat();
-		void printSource();
-		bool isLeaf(void);
-		KDTree::Ptr findNearest(lsst::afw::detection::Source::Ptr s);
-		double distance(lsst::afw::detection::Source::Ptr s);
-	    };
+		void printMat() const;
+		void printSource() const;
+		bool isLeaf(void) const { return left == NULL && right == NULL; }
+		KDTree::Ptr findNearest(Source const& s);
+
+		double distance(Source const& s) const {
+                    return c.angularSeparation(lsst::afw::coord::Coord(s.getRa(), s.getDec())).asDegrees();
+                }
+
+            private:
+                void _initializeSources(SourceSet& s, int depth);
+                void _initializeMatches(SourceMatchVector& m, int depth);
+            };
 
 	    class FluxFitParams {
 	    public:
@@ -180,7 +239,7 @@ namespace hsc {
 	    typedef std::vector<Coeff::Ptr> CoeffSet;
 	    typedef std::vector<Obs::Ptr> ObsVec;
 
-	    KDTree::Ptr kdtreeMat(vvSourceMatch const &matchList);
+	    KDTree::Ptr kdtreeMat(SourceMatchGroup &matchList);
 	    KDTree::Ptr kdtreeSource(SourceGroup const &sourceSet,
 				     KDTree::Ptr rootMat,
 				     int nchip,

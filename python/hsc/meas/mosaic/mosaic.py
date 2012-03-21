@@ -132,11 +132,15 @@ def readCatalog(butler, frameIds, ccdIds):
             if sources != None:
                 for s in sources:
                     if s.getRa() == s.getRa(): # get rid of NaN
-                        s.setAmpExposureId(frameIds.index(frameId)*1000+ccdId)
-                        ss.append(s)
+                        src = hscMosaic.Source(s)
+                        src.setExp(frameIds.index(frameId))
+                        src.setChip(ccdId)
+                        ss.append(src)
                 for m in matches:
-                    m.second.setAmpExposureId(frameIds.index(frameId)*1000+ccdId)
-                    ml.append(m)
+                    match = SourceMatch(hscMosaic.Source(m.first), hscMosaic.Source(m.second))
+                    match.second.setExp(frameIds.index(frameId))
+                    match.second.setChip(ccdId)
+                    ml.append(match)
         sourceSet.push_back(ss)
         matchList.push_back(ml)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
