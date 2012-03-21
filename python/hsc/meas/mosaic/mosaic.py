@@ -12,7 +12,7 @@ import lsst.afw.cameraGeom.utils        as cameraGeomUtils
 import lsst.afw.image                   as afwImage
 import lsst.afw.coord                   as afwCoord
 import lsst.afw.math                    as afwMath
-import lsst.afw.detection               as afwDet
+import lsst.afw.table                   as afwTable
 import lsst.meas.algorithms.utils       as malgUtils
 import lsst.meas.astrom.astrom          as measAstrom
 import hsc.meas.mosaic.mosaicLib        as hscMosaic
@@ -86,18 +86,15 @@ def readWcs(butler, frameIds, ccdSet):
     return wcsDic, frameIdsExist
 
 def selectStars(sources):
-    # select stars
-    STAR = malgUtils.getDetectionFlags()['STAR'] | malgUtils.getDetectionFlags()['PSFSTAR'] # see $MEAS_ALGORITHMS_DIR/include/lsst/meas/algorithms/Measure.h
     stars = list()
-    SATUR_CENTER = malgUtils.getDetectionFlags()['SATUR_CENTER']
     for source in sources:
-        if isinstance(source, afwDet.SourceMatch):
-            flag =  source.second.getFlagForDetection()
-            pStar = source.second.getApDia()
+        if isinstance(source, afwTable.ReferenceMatch):
+            source = source.second
+            star = source.get("classification.psfstar") or source.get("classification.extendedness") < 0.5
         else:
-            flag =  source.getFlagForDetection()
-            pStar = source.getApDia()
-        if not (flag & SATUR_CENTER) and pStar > 0.5:
+            star = source.get("classification.extendedness") < 0.5
+        saturated = source.get("flags.pixel.saturated.center")
+        if star and not saturated:
             stars.append(source)
     return stars
 
@@ -112,7 +109,7 @@ def getAllForCcd(butler, frame, ccd):
             raise RuntimeError("no data for calexp_md %s" % (data))
         md = butler.get('calexp_md', data)
         wcs = afwImage.makeWcs(md)
-        sources = selectStars(butler.get('src', data).getSources())
+        sources = selectStars(butler.get('src', data))
         matches = selectStars(measAstrom.readMatches(butler, data))
     except Exception, e:
         print "Failed to read: %s" % (e)
