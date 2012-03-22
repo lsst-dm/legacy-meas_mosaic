@@ -86,16 +86,31 @@ def readWcs(butler, frameIds, ccdSet):
     return wcsDic, frameIdsExist
 
 def selectStars(sources):
-    stars = list()
-    for source in sources:
-        if isinstance(source, afwTable.ReferenceMatch):
-            source = source.second
-            star = source.get("classification.psfstar") or source.get("classification.extendedness") < 0.5
-        else:
-            star = source.get("classification.extendedness") < 0.5
-        saturated = source.get("flags.pixel.saturated.center")
+    if len(sources) == 0:
+        return []
+    if isinstance(sources, afwTable.SourceCatalog):
+        extended = sources.columns["classification.extendedness"]
+        saturated = sources.columns["flags.pixel.saturated.center"]
+        indices = numpy.where(numpy.logical_or(extended < 0.5, saturated))[0]
+        return [sources[int(i)] for i in indices]
+
+    psfKey = None                       # Table key for classification.psfstar
+    if isinstance(sources, afwTable.ReferenceMatchVector) or isinstance(sources[0], afwTable.ReferenceMatch):
+        sourceList = [s.second for s in sources]
+        psfKey = sourceList[0].schema.find("classification.psfstar").getKey()
+    else:
+        sourceList = sources
+
+    schema = sourceList[0].schema
+    extKey = schema.find("classification.extendedness").getKey()
+    satKey = schema.find("flags.pixel.saturated.center").getKey()
+
+    stars = []
+    for includeSource, checkSource in zip(sources, sourceList):
+        star = (psfKey is not None and checkSource.get(psfKey)) or checkSource.get(extKey) < 0.5
+        saturated = checkSource.get(satKey)
         if star and not saturated:
-            stars.append(source)
+            stars.append(includeSource)
     return stars
 
 def getAllForCcd(butler, frame, ccd):
@@ -109,8 +124,12 @@ def getAllForCcd(butler, frame, ccd):
             raise RuntimeError("no data for calexp_md %s" % (data))
         md = butler.get('calexp_md', data)
         wcs = afwImage.makeWcs(md)
-        sources = selectStars(butler.get('src', data))
-        matches = selectStars(measAstrom.readMatches(butler, data))
+
+        sources = butler.get('src', data)
+        matches = measAstrom.readMatches(butler, data)
+
+        sources = selectStars(sources)
+        matches = selectStars(matches)
     except Exception, e:
         print "Failed to read: %s" % (e)
         return None, None, None
@@ -134,7 +153,7 @@ def readCatalog(butler, frameIds, ccdIds):
                         src.setChip(ccdId)
                         ss.append(src)
                 for m in matches:
-                    match = hscMosaic.SourceMatch(hscMosaic.Source(m.first), hscMosaic.Source(m.second))
+                    match = hscMosaic.SourceMatch(hscMosaic.Source(m.first, wcs), hscMosaic.Source(m.second))
                     match.second.setExp(frameIds.index(frameId))
                     match.second.setChip(ccdId)
                     ml.append(match)
