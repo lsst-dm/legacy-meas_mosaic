@@ -189,7 +189,8 @@ namespace hsc {
                 ConstPtr search(lsst::afw::coord::Coord const& sky) const;
 		ConstPtr findSource(Source const& s) const;
                 void add(SourceMatch const& m);
-		void add(PTR(Source) s, double d_lim=0);
+		void add(PTR(Source) s,
+                         lsst::afw::geom::Angle d_lim=lsst::afw::geom::Angle(0, lsst::afw::geom::degrees));
 		int count(void);
 		SourceGroup mergeMat() const;
 		SourceGroup mergeSource();
@@ -243,7 +244,7 @@ namespace hsc {
 	    KDTree::Ptr kdtreeSource(SourceGroup const &sourceSet,
 				     KDTree::Ptr rootMat,
 				     int nchip,
-				     double d_lim, unsigned int nbrightest);
+				     lsst::afw::geom::Angle d_lim, unsigned int nbrightest);
 
 	    ObsVec obsVecFromSourceGroup(SourceGroup const &all,
 					 WcsDic &wcsDic,

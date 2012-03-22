@@ -13,6 +13,7 @@ import lsst.afw.image                   as afwImage
 import lsst.afw.coord                   as afwCoord
 import lsst.afw.math                    as afwMath
 import lsst.afw.table                   as afwTable
+import lsst.afw.geom                    as afwGeom
 import lsst.meas.algorithms.utils       as malgUtils
 import lsst.meas.astrom.astrom          as measAstrom
 import hsc.meas.mosaic.mosaicLib        as hscMosaic
@@ -183,8 +184,7 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
     
     print "Creating kd-tree for source catalog ..."
     print 'len(sourceSet) = ', len(sourceSet), [len(sources) for sources in sourceSet]
-    d_lim_deg = d_lim  / 3600.0
-    rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, nchip, d_lim_deg, nbrightest)
+    rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, nchip, d_lim, nbrightest)
     #rootSource.printSource()
     allSource = rootSource.mergeSource()
     print "# of allSource : ", countObsInSourceGroup(allSource)
@@ -784,7 +784,7 @@ def mosaic(butler, frameIds, ccdIds, config=hscMosaicConfig.HscMosaicConfig(),
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
     print "(Memory) After readCatalog : ", mem
 
-    d_lim = config.radXMatch
+    d_lim = afwGeom.Angle(config.radXMatch, afwGeom.arcseconds)
     nbrightest = config.nBrightest
     if verbose:
         print "d_lim : ", d_lim

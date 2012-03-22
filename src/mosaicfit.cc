@@ -646,10 +646,10 @@ KDTree::~KDTree() {
 
 KDTree::ConstPtr KDTree::search(lsst::afw::coord::Coord const& sky) const {
 
-    double ra  = sky.getLongitude();
-    double dec = sky.getLatitude();
+    lsst::afw::geom::Angle ra  = sky.getLongitude();
+    lsst::afw::geom::Angle dec = sky.getLatitude();
 
-    double val;
+    lsst::afw::geom::Angle val;
     if (this->axis == 0)
 	val = ra;
     else
@@ -677,10 +677,10 @@ KDTree::ConstPtr KDTree::search(lsst::afw::coord::Coord const& sky) const {
 
 void KDTree::add(SourceMatch const& m) {
 
-    double ra  = m.first->getRa();
-    double dec = m.first->getDec();
+    lsst::afw::geom::Angle ra  = m.first->getRa();
+    lsst::afw::geom::Angle dec = m.first->getDec();
 
-    double val;
+    lsst::afw::geom::Angle val;
     if (this->axis == 0)
 	val = ra;
     else
@@ -720,10 +720,10 @@ int KDTree::count(void) {
 
 KDTree::ConstPtr KDTree::findSource(Source const& s) const {
 
-    double ra  = s.getRa();
-    double dec = s.getDec();
+    lsst::afw::geom::Angle ra  = s.getRa();
+    lsst::afw::geom::Angle dec = s.getDec();
 
-    double val;
+    lsst::afw::geom::Angle val;
     if (this->axis == 0)
 	val = ra;
     else
@@ -761,7 +761,7 @@ KDTree::Ptr KDTree::findNearest(Source const& s) {
     }
 
     KDTree::Ptr leaf;
-    double val;
+    lsst::afw::geom::Angle val;
     if (this->axis == 0) {
 	val = s.getRa();
     } else {
@@ -822,9 +822,9 @@ KDTree::Ptr KDTree::findNearest(Source const& s) {
     }
 }
 
-void KDTree::add(PTR(Source) s, double d_lim) {
-    double ra  = s->getRa();
-    double dec = s->getDec();
+void KDTree::add(PTR(Source) s, lsst::afw::geom::Angle d_lim) {
+    lsst::afw::geom::Angle ra  = s->getRa();
+    lsst::afw::geom::Angle dec = s->getDec();
 
     if (d_lim <= 0) {
         for (size_t i = 0; i < this->set.size(); i++) {
@@ -885,8 +885,8 @@ SourceGroup KDTree::mergeSource() {
 	double sm = 0.0;
 	double sn = 0.0;
 	for (size_t i = 0; i < set.size(); i++) {
-	    sr += set[i]->getRa();
-	    sd += set[i]->getDec();
+	    sr += set[i]->getRa().asDegrees();
+	    sd += set[i]->getDec().asDegrees();
 	    sm += set[i]->getFlux();
 	    sn += 1.0;
 	}
@@ -916,8 +916,8 @@ SourceGroup KDTree::mergeSource() {
 }
 
 void KDTree::printMat() const {
-    double ra = set[0]->getRa();
-    double dec = set[0]->getDec();
+    double ra = set[0]->getRa().asDegrees();
+    double dec = set[0]->getDec().asDegrees();
 
     std::cout << "circle(" << ra << "," << dec << ",5.0\") # color=magenta" << std::endl;
 
@@ -934,8 +934,8 @@ void KDTree::printSource() const {
     double sd = 0.0;
     double sn = 0.0;
     for (size_t i = 0; i < set.size(); i++) {
-	sr += set[i]->getRa();
-	sd += set[i]->getDec();
+	sr += set[i]->getRa().asDegrees();
+	sd += set[i]->getDec().asDegrees();
 	sn += 1.0;
     }
     double ra  = sr / sn;
@@ -976,7 +976,7 @@ KDTree::Ptr
 hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 				KDTree::Ptr rootMat,
 				int nchip,
-				double d_lim, unsigned int nbrightest) {
+				lsst::afw::geom::Angle d_lim, unsigned int nbrightest) {
     double fluxlim[sourceSet.size()*nchip];
 
     for (size_t j = 0; j < sourceSet.size(); j++) {
@@ -2547,8 +2547,8 @@ hsc::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
     std::vector<Obs::Ptr> obsVec;
     for (size_t i = 0; i < all.size(); i++) {
         SourceSet ss = all[i];
-	double ra  = ss[0]->getRa();
-	double dec = ss[0]->getDec();
+	double ra  = ss[0]->getRa().asDegrees();
+	double dec = ss[0]->getDec().asDegrees();
 	double mag_cat;
 	if (ss[0]->getFlux() > 0.0) {
 	    mag_cat = -2.5*log10(ss[0]->getFlux());
