@@ -22,16 +22,16 @@ namespace hsc {
                 explicit Source(lsst::afw::table::SourceRecord const& record) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
                     _pixels(record.getX(), record.getY()), _flux(record.getPsfFlux()),
-                    _astrom(record.getCentroidFlag()) {}
+                    _astromBad(record.getCentroidFlag()) {}
                 Source(lsst::afw::table::SimpleRecord const& record, lsst::afw::image::Wcs const& wcs) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
                     _pixels(wcs.skyToPixel(_sky)), _flux(std::numeric_limits<double>::quiet_NaN()),
-                    _astrom(true) {}
+                    _astromBad(false) {}
                 Source(lsst::afw::coord::Coord coord, double flux=std::numeric_limits<double>::quiet_NaN()) :
                     _id(-1), _chip(UNSET), _exp(UNSET), _sky(coord),
                     _pixels(lsst::afw::geom::Point2D(std::numeric_limits<double>::quiet_NaN(),
                                                      std::numeric_limits<double>::quiet_NaN())),
-                    _flux(flux), _astrom(true) {}
+                    _flux(flux), _astromBad(false) {}
 
                 IdType getId() const { return _id; }
                 ChipType getChip() const { return _chip; }
@@ -43,7 +43,7 @@ namespace hsc {
                 double getX() const { return getPixels().getX(); }
                 double getY() const { return getPixels().getY(); }
                 double getFlux() const { return _flux; }
-                bool getAstrom() const { return _astrom; }
+                bool getAstromBad() const { return _astromBad; }
 
                 void setChip(ChipType chip) { _chip = chip; }
                 void setExp(ExpType exp) { _exp = exp; }
@@ -55,7 +55,7 @@ namespace hsc {
                 lsst::afw::coord::Coord _sky;     // Sky coordinates
                 lsst::afw::geom::Point2D _pixels; // Pixel coordinates
                 double _flux;                     // Flux
-                bool _astrom;                     // Astrometry good?
+                bool _astromBad;                  // Astrometry bad?
             };
 
             typedef std::pair<PTR(Source), PTR(Source)> SourceMatch;

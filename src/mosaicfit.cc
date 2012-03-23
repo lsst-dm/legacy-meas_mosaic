@@ -2571,7 +2571,7 @@ hsc::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	    o->setXiEta(crval[0], crval[1]);
 	    o->setUV(ccdSet[ichip]);
 	    o->istar = i;
-	    if (!ss[0]->getAstrom() || !ss[j]->getAstrom() == 1) {
+	    if (ss[0]->getAstromBad() || ss[j]->getAstromBad()) {
 		o->good = false;
 	    }
 	    if (ss[j]->getFlux() > 0.0) {
