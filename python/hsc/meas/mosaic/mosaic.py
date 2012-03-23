@@ -148,7 +148,7 @@ def readCatalog(butler, frameIds, ccdIds):
             sources, matches, wcs = getAllForCcd(butler, frameId, ccdId)
             if sources != None:
                 for s in sources:
-                    if s.getRa() == s.getRa(): # get rid of NaN
+                    if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
                         src = hscMosaic.Source(s)
                         src.setExp(frameIds.index(frameId))
                         src.setChip(ccdId)

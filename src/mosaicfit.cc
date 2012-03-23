@@ -2547,8 +2547,8 @@ hsc::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
     std::vector<Obs::Ptr> obsVec;
     for (size_t i = 0; i < all.size(); i++) {
         SourceSet ss = all[i];
-	double ra  = ss[0]->getRa().asDegrees();
-	double dec = ss[0]->getDec().asDegrees();
+	double ra  = ss[0]->getRa().asRadians();
+	double dec = ss[0]->getDec().asRadians();
 	double mag_cat;
 	if (ss[0]->getFlux() > 0.0) {
 	    mag_cat = -2.5*log10(ss[0]->getFlux());
