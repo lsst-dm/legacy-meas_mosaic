@@ -15,11 +15,9 @@ import hsc.meas.mosaic.config            as hscMosaicConfig
 
 import lsst.afw.display.ds9              as ds9
 import lsst.ip.diffim                    as ipDiffim
-import lsst.meas.utils.sourceDetection   as muDetection
-import lsst.meas.utils.sourceMeasurement as muMeasure
 import lsst.meas.algorithms              as measAlg
 import lsst.afw.detection                as afwDet
-
+import lsst.pipe.tasks.calibrate         as ptCal
 
 def getBasename(exposureId, ccdId):
     rootdir = "/data/yasuda/data_cosmos"
@@ -249,76 +247,16 @@ def warp(exp, wcsNew, interpLength=25):
 
 
 def getPsf(exp, kernelWidth=25):
-
-    ###############
-    # psf selector and determiner
-    secondMomentStarSelectorPolicy = pexPolicy.Policy.createPolicy(
-        pexPolicy.DefaultPolicyFile("meas_algorithms", "policy/secondMomentStarSelectorDictionary.paf"))
-    #secondMomentStarSelectorPolicy.set("fluxLim", 10000.0)
-    starSelector = measAlg.makeStarSelector("secondMomentStarSelector", secondMomentStarSelectorPolicy)
-
-    pcaPsfDeterminerPolicy = pexPolicy.Policy.createPolicy(
-        pexPolicy.DefaultPolicyFile("meas_algorithms", "policy/pcaPsfDeterminerDictionary.paf"))
-    #pcaPsfDeterminerPolicy.set('sizeCellX', 512)
-    #pcaPsfDeterminerPolicy.set('sizeCellY', 512)
-    #pcaPsfDeterminerPolicy.set('reducedChi2ForPsfCandidates', 2.0)
-    psfDeterminer = measAlg.makePsfDeterminer("pcaPsfDeterminer", pcaPsfDeterminerPolicy)
-
-    ###############
-    # measUtils Detection/Measure policies
-    detectPolicy = pexPolicy.Policy.createPolicy(
-        pexPolicy.DefaultPolicyFile("meas_utils", "policy/DetectionDictionary.paf"))
-    
-    measurePolicy = pexPolicy.Policy.createPolicy(
-        pexPolicy.DefaultPolicyFile("meas_algorithms", "policy/MeasureSourcesDefaults.paf"))
-    srcPolicy = measurePolicy.get('source')
-    srcPolicy.set('apFlux', "NAIVE")
-    srcPolicy.set('instFlux', "NAIVE")
-    srcPolicy.set('modelFlux', "NAIVE")
-    srcPolicy.set('psfFlux', "NAIVE")
-    measurePolicy.get('photometry').get('NAIVE').set('enabled', True)
-    measurePolicy.get('photometry').get('SINC').set('enabled', False)
-    measurePolicy.get('photometry').get('PSF').set('enabled', False)
-    measurePolicy.get('photometry').get('GAUSSIAN').set('enabled', False)
-    
-    
-    ###############
-    # a detection psf (just a single gaussian)
-    detectSigma = 1.5
-    psf0 = afwDet.createPsf("SingleGaussian", kernelWidth, kernelWidth, detectSigma)
-
-    # detect
-    dsPos, dsNeg = muDetection.detectSources(exp, psf0, detectPolicy)
-    # measure
-    sourceList = muMeasure.sourceMeasurement(exp, psf0, [[dsPos.getFootprints(), []]], measurePolicy)
-
-    if len(sourceList) < 3:
-        print "Unable to select PSF candidate stars.  Only ", len(sourceList), " stars detected."
-        return None, None
-
-    display = False #True
-    if display:
-        print "nStars: ", len(sourceList)
-        settings = {'scale': 'zscale', 'zoom': 'to fit', 'mask': 'transparency 70'}
-        ds9.mtv(exp, frame=1, title="exp in getPsf", settings=settings)
-	with ds9.Buffering():
-	    for s in sourceList:
-		x, y = s.getXAstrom(), s.getYAstrom()
-		ds9.dot("+", x, y, ctype='red', frame=1, size=10)
-
-    # select psf stars
-    psfCandidateList = starSelector.selectStars(exp, sourceList)
-
-    if display:
-	with ds9.Buffering():
-	    for p in psfCandidateList:
-		s = p.getSource()
-		x, y = s.getXAstrom(), s.getYAstrom()
-		ds9.dot("o", x, y, ctype='green', frame=1, size=10)
-
-    # make psf
-    psf, cellSet = psfDeterminer.determinePsf(exp, psfCandidateList)
-    
+    config = ptCal.CalibrateConfig()
+    config.doBackground = False
+    config.doComputeApCorr = False
+    config.doAstrometry = False
+    config.doPhotoCal = False
+    config.repair.doInterpolate = False
+    config.repair.doCosmicRay = False
+    task = ptCal.CalibrateTask(config=config)
+    calib = task.run(exp)
+    psf = calib.psf
 
     # get the Gaussian width
     psfAttrib = measAlg.PsfAttributes(psf, kernelWidth//2, kernelWidth//2)
@@ -326,9 +264,6 @@ def getPsf(exp, kernelWidth=25):
     
     return psf, trueSigma
     
-
-
-
     
 def stackExec(butler, ix, iy, stackId,
               subImgSize,
@@ -1032,26 +967,22 @@ if __name__ == '__main__':
     fileList = []
     for ditherId in ditherIds:
         for ccdId in ccdIds:
-            basename = stack.getBasename(int(ditherId), int(ccdId))
+            basename = getBasename(int(ditherId), int(ccdId))
             fileList.append("%s-wcs.fits" % basename)
             
     if (len(sys.argv) == 1):
-        stack.stackInit(fileList, subImgSize, fileIO, writePBSScript,
-                        workDir=workDir)
+        stackInit(fileList, subImgSize, fileIO, writePBSScript, workDir=workDir)
 
     elif (len(sys.argv) == 3):
         ix = int(sys.argv[1])
         iy = int(sys.argv[2])
 
-        stack.stackExec(ix, iy, subImgSize, fileIO=fileIO,
-                        workDir=workDir)
+        stackExec(ix, iy, subImgSize, fileIO=fileIO, workDir=workDir)
 
     else:
         if (sys.argv[1] == "End"):
-            stack.stackEnd(subImgSize, fileIO=fileIO,
-                           workDir=workDir)
+            stackEnd(subImgSize, fileIO=fileIO, workDir=workDir)
         else:
-            stack.stack(fileList, subImgSize=2048, fileIO=fileIO,
-                        workDir=workDir)
+            stack(fileList, subImgSize=2048, fileIO=fileIO, workDir=workDir)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
