@@ -63,14 +63,12 @@ def runStackExec(inputs):
 
     butler = hscCamera.getButler(instrument, rerun)
 
-        stack.stackExec(butler, ix, iy, stackId,
-                        subImgSize, imgMargin,
-                        fileIO=fileIO,
-                        workDir=workDir,
-                        skipMosaic=skipMosaic,
-                        filter=filter, matchPsf=matchPsf)
-    finally:
-        return
+    stack.stackExec(butler, ix, iy, stackId,
+                    subImgSize, imgMargin,
+                    fileIO=fileIO,
+                    workDir=workDir,
+                    skipMosaic=skipMosaic,
+                    filter=filter, matchPsf=matchPsf)
 
 def main():
     parser = optparse.OptionParser()
