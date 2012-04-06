@@ -214,7 +214,6 @@ def stackInit(butler, fileList, subImgSize,
     else:
         return fileList, dims, fscale, wcs, wcsDic, width, height, nx, ny
 
-<<<<<<< /home/price/hsc/hscMosaic/python/hsc/meas/mosaic/stack.py
 def setCache(kernel, cacheSize=10000, force=False):
     """Set the cache size (or don't if it wouldn't help). Always set if force is True"""
     if not force:
@@ -474,8 +473,6 @@ def stackEnd(butler,
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     return expStack
-
-<<<<<<< /home/price/hsc/hscMosaic/python/hsc/meas/mosaic/stack.py
 
 def dictFromCalexpName(filename):
     # parse out the info we need ... this is the wrong way to do this
