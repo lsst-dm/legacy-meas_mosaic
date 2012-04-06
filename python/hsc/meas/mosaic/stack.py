@@ -767,22 +767,27 @@ def subRegionStack(wcs, subImgSize, imgMargin,
 	    #mimg *= fscale[k]
 	    
 
-            # load the PSF
-            psf = None
-            if fileIO:
-                d = dictFromCalexpName(fileList[k])
-                psf = butler.get('warppsf', d)
-                kernelWidth = 25
-                psfAttrib = measAlg.PsfAttributes(psf, kernelWidth//2, kernelWidth//2)
-                trueSigma = psfAttrib.computeGaussianWidth(psfAttrib.ADAPTIVE_MOMENT)
-
-            else:
-                psf, trueSigma, fname = psfDict[fileList[k]]
                 
             
             #######################
             # match the PSFs
             if matchPsf:
+
+                # load the PSF
+                psf = None
+                if fileIO:
+                    d = dictFromCalexpName(fileList[k])
+                    psf = butler.get('warppsf', d)
+                    print type(psf)
+                    if isinstance(psf, dafPersist.ReadProxy):
+                        psf = psf.__subject__
+                    print type(psf)
+                    kernelWidth = 25
+                    psfAttrib = measAlg.PsfAttributes(psf, kernelWidth//2, kernelWidth//2)
+                    trueSigma = psfAttrib.computeGaussianWidth(psfAttrib.ADAPTIVE_MOMENT)
+                    
+                else:
+                    psf, trueSigma, fname = psfDict[fileList[k]]
 
                 if psf is None:
                     print "WARNING: warped PSF not available for ", ix, iy, fileList[k]
