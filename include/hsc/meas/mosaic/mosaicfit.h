@@ -25,7 +25,7 @@ namespace hsc {
                     _astromBad(record.getCentroidFlag()) {}
                 Source(lsst::afw::table::SimpleRecord const& record, lsst::afw::image::Wcs const& wcs) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
-                    _pixels(wcs.skyToPixel(_sky)), _flux(std::numeric_limits<double>::quiet_NaN()),
+                    _pixels(wcs.skyToPixel(_sky)), _flux(record.get(record.getSchema().find<double>("flux").key)),
                     _astromBad(false) {}
                 Source(lsst::afw::coord::Coord coord, double flux=std::numeric_limits<double>::quiet_NaN()) :
                     _id(-1), _chip(UNSET), _exp(UNSET), _sky(coord),

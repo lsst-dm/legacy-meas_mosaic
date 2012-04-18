@@ -216,7 +216,7 @@ def writeDetJImg(butler, coeffSet, ccdSet, frameIds, ccdIds):
     print "Write detJ Imgs ..."
     for i in range(coeffSet.size()):
         for j in range(ccdSet.size()):
-            img = hscMosaic.getJImg(ccdSet[j], coeffSet[i])
+            img = hscMosaic.getJImg(coeffSet[i], ccdSet[j])
             exp = afwImage.ExposureF(afwImage.MaskedImageF(img))
             try:
                 butler.put(exp, 'detj', dict(visit=frameIds[i], ccd=ccdIds[j]))
@@ -229,7 +229,7 @@ def writeDCorImg(butler, coeffSet, ccdSet, frameIds, ccdIds, ffp):
     print "Write DCor Imgs ..."
     for i in range(coeffSet.size()):
         for j in range(ccdSet.size()):
-            img = hscMosaic.getFCorImg(ccdSet[j], coeffSet[i], ffp)
+            img = hscMosaic.getFCorImg(ffp, ccdSet[j], coeffSet[i])
             exp = afwImage.ExposureF(afwImage.MaskedImageF(img))
             try:
                 butler.put(exp, 'dcor', dict(visit=frameIds[i], ccd=ccdIds[j]))
@@ -420,6 +420,8 @@ def clippedStd(a, n):
 def saveResPos(matchVec, sourceVec, outputDir):
     _x = []
     _y = []
+    _xbad = []
+    _ybad = []
     _xm = []
     _ym = []
     for i in range(matchVec.size()):
@@ -428,6 +430,9 @@ def saveResPos(matchVec, sourceVec, outputDir):
             _y.append((matchVec[i].eta_fit - matchVec[i].eta) * 3600)
             _xm.append((matchVec[i].xi_fit - matchVec[i].xi) * 3600)
             _ym.append((matchVec[i].eta_fit - matchVec[i].eta) * 3600)
+        else:
+            _xbad.append((matchVec[i].xi_fit - matchVec[i].xi) * 3600)
+            _ybad.append((matchVec[i].eta_fit - matchVec[i].eta) * 3600)
     _xs = []
     _ys = []
     if (sourceVec != None):
@@ -437,9 +442,14 @@ def saveResPos(matchVec, sourceVec, outputDir):
                 _y.append((sourceVec[i].eta_fit - sourceVec[i].eta) * 3600)
                 _xs.append((sourceVec[i].xi_fit - sourceVec[i].xi) * 3600)
                 _ys.append((sourceVec[i].eta_fit - sourceVec[i].eta) * 3600)
+            else:
+                _xbad.append((sourceVec[i].xi_fit - sourceVec[i].xi) * 3600)
+                _ybad.append((sourceVec[i].eta_fit - sourceVec[i].eta) * 3600)
 
     d_xi = numpy.array(_x)
     d_eta = numpy.array(_y)
+    d_xi_bad = numpy.array(_xbad)
+    d_eta_bad = numpy.array(_ybad)
     d_xi_m = numpy.array(_xm)
     d_eta_m = numpy.array(_ym)
     d_xi_s = numpy.array(_xs)
@@ -456,8 +466,9 @@ def saveResPos(matchVec, sourceVec, outputDir):
     plt.rc('text', usetex=True)
 
     plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
-    plt.plot(d_xi_m, d_eta_m, 'g,')
-    plt.plot(d_xi_s, d_eta_s, 'r,')
+    plt.plot(d_xi_bad, d_eta_bad, 'k,', markeredgecolor='black')
+    plt.plot(d_xi_m, d_eta_m, 'g,', markeredgecolor='green')
+    plt.plot(d_xi_s, d_eta_s, 'r,', markeredgecolor='red')
     plt.xlim(-0.5, 0.5)
     plt.ylim(-0.5, 0.5)
 
@@ -654,8 +665,8 @@ def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
 
     plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
     if sourceVec != None:
-        plt.plot(mag0_s, d_mag_s, 'r,')
-    plt.plot(mag0_m, d_mag_m, 'g,')
+        plt.plot(mag0_s, d_mag_s, 'r,', markeredgecolor='red')
+    plt.plot(mag0_m, d_mag_m, 'g,', markeredgecolor='green')
     plt.plot([15,25], [0,0], 'k--')
     plt.xlim(15, 25)
     plt.ylim(-0.25, 0.25)
