@@ -92,7 +92,7 @@ def selectStars(sources):
     if isinstance(sources, afwTable.SourceCatalog):
         extended = sources.columns["classification.extendedness"]
         saturated = sources.columns["flags.pixel.saturated.center"]
-        indices = numpy.where(numpy.logical_or(extended < 0.5, saturated))[0]
+        indices = numpy.where(numpy.logical_and(extended < 0.5, saturated == False))[0]
         return [sources[int(i)] for i in indices]
 
     psfKey = None                       # Table key for classification.psfstar
