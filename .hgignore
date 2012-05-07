@@ -8,9 +8,14 @@ syntax: glob
 *.os
 *.la
 *.a
+python/hsc/meas/mosaic/version.py
+python/hsc/meas/mosaic/mosaicLib.py
+python/hsc/meas/mosaic/mosaicLib_wrap.cc
+*.cfgc
+
 
 syntax: regexp
-^#.*#$
+^\#.*\#$
 ^\.fuse.*
 ^\.scon*
 ^\.config.log$
