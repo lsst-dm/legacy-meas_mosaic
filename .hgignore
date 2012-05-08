@@ -12,7 +12,9 @@ python/hsc/meas/mosaic/version.py
 python/hsc/meas/mosaic/mosaicLib.py
 python/hsc/meas/mosaic/mosaicLib_wrap.cc
 *.cfgc
-
+tests/.tests
+tests/testFit
+tests/testWcs
 
 syntax: regexp
 ^\#.*\#$
