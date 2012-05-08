@@ -20,13 +20,15 @@
 # the GNU General Public License along with this program.  If not,
 # see <http://www.lsstcorp.org/LegalNotices/>.
 #
+import re
+import sys
 from hsc.pipe.base import HscArgumentParser
 from lsst.pipe.base.argumentParser import IdValueAction
 from hsc.meas.mosaic.task import StackTask as TaskClass
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
+    parser = HscArgumentParser()
     parser.add_argument("--stack", nargs="*", help="stack ID, e.g. --stack stack=12345 patch=1")
 
     try:
@@ -38,16 +40,24 @@ if __name__ == "__main__":
     stackId = dict()
     for nameValue in namespace.stack:
         name, sep, value = nameValue.partition("=")
+        if re.search("^\d+\.\d+$", value):
+            try:
+                value = float(value)
+            except: pass
+        if re.search("^\d+$", value):
+            try:
+                value = int(value)
+            except: pass
+
         stackId[name] = value
 
     args = [namespace.butler, stackId, namespace.dataRefList]
 
     task = TaskClass(config=namespace.config)
-    for sensorRef in namespace.dataRefList:
-        if namespace.doRaise:
+    if namespace.doRaise:
+        task.run(*args)
+    else:
+        try:
             task.run(*args)
-        else:
-            try:
-                task.run(*args)
-            except Exception, e:
-                task.log.log(task.log.FATAL, "Failed on dataId=%s: %s" % (sensorRef.dataId, e))
+        except Exception, e:
+            task.log.log(task.log.FATAL, "Failed building stackId=%s: %s" % (stackId, e))
