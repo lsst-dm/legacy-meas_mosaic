@@ -8,7 +8,7 @@
 #include "boost/make_shared.hpp"
 #include "boost/format.hpp"
 
-#define DEBUG_MATRIX
+//#define DEBUG_MATRIX
 
 #if defined(DEBUG_MATRIX)
 #include "lsst/afw/image/Image.h"
@@ -21,11 +21,11 @@ using namespace hsc::meas::mosaic;
 
 #if defined(USE_GSL)
 #include <gsl/gsl_linalg.h>
-double* solveMatrix_GSL(int size, double *a_data, double *b_data);
 #else
 #include <mkl_lapack.h>
-double* solveMatrix_MKL(int size, double *a_data, double *b_data);
 #endif
+double* solveMatrix(int size, double *a_data, double *b_data);
+
 
 double calXi(double a, double d, double A, double D);
 double calXi_a(double a, double d, double A, double D);
@@ -1096,13 +1096,22 @@ double* solveMatrix_GSL(int size, double *a_data, double *b_data) {
     double *c_data = new double[size];
     gsl_vector_view c = gsl_vector_view_array(c_data, size);
 
+#if 0
     int s;
     gsl_permutation *p = gsl_permutation_alloc(size);
-
     gsl_linalg_LU_decomp(&a.matrix, p, &s);
     gsl_linalg_LU_solve(&a.matrix, p, &b.vector, &c.vector);
-
     gsl_permutation_free(p);
+#else
+    gsl_matrix *v = gsl_matrix_alloc(size, size);
+    gsl_vector *s = gsl_vector_alloc(size);
+    gsl_vector *work = gsl_vector_alloc(size);
+    gsl_linalg_SV_decomp(&a.matrix, v, s, work);
+    gsl_vector_free(work);
+    gsl_linalg_SV_solve(&a.matrix, v, s, &b.vector, &c.vector);
+    gsl_vector_free(s);
+    gsl_matrix_free(v);
+#endif
 
     return c_data;
 }
@@ -1137,6 +1146,27 @@ double* solveMatrix_MKL(int size, double *a_data, double *b_data) {
     return c_data;
 }
 #endif
+
+double* solveMatrix(int size, double *a_data, double *b_data) {
+#if defined(DEBUG_MATRIX)
+    typedef lsst::afw::image::Image<double> Image;
+    Image *image = new Image(size + 1, size);
+    for (int y = 0; y < size; ++y) {
+        double *begin = a_data + y * size;
+        std::copy(begin, begin + size, image->row_begin(y));
+        (*image)(size, y) = b_data[y];
+    }
+    image->writeFits("matrix.fits");
+    delete image;
+#endif
+#if defined(USE_GSL)
+    return solveMatrix_GSL(size, a_data, b_data);
+#else
+    return solveMatrix_MKL(size, a_data, b_data);
+#endif
+}
+    
+
 double* solveForCoeff(std::vector<Obs::Ptr>& objList, Poly::Ptr p) {
     int ncoeff = p->ncoeff;
     int size = 2 * ncoeff + 2;
@@ -1189,11 +1219,7 @@ double* solveForCoeff(std::vector<Obs::Ptr>& objList, Poly::Ptr p) {
 	}
     }
 
-#if defined(USE_GSL)
-    double *coeff = solveMatrix_GSL(size, a_data, b_data);
-#else
-    double *coeff = solveMatrix_MKL(size, a_data, b_data);
-#endif
+    double *coeff = solveMatrix(size, a_data, b_data);
 
     delete [] a_data;
     delete [] b_data;
@@ -1278,11 +1304,7 @@ double* solveForCoeffWithOffset(std::vector<Obs::Ptr>& objList, Coeff::Ptr& c, P
 	}
     }
 
-#if defined(USE_GSL)
-    double *coeff = solveMatrix_GSL(size, a_data, b_data);
-#else
-    double *coeff = solveMatrix_MKL(size, a_data, b_data);
-#endif
+    double *coeff = solveMatrix(size, a_data, b_data);
 
     delete [] a_data;
     delete [] b_data;
@@ -1503,11 +1525,7 @@ solveLinApprox(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, int nchip, Poly::Pt
     delete [] a;
     delete [] b;
 
-#if defined(USE_GSL)
-    double *coeff = solveMatrix_GSL(size, a_data, b_data);
-#else
-    double *coeff = solveMatrix_MKL(size, a_data, b_data);
-#endif
+    double *coeff = solveMatrix(size, a_data, b_data);
 
     delete [] a_data;
     delete [] b_data;
@@ -1609,9 +1627,12 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
     double *pu = new double[ncoeff];
     double *pv = new double[ncoeff];
 
+    int numObsGood = 0, numStarGood = 0;
+
     if (solveCcd) {
 	for (int i = 0; i < nobs; i++) {
 	    if (!o[i]->good) continue;
+            ++numObsGood;
 	    double Ax = o[i]->xi;
 	    double Ay = o[i]->eta;
 	    double Bx = 0.0;
@@ -1683,6 +1704,7 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 
 	for (int i = 0; i < nSobs; i++) {
 	    if (!s[i]->good) continue;
+            ++numStarGood;
 	    double Ax = s[i]->xi;
 	    double Ay = s[i]->eta;
 	    double Bx = 0.0;
@@ -1797,6 +1819,7 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
     } else {
 	for (int i = 0; i < nobs; i++) {
 	    if (!o[i]->good) continue;
+            ++numObsGood;
 	    double Ax = o[i]->xi;
 	    double Ay = o[i]->eta;
 	    for (int k = 0; k < ncoeff; k++) {
@@ -1821,6 +1844,7 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 
 	for (int i = 0; i < nSobs; i++) {
 	    if (!s[i]->good) continue;
+            ++numStarGood;
 	    double Ax = s[i]->xi;
 	    double Ay = s[i]->eta;
 	    for (int k = 0; k < ncoeff; k++) {
@@ -1863,28 +1887,12 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 	}
     }
 
+    std::cout << "Number good: " << numObsGood << ", " << numStarGood << std::endl;
+
     delete [] a;
     delete [] b;
 
-#if defined(DEBUG_MATRIX)
-    {
-        lsst::afw::image::Image *image = new lsst::afw::image::Image(size + 1, size);
-        for (int y = 0; y < size; ++y) {
-            long offset = y * size;
-            for (int x = 0; x < size; ++x) {
-                image(x, y) = a_data[offset + x];
-            }
-            image(size, y) = b_data[y];
-        }
-        image.writeFits("matrix.fits");
-    }
-#endif
-
-#if defined(USE_GSL)
-    double *coeff = solveMatrix_GSL(size, a_data, b_data);
-#else
-    double *coeff = solveMatrix_MKL(size, a_data, b_data);
-#endif
+    double *coeff = solveMatrix(size, a_data, b_data);
 
     delete [] a_data;
     delete [] b_data;
@@ -2088,11 +2096,7 @@ double *fluxFit_rel(std::vector<Obs::Ptr> &m,
     delete [] pu;
     delete [] pv;
 
-#if defined(USE_GSL)
-    double *solution = solveMatrix_GSL(ndim, a_data, b_data);
-#else
-    double *solution = solveMatrix_MKL(ndim, a_data, b_data);
-#endif
+    double *solution = solveMatrix(ndim, a_data, b_data);
 
     delete [] a_data;
     delete [] b_data;
@@ -2298,11 +2302,7 @@ double *fluxFit_abs(std::vector<Obs::Ptr> &m,
     delete [] pu;
     delete [] pv;
 
-#if defined(USE_GSL)
-    double *solution = solveMatrix_GSL(ndim, a_data, b_data);
-#else
-    double *solution = solveMatrix_MKL(ndim, a_data, b_data);
-#endif
+    double *solution = solveMatrix(ndim, a_data, b_data);
 
     delete [] a_data;
     delete [] b_data;
@@ -2728,13 +2728,8 @@ double *solveSIP_P(Poly::Ptr p,
 	}
     }
 
-#if defined(USE_GSL)
-    double *coeffA = solveMatrix_GSL(ncoeff, a_data, b_data);
-    double *coeffB = solveMatrix_GSL(ncoeff, d_data, c_data);
-#else
-    double *coeffA = solveMatrix_MKL(ncoeff, a_data, b_data);
-    double *coeffB = solveMatrix_MKL(ncoeff, d_data, c_data);
-#endif
+    double *coeffA = solveMatrix(ncoeff, a_data, b_data);
+    double *coeffB = solveMatrix(ncoeff, d_data, c_data);
 
     double *coeff = new double[2*ncoeff];
     for (int i = 0; i < ncoeff; i++) {

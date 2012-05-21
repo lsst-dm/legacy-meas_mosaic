@@ -7,6 +7,7 @@
 #include "lsst/afw/geom.h"
 #include "lsst/afw/cameraGeom.h"
 #include "lsst/afw/table.h"
+#include "lsst/utils/ieee.h"
 #include "boost/enable_shared_from_this.hpp"
 
 namespace hsc {
@@ -22,11 +23,12 @@ namespace hsc {
                 explicit Source(lsst::afw::table::SourceRecord const& record) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
                     _pixels(record.getX(), record.getY()), _flux(record.getPsfFlux()),
-                    _astromBad(record.getCentroidFlag()) {}
+                    _astromBad(record.getCentroidFlag() | record.getPsfFluxFlag()) {}
                 Source(lsst::afw::table::SimpleRecord const& record, lsst::afw::image::Wcs const& wcs) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
-                    _pixels(wcs.skyToPixel(_sky)), _flux(record.get(record.getSchema().find<double>("flux").key)),
-                    _astromBad(false) {}
+                    _pixels(wcs.skyToPixel(_sky)),
+                    _flux(record.get(record.getSchema().find<double>("flux").key)),
+                    _astromBad(!lsst::utils::isfinite(_flux)) {}
                 Source(lsst::afw::coord::Coord coord, double flux=std::numeric_limits<double>::quiet_NaN()) :
                     _id(-1), _chip(UNSET), _exp(UNSET), _sky(coord),
                     _pixels(lsst::afw::geom::Point2D(std::numeric_limits<double>::quiet_NaN(),
