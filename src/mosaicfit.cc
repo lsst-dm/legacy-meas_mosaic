@@ -17,7 +17,7 @@
 #define D2R (M_PI/180.)
 #define R2D (180./M_PI)
 
-namespace hsc { namespace meas { namespace mosaic {
+using namespace hsc::meas::mosaic;
 
 #if defined(USE_GSL)
 #include <gsl/gsl_linalg.h>
@@ -961,7 +961,7 @@ void KDTree::printSource() const {
 }
 
 KDTree::Ptr
-kdtreeMat(SourceMatchGroup &matchList) {
+hsc::meas::mosaic::kdtreeMat(SourceMatchGroup &matchList) {
 
     KDTree::Ptr root = KDTree::Ptr(new KDTree(matchList[0], 0));
     //std::cout << "root->count() : " << root->count() << std::endl;
@@ -979,7 +979,7 @@ kdtreeMat(SourceMatchGroup &matchList) {
 }
 
 KDTree::Ptr
-kdtreeSource(SourceGroup const &sourceSet,
+hsc::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 				KDTree::Ptr rootMat,
 				int nchip,
 				lsst::afw::geom::Angle d_lim, unsigned int nbrightest) {
@@ -2560,7 +2560,7 @@ double calcChi2_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, CoeffSe
 }
 
 ObsVec
-obsVecFromSourceGroup(SourceGroup const &all,
+hsc::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 					 WcsDic &wcsDic,
 					 CcdSet &ccdSet)
 {
@@ -2995,7 +2995,7 @@ initialFit(int nexp,
 }
 
 CoeffSet
-solveMosaic_CCD_shot(int order,
+hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 					int nmatch,
 					ObsVec &matchVec,
 					WcsDic &wcsDic,
@@ -3124,7 +3124,7 @@ solveMosaic_CCD_shot(int order,
 }
 
 CoeffSet
-solveMosaic_CCD(int order,
+hsc::meas::mosaic::solveMosaic_CCD(int order,
 				   int nmatch,
 				   int nsource,
 				   ObsVec &matchVec,
@@ -3325,7 +3325,7 @@ int binomial(int n, int k)
 }
 
 Coeff::Ptr
-convertCoeff(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::Ptr& ccd)
+hsc::meas::mosaic::convertCoeff(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::Ptr& ccd)
 {
     Poly::Ptr p = Poly::Ptr(new Poly(coeff->p->order));
     Coeff::Ptr newC = Coeff::Ptr(new Coeff(p));
@@ -3423,7 +3423,7 @@ convertCoeff(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::Ptr& ccd)
 }
 
 FluxFitParams::Ptr
-convertFluxFitParams(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::Ptr& ccd, FluxFitParams::Ptr& ffp)
+hsc::meas::mosaic::convertFluxFitParams(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::Ptr& ccd, FluxFitParams::Ptr& ffp)
 {
     FluxFitParams::Ptr newP = FluxFitParams::Ptr(new FluxFitParams(ffp->order, ffp->chebyshev));
     newP->u_max = 1.0;
@@ -3466,7 +3466,7 @@ convertFluxFitParams(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::Ptr& ccd, Fl
 }
 
 lsst::afw::image::TanWcs::Ptr
-wcsFromCoeff(Coeff::Ptr& coeff)
+hsc::meas::mosaic::wcsFromCoeff(Coeff::Ptr& coeff)
 {
     int order = coeff->p->order;
 
@@ -3513,7 +3513,7 @@ wcsFromCoeff(Coeff::Ptr& coeff)
 }
 
 lsst::daf::base::PropertySet::Ptr
-metadataFromFluxFitParams(FluxFitParams::Ptr& ffp)
+hsc::meas::mosaic::metadataFromFluxFitParams(FluxFitParams::Ptr& ffp)
 {
     lsst::daf::base::PropertySet::Ptr metadata =
        lsst::daf::base::PropertySet::Ptr(new lsst::daf::base::PropertySet());
@@ -3536,7 +3536,7 @@ metadataFromFluxFitParams(FluxFitParams::Ptr& ffp)
 }
 
 lsst::afw::image::Image<float>::Ptr
-getJImg(Coeff::Ptr& coeff,
+hsc::meas::mosaic::getJImg(Coeff::Ptr& coeff,
 			   lsst::afw::cameraGeom::Ccd::Ptr& ccd)
 {
     double scale = coeff->pixelScale();
@@ -3593,7 +3593,7 @@ getJImg(Coeff::Ptr& coeff,
 }
 
 lsst::afw::image::Image<float>::Ptr
-getJImg(lsst::afw::image::Wcs::Ptr& wcs,
+hsc::meas::mosaic::getJImg(lsst::afw::image::Wcs::Ptr& wcs,
 			   int width, int height)
 {
     double scale = wcs->pixelScale().asDegrees();
@@ -3642,7 +3642,7 @@ getJImg(lsst::afw::image::Wcs::Ptr& wcs,
 }
 
 lsst::afw::image::Image<float>::Ptr
-getJImg(lsst::afw::image::Wcs::Ptr& wcs,
+hsc::meas::mosaic::getJImg(lsst::afw::image::Wcs::Ptr& wcs,
 			   lsst::afw::cameraGeom::Ccd::Ptr& ccd)
 {
     int width  = ccd->getAllPixels(true).getWidth();
@@ -3652,7 +3652,7 @@ getJImg(lsst::afw::image::Wcs::Ptr& wcs,
 }
 
 lsst::afw::image::Image<float>::Ptr
-getFCorImg(FluxFitParams::Ptr& p,
+hsc::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 			      lsst::afw::cameraGeom::Ccd::Ptr& ccd,
 			      Coeff::Ptr& coeff)
 {
@@ -3706,7 +3706,7 @@ getFCorImg(FluxFitParams::Ptr& p,
 }
 
 lsst::afw::image::Image<float>::Ptr
-getFCorImg(FluxFitParams::Ptr& p, int width, int height, int x0, int y0)
+hsc::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p, int width, int height)
 {
     lsst::afw::image::Image<float>::Ptr img(new lsst::afw::image::Image<float>(width, height));
 
@@ -3714,9 +3714,9 @@ getFCorImg(FluxFitParams::Ptr& p, int width, int height, int x0, int y0)
 
     int interpLength = 100;
 
-    for (int y = y0; y != height; y++) {
+    for (int y = 0; y != height; y++) {
 
-	for (int x = x0; x < width + interpLength; x+= interpLength) {
+	for (int x = 0; x < width + interpLength; x+= interpLength) {
 	    int interval = interpLength;
 	    int xend = x + interval - 1;
 	    if (xend >= width) {
@@ -3750,7 +3750,7 @@ getFCorImg(FluxFitParams::Ptr& p, int width, int height, int x0, int y0)
 }
 
 lsst::afw::image::Image<float>::Ptr
-getFCorImg(FluxFitParams::Ptr& p,
+hsc::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 			      lsst::afw::cameraGeom::Ccd::Ptr& ccd)
 {
     int width  = ccd->getAllPixels(true).getWidth();
@@ -3758,5 +3758,3 @@ getFCorImg(FluxFitParams::Ptr& p,
 
     return getFCorImg(p, width, height);
 }
-
-}}}
