@@ -21,6 +21,7 @@ class StackConfig(Config):
                  default=afwMath.MEANCLIP)
     clip = Field(doc="Clipping threshold for combination", dtype=float, default=3.0)
     iter = Field(doc="Clipping iterations for combination", dtype=int, default=3)
+    zp = Field(doc="Target zero point for stack", dtype=float, default=25.0)
 
 class SkyCell(object):
     def __init__(self, wcs, bbox):
@@ -46,7 +47,7 @@ class StackTask(Task):
         if len(dataRefList) == 0:
             raise RuntimeError("No data selected for stack.")
         for dataRef in dataRefList:
-            exp = dataRef.get('calexp')
+            exp = self.readExposure(dataRef)
             warp = self.warp(exp, skycell)
             del exp
             dataRef.put(warp, 'warp', **stackId)
@@ -55,6 +56,15 @@ class StackTask(Task):
         stack = self.stack(butler, stackId, dataRefList, skycell)
         butler.put(stack, 'stack', stackId)
 
+    def readExposure(self, dataRef):
+        """Read calibrated exposure.  Also tweaks the calibration."""
+        exp = dataRef.get('calexp')
+        fluxPars = hscMosaic.FluxFitParams(dataRef.get('fcr')) # XXX put fcr in butler
+        mi = exp.getMaskedImage()
+        # XXX apply result from background matching?
+        mi *= hscMosaic.getFCorImg(ffp, exp.getWidth(), exp.getHeight())
+        mi *= math.pow(10.0, -0.4*self.config.zp)
+        
 
     def skycell(self, butler, stackId):
         # XXX Get WCS from the butler
@@ -96,7 +106,7 @@ class StackTask(Task):
         return selected
 
     def mosaic(self, expIdList):
-        """Generate revised WCS"""
+        """Generate revised WCS, flux calibration.  Maybe also background matching in the future?"""
         raise NotImplementedError()
         return hscMosaic.mosaic(butler, lFrameId, lCcdId, mosaicConfig, outputDir=workDirRoot)
 
@@ -117,9 +127,6 @@ class StackTask(Task):
             for i, dataRef in enumerate(dataRefList):
                 exposure = dataRef.get("warp_sub", bbox=box, **stackId)
                 mi = exposure.getMaskedImage()
-
-                # XXX scaling, background matching
-
                 imageList[i] = mi
 
             if False:
