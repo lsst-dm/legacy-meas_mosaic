@@ -307,7 +307,7 @@ namespace hsc {
 			 Coeff::Ptr& coeff);
 
 	    lsst::afw::image::Image<float>::Ptr
-	      getFCorImg(FluxFitParams::Ptr& p, int width, int height);
+              getFCorImg(FluxFitParams::Ptr& p, int width, int height, int x0=0, int y0=0);
 
 	    lsst::afw::image::Image<float>::Ptr
 	      getFCorImg(FluxFitParams::Ptr& p,
