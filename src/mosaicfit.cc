@@ -8,6 +8,12 @@
 #include "boost/make_shared.hpp"
 #include "boost/format.hpp"
 
+#define DEBUG_MATRIX
+
+#if defined(DEBUG_MATRIX)
+#include "lsst/afw/image/Image.h"
+#endif
+
 #define D2R (M_PI/180.)
 #define R2D (180./M_PI)
 
@@ -1859,6 +1865,20 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 
     delete [] a;
     delete [] b;
+
+#if defined(DEBUG_MATRIX)
+    {
+        lsst::afw::image::Image *image = new lsst::afw::image::Image(size + 1, size);
+        for (int y = 0; y < size; ++y) {
+            long offset = y * size;
+            for (int x = 0; x < size; ++x) {
+                image(x, y) = a_data[offset + x];
+            }
+            image(size, y) = b_data[y];
+        }
+        image.writeFits("matrix.fits");
+    }
+#endif
 
 #if defined(USE_GSL)
     double *coeff = solveMatrix_GSL(size, a_data, b_data);
