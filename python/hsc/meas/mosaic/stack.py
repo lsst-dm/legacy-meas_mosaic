@@ -822,22 +822,19 @@ def subRegionStack(wcs, subImgSize, imgMargin,
                 ##  this FAILs --> dSigma = math.sqrt(abs(sigma1**2 - trueSigma**2))
 		
                 convKernSigma = 0.7
-                policy = ipDiffim.makeDefaultPolicy()
-                policy.set("kernelBasisSet",     "alard-lupton")
-                policy.set("alardNGauss",        3)
-                policy.set("alardSigGauss", convKernSigma)
-                policy.add("alardSigGauss", 2.0*convKernSigma)
-                policy.add("alardSigGauss", 4.0*convKernSigma)
-                policy.set("alardDegGauss",      2)
-                policy.add("alardDegGauss",      3)
-                policy.add("alardDegGauss",      4)
+                config = ipDiffim.ModelPsfMatchConfig()
+                config.kernelBasisSet = "alard-lupton"
+                config.alardNGauss    = 3
+                config.alardSigGauss  = [convKernSigma, 2.0*convKernSigma, 4.0*convKernSigma]
+                config.alardDegGauss  = [2, 3, 4]
 
                 validNx, validNy = warpedExpShallow.getWidth(), warpedExpShallow.getHeight()
-                policy.set('sizeCellX', validNx/5)
-                policy.set('sizeCellY', validNy/5)
+                config.sizeCellX =  validNx/5
+                config.sizeCellY =  validNy/5
+                config.validate()
                 
-                newPolicy = ipDiffim.modifyForModelPsfMatch(policy)
-                modelMatch = ipDiffim.ModelPsfMatch(newPolicy)
+                #newPolicy = ipDiffim.modifyForModelPsfMatch(policy)
+                modelMatch = ipDiffim.ModelPsfMatch(config)
 
 		# *** perform the PSF matching ***
                 expMatch, kern, cellset = modelMatch.matchExposure(warpedExpShallow, psf0)
