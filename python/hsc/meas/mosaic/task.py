@@ -6,7 +6,8 @@ import lsst.afw.geom as afwGeom
 import lsst.daf.base as dafBase
 import lsst.afw.math as afwMath
 
-import hsc.meas.mosaic.mosaicLib as hscMosaic
+import hsc.meas.mosaic.mosaicLib as hscMosaicLib
+import hsc.meas.mosaic.mosaic as hscMosaic
 
 
 from lsst.pex.config import Config, Field, ConfigField
@@ -59,10 +60,10 @@ class StackTask(Task):
     def readExposure(self, dataRef):
         """Read calibrated exposure.  Also tweaks the calibration."""
         exp = dataRef.get('calexp')
-        fluxPars = hscMosaic.FluxFitParams(dataRef.get('fcr')) # XXX put fcr in butler
+        fluxPars = hscMosaicLib.FluxFitParams(dataRef.get('fcr')) # XXX put fcr in butler
         mi = exp.getMaskedImage()
         # XXX apply result from background matching?
-        mi *= hscMosaic.getFCorImg(ffp, exp.getWidth(), exp.getHeight())
+        mi *= hscMosaicLib.getFCorImg(ffp, exp.getWidth(), exp.getHeight())
         mi *= math.pow(10.0, -0.4*self.config.zp)
         
 
@@ -106,7 +107,6 @@ class StackTask(Task):
         return selected
 
     def mosaic(self, expIdList):
-        """Generate revised WCS, flux calibration.  Maybe also background matching in the future?"""
         raise NotImplementedError()
         return hscMosaic.mosaic(butler, lFrameId, lCcdId, mosaicConfig, outputDir=workDirRoot)
 
@@ -114,7 +114,7 @@ class StackTask(Task):
         """Warp exposure to skycell"""
         return self.warper.warpExposure(skycell.wcs, exposure, destBBox=skycell.bbox)
 
-    def stack(self, butler, stackId, dataRefList, skycell):
+    def stack(self, butler, stackId, dataRefList, skycell, verbose=False):
         """Stack warped exposures"""
         dim = skycell.bbox.getDimensions()
         stack = afwImage.MaskedImageF(dim)
@@ -138,3 +138,77 @@ class StackTask(Task):
 
         return afwImage.makeExposure(stack, skycell.wcs)
 
+
+
+    def mosaic(self, dataRefList, stackId):
+        """Generate revised WCS, flux calibration.  Maybe also background matching in the future?"""
+        if True:
+            butler = dataRefList[0].subset.butler
+            camera = butler.mapper.camera # Assume single camera in use
+            frameIdList = list(set([splitDataId(dataRef.dataId)[0] for dataRef in dataRefList]))
+            ccdIdList = list()
+            for raft in camera:
+                for ccd in afwCG.Cast_Raft(raft):
+                    ccdIdList.append(ccd.getId().getSerial())
+            config = self.config.mosaic
+
+            # Solve mosaic and write output
+            return hscMosaic.mosaic(butler, frameIdList, ccdIdList, config=config)
+        else:
+            self.mosaic.run(dataRefList, stackId)
+
+
+class MosaicTask(Task):
+    ConfigClass = MosaicConfig
+
+    def run(self, dataRefList, stackId):
+
+        # Get (and revise!) CCD parameters
+        ccdSet = hscMosaic.readCcd(camera, ccdIdList)
+
+        # Get single WCS for each exposure; assumes WCS is consistent across exposure
+        wcsList = hscMosaic.readWcs(butler, frameIdList, ccdSet)
+
+        sourceSet, matchList = readCatalog(butler, frameIdsExist, ccdIds)
+        radXMatch = afwGeom.Angle(config.radXMatch, afwGeom.arcseconds)
+        allMat, allSource = mergeCatalog(sourceSet, matchList, ccdSet.size(), radXMatch, config.nBrightest)
+
+        matchVec  = hscMosaicLib.obsVecFromSourceGroup(allMat,    wcsList, ccdSet)
+        sourceVec = hscMosaicLib.obsVecFromSourceGroup(allSource, wcsList, ccdSet)
+
+        ffp = hscMosaicLib.FluxFitParams(config.fluxFitOrder, config.fluxFitAbsolute, config.chebyshev)
+        u_max, v_max = hscMosaic.getExtent(matchVec)
+        ffp.u_max = (math.floor(u_max / 10.) + 1) * 10
+        ffp.v_max = (math.floor(v_max / 10.) + 1) * 10
+
+        fscale = afwMath.vectorD()
+        if config.internal:
+            coeffSet = hscMosaicLib.solveMosaic_CCD(config.fittingOrder, len(allMat), len(allSource), matchVec,
+                                                    sourceVec, wcsList, ccdSet, ffp, fscale, config.solveCcd,
+                                                    config.allowRotation, verbose)
+        else:
+            coeffSet = hscMosaicLib.solveMosaic_CCD_shot(config.fittingOrder, len(allMat), matchVec, wcsDic,
+                                                         ccdSet, ffp, fscale, config.solveCcd,
+                                                         config.allowRotation, verbose)
+
+        exp = afwImage.ExposureI(0,0)
+        for i in range(coeffSet.size()):
+            for j in range(ccdSet.size()):
+                wcs = hscMosaic.wcsFromCoeff(hscMosaic.convertCoeff(coeffSet[i], ccdSet[j]));
+                exp.setWcs(wcs)
+                md = exp.getMetadata()
+                params = hscMosaicLib.convertFluxFitParams(coeffSet[i], ccdSet[j],
+                                                           hscMosaic.FluxFitParams(ffp))
+                md.combine(hscMosaic.metadataFromFluxFitParams(params))
+
+                scale = fscale[i] * fscale[coeffSet.size()+j]
+                calib = afwImage.Calib()
+                calib.setFluxMag0(1.0/scale)
+                exp.setCalib(calib)
+                butler.put(exp, 'mosaicCalib', visit=frameIdList[i], ccd=ccdIdList[j], **stackId)
+
+
+
+def splitDataId(dataId):
+    """Return frame and CCD identifiers from a data identifier"""
+    return dataId['visit'], dataId['ccd']
