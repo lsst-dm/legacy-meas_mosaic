@@ -14,6 +14,19 @@ from lsst.pex.config import Config, Field, ConfigField
 from lsst.pipe.base import Task, Struct
 
 
+from lsst.pipe.tasks import OutlierRejectedCoaddTask, OutlierRejectedCoaddConfig
+
+
+# Produce coadd for a "tract":
+# * Mosaic on tract:
+#   + Select exposures overlapping tract (a bit bigger than the size of an exposure)
+#   + Run hscMosaic on tract data; save results
+# * Coadd on each patch of the tract:
+#   + Select CCDs overlapping patch
+#   + Warp and combine
+
+
+
 class StackConfig(Config):
     padding = Field(dtype=float, doc="Radius multiplier for padding overlap calculation", default=1.1)
     rows = Field(dtype=int, doc="Number of rows to stack at a time", default=128)
@@ -24,10 +37,36 @@ class StackConfig(Config):
     iter = Field(doc="Clipping iterations for combination", dtype=int, default=3)
     zp = Field(doc="Target zero point for stack", dtype=float, default=25.0)
 
-class SkyCell(object):
-    def __init__(self, wcs, bbox):
-        self.wcs = wcs
-        self.bbox = bbox
+
+class HscCoaddTask(OutlierRejectedCoaddTask):
+    def getCalExp(self, dataRef, *args, **kwargs):
+        """Return one "calexp" calibrated exposure, perhaps with psf
+        
+        @param dataRef: a sensor-level data reference
+        @param getPsf: include the PSF?
+        @return calibrated exposure with psf
+        """
+        exp = super(HscCoaddTask, self).getCalExp(dataRef, *args, **kwargs)
+
+        calib = dataRef.get("mosaicCalib").getMetadata()
+        exp.setWcs(afwImage.makeWcs(calib))
+        fluxPars = hscMosaicLib.FluxFitParams(calib)
+        mi = exp.getMaskedImage()
+        mi *= hscMosaicLib.getFCorImg(fluxPars, exp.getWidth(), exp.getHeight())
+        # XXX apply result from background matching?
+
+    def selectExposures(self, patchRef, wcs, bbox):
+        """Select exposures to coadd
+        
+        @param patchRef: data reference for sky map patch. Must include keys "tract", "patch",
+            plus the camera-specific filter key (e.g. "filter" or "band")
+        @param[in] wcs: WCS of coadd patch
+        @param[in] bbox: bbox of coadd patch
+        @return a list of science exposures to coadd, as butler data references
+        """
+        subset = 
+
+
 
 class StackTask(Task):
     ConfigClass = StackConfig
@@ -157,11 +196,59 @@ class StackTask(Task):
         else:
             self.mosaic.run(dataRefList, stackId)
 
-
 class MosaicTask(Task):
     ConfigClass = MosaicConfig
 
-    def run(self, dataRefList, stackId):
+    def run(self, butler, stackId, coaddName, dataRefList):
+        tract = self.getTractInfo(butler, stackId, coaddName)
+        dataRefList = self.select(tract, dataRefList)
+        solutions = self.mosaic(butler, stackId, dataRefList)
+        return solutions
+
+    def getTractInfo(self, butler, stackId, coaddName):
+        skyMap = butler.get(coaddName + "Coadd_skyMap", stackId)
+        tractId = stackId["tract"]
+        return skyMap[tractId]
+
+    def select(self, tract, dataRefList):
+        """Brute force examination of all possible inputs to see if they overlap"""
+        tractWcs = tract.getWcs()
+        tractBBox = tract.getBBox()
+
+        selectList = []
+        for dataRef in dataRefList:
+            md = dataRef.get("calexp_md")
+            width = md.get("NAXIS1")
+            height = md.get("NAXIS2")
+            wcs = afwImage.makeWcs(md)
+
+            for x,y in ((0.5*width, 0.5*height), (0,0), (0, height), (width, 0), (width, height)):
+                try:
+                    # XXX replace double-WCS transformation with a simple 2D transformation?
+                    point = tractWcs.skyToPixel(wcs.pixelToSky(afwGeom.Point2D(x, y)))
+                except LsstCppException:
+                    # the point is so far off the tract that its pixel position cannot be computed
+                    continue
+                if tractBBox.contains(point):
+                    selectList.append(dataRef)
+                    break
+
+        return selectList
+
+    def mosaic(butler, stackId, dataRefList):
+        camera = butler.mapper.camera # Assume single camera in use
+        frameIdList = list(set([dataRef.dataId['visit'] for dataRef in dataRefList]))
+        ccdIdList = list() # List of CCDs in the camera
+        for raft in camera:
+            for ccd in afwCG.Cast_Raft(raft):
+                ccdIdList.append(ccd.getId().getSerial())
+        config = self.config
+
+        if False:
+            hscMosaic.mosaic(butler, frameIdList, ccdIdList, config=config)
+            return
+
+        # Below here is the code from hscMosaic.mosaic, copied so we can tweak the output slightly
 
         # Get (and revise!) CCD parameters
         ccdSet = hscMosaic.readCcd(camera, ccdIdList)
@@ -169,10 +256,10 @@ class MosaicTask(Task):
         # Get single WCS for each exposure; assumes WCS is consistent across exposure
         wcsList = hscMosaic.readWcs(butler, frameIdList, ccdSet)
 
-        sourceSet, matchList = readCatalog(butler, frameIdsExist, ccdIds)
+        # Read data for each 
+        sourceSet, matchList = hscMosaic.readCatalog(butler, frameIdsExist, ccdIds)
         radXMatch = afwGeom.Angle(config.radXMatch, afwGeom.arcseconds)
         allMat, allSource = mergeCatalog(sourceSet, matchList, ccdSet.size(), radXMatch, config.nBrightest)
-
         matchVec  = hscMosaicLib.obsVecFromSourceGroup(allMat,    wcsList, ccdSet)
         sourceVec = hscMosaicLib.obsVecFromSourceGroup(allSource, wcsList, ccdSet)
 
@@ -209,6 +296,25 @@ class MosaicTask(Task):
 
 
 
-def splitDataId(dataId):
-    """Return frame and CCD identifiers from a data identifier"""
-    return dataId['visit'], dataId['ccd']
+
+def select(self, dataRefList, targetWcs, targetBBox):
+    """Brute force examination of all possible inputs to see if they overlap"""
+    selectList = []
+    for dataRef in dataRefList:
+        md = dataRef.get("calexp_md")
+        width = md.get("NAXIS1")
+        height = md.get("NAXIS2")
+        wcs = afwImage.makeWcs(md)
+
+        for x,y in ((0.5*width, 0.5*height), (0,0), (0, height), (width, 0), (width, height)):
+            try:
+                # XXX replace double-WCS transformation with a simple 2D transformation?
+                point = targetWcs.skyToPixel(wcs.pixelToSky(afwGeom.Point2D(x, y)))
+            except LsstCppException:
+                # the point is so far off the tract that its pixel position cannot be computed
+                continue
+            if targetBBox.contains(point):
+                selectList.append(dataRef)
+                break
+
+    return selectList
