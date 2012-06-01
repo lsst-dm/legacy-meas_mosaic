@@ -1,6 +1,8 @@
 import math
+import numpy
 
 import lsst.afw.image as afwImage
+import lsst.afw.cameraGeom as afwCG
 import lsst.afw.coord as afwCoord
 import lsst.afw.geom as afwGeom
 import lsst.daf.base as dafBase
@@ -8,13 +10,13 @@ import lsst.afw.math as afwMath
 
 import hsc.meas.mosaic.mosaicLib as hscMosaicLib
 import hsc.meas.mosaic.mosaic as hscMosaic
-
+from hsc.meas.mosaic.config import HscMosaicConfig as MosaicConfig
 
 from lsst.pex.config import Config, Field, ConfigField
 from lsst.pipe.base import Task, Struct
 
 
-from lsst.pipe.tasks import OutlierRejectedCoaddTask, OutlierRejectedCoaddConfig
+from lsst.pipe.tasks.outlierRejectedCoadd import OutlierRejectedCoaddTask, OutlierRejectedCoaddConfig
 
 
 # Produce coadd for a "tract":
@@ -26,17 +28,7 @@ from lsst.pipe.tasks import OutlierRejectedCoaddTask, OutlierRejectedCoaddConfig
 #   + Warp and combine
 
 
-
-class StackConfig(Config):
-    padding = Field(dtype=float, doc="Radius multiplier for padding overlap calculation", default=1.1)
-    rows = Field(dtype=int, doc="Number of rows to stack at a time", default=128)
-    warper = ConfigField(doc="Warping configuration", dtype=afwMath.WarperConfig)
-    combine = Field(doc="Statistic to use for combination (from lsst.afw.math)", dtype=int,
-                 default=afwMath.MEANCLIP)
-    clip = Field(doc="Clipping threshold for combination", dtype=float, default=3.0)
-    iter = Field(doc="Clipping iterations for combination", dtype=int, default=3)
-    zp = Field(doc="Target zero point for stack", dtype=float, default=25.0)
-
+       
 
 class HscCoaddTask(OutlierRejectedCoaddTask):
     def getCalExp(self, dataRef, *args, **kwargs):
@@ -77,35 +69,38 @@ class HscCoaddTask(OutlierRejectedCoaddTask):
         dataId = {'filter': patchRef.dataId['filter']}
         butler = patchRef.butlerSubset.butler
 
-        return select(butler, wcs, bbox, dataId=dataId)
+        return selectInputs(butler, wcs, bbox, dataId=dataId)
 
 
 class MosaicTask(Task):
     ConfigClass = MosaicConfig
+    _DefaultName = "mosaic"
 
-    def run(self, butler, stackId, coaddName):
-        frameIdList = self.select(tract, tractRef)
-        solutions = self.mosaic(butler, stackId, dataRefList)
+    def run(self, butler, tractId, coaddName):
+        frameIdList = self.select(butler, tractId, coaddName)
+        if len(frameIdList) < 2:
+            raise RuntimeError("Insufficient frames to mosaic: %s" % frameIdList)
+        solutions = self.mosaic(butler, tractId, frameIdList)
         return solutions
 
-    def getTractInfo(self, butler, stackId, coaddName):
-        skyMap = butler.get(coaddName + "Coadd_skyMap", stackId)
-        tractId = stackId["tract"]
+    def getTractInfo(self, butler, tractId, coaddName):
+        skyMap = butler.get(coaddName + "Coadd_skyMap")
+        tractId = tractId["tract"]
         return skyMap[tractId]
 
-    def select(self, tractRef):
+    def select(self, butler, tractId, coaddName):
         """Brute force examination of all possible inputs to see if they overlap"""
-        tract = self.getTractInfo(butler, stackId, coaddName)
+        tract = self.getTractInfo(butler, tractId, coaddName)
         tractWcs = tract.getWcs()
         tractBBox = tract.getBBox()
-        dataId = tractRef.dataId['filter']
-        return selectInputs(tractRef.butlerSubset.butler, tractWcs, tractBBox, dataId=dataId, exposures=True)
+        dataId = {'filter': tractId['filter']}
+        return selectInputs(butler, tractWcs, tractBBox, dataId=dataId, exposures=True)
 
-    def mosaic(butler, stackId, frameIdList):
+    def mosaic(self, butler, tractId, frameIdList):
         camera = butler.mapper.camera # Assume single camera in use
         ccdIdList = list() # List of CCDs in the camera
         for raft in camera:
-            for ccd in afwCG.Cast_Raft(raft):
+            for ccd in afwCG.cast_Raft(raft):
                 ccdIdList.append(ccd.getId().getSerial())
         config = self.config
 
@@ -122,9 +117,10 @@ class MosaicTask(Task):
         wcsList = hscMosaic.readWcs(butler, frameIdList, ccdSet)
 
         # Read data for each 
-        sourceSet, matchList = hscMosaic.readCatalog(butler, frameIdsExist, ccdIds)
+        sourceSet, matchList = hscMosaic.readCatalog(butler, frameIdList, ccdIdList)
         radXMatch = afwGeom.Angle(config.radXMatch, afwGeom.arcseconds)
-        allMat, allSource = mergeCatalog(sourceSet, matchList, ccdSet.size(), radXMatch, config.nBrightest)
+        allMat, allSource = hscMosaic.mergeCatalog(sourceSet, matchList, ccdSet.size(),
+                                                   config.radXMatch, config.nBrightest)
         matchVec  = hscMosaicLib.obsVecFromSourceGroup(allMat,    wcsList, ccdSet)
         sourceVec = hscMosaicLib.obsVecFromSourceGroup(allSource, wcsList, ccdSet)
 
@@ -157,35 +153,34 @@ class MosaicTask(Task):
                 calib = afwImage.Calib()
                 calib.setFluxMag0(1.0/scale)
                 exp.setCalib(calib)
-                butler.put(exp, 'mosaicCalib', visit=frameIdList[i], ccd=ccdIdList[j], **stackId)
+                butler.put(exp, 'mosaicCalib', visit=frameIdList[i], ccd=ccdIdList[j], **tractId)
 
 
 
 
-def select(self, butler, targetWcs, targetBBox, padding=1.1, dataId={}, exposures=False):
+def selectInputs(butler, targetWcs, targetBBox, padding=1.1, dataId={}, exposures=False):
     """Brute force examination of all possible inputs to see if they overlap.
-    If exposures=True, then only the exposure numbers ("frames") are returned;
+    If exposures=True, then only the exposure numbers ("visits") are returned;
     otherwise, a list of data references is returned.
     """
-
 
     dims = targetBBox.getDimensions()
     urc = targetWcs.pixelToSky(afwGeom.Point2D(dims.getX(), dims.getY()))
     llc = targetWcs.pixelToSky(afwGeom.Point2D(targetBBox.getBegin()))
-    targetDiameter = urc.angularSeparation(llc)
+    targetDiameter = math.hypot(urc[0] - llc[0], urc[1] - llc[1])
 
     targetBBox = afwGeom.Box2D(targetBBox)
     selected = set()
     dataRefList = butler.subset('calexp', dataId=dataId) # All available CCDs!
     for dataRef in dataRefList:
         if exposures:
-            frameId = dataRef.dataId['frame']
+            frameId = dataRef.dataId['visit']
             if frameId in selected:
                 # Already have it in our collection
                 continue
         if not butler.datasetExists('calexp', dataRef.dataId):
             continue
-        self.log.debug("Checking for selection: %s" % dataRef.dataId)
+        print "Checking %s" % dataRef.dataId
         md = dataRef.get("calexp_md")
         width = md.get("NAXIS1")
         height = md.get("NAXIS2")
@@ -194,9 +189,9 @@ def select(self, butler, targetWcs, targetBBox, padding=1.1, dataId={}, exposure
         # XXX replace double-WCS transformation with a simple 2D transformation?
         toTarget = lambda x, y: targetWcs.skyToPixel(wcs.pixelToSky(afwGeom.Point2D(x, y)))
 
-        urc = toTarget(afwGeom.Point2D(width, height))
-        llc = toTarget(afwGeom.Point2D(0, 0))
-        diameter = urc.angularSeparation(llc)
+        urc = toTarget(width, height)
+        llc = toTarget(0, 0)
+        diameter = math.hypot(urc[0] - llc[0], urc[1] - llc[1])
         num = 2 * int(min(diameter / targetDiameter, 1.0) + 0.5)
         xSteps = numpy.linspace(0, width, num=num)
         ySteps = numpy.linspace(0, height, num=num)
