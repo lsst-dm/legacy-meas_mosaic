@@ -96,7 +96,7 @@ class MosaicTask(Task):
         dataId = {'filter': tractId['filter']}
         return selectInputs(butler, tractWcs, tractBBox, dataId=dataId, exposures=True)
 
-    def mosaic(self, butler, tractId, frameIdList):
+    def mosaic(self, butler, tractId, frameIdList, verbose=False):
         camera = butler.mapper.camera # Assume single camera in use
         ccdIdList = list() # List of CCDs in the camera
         for raft in camera:
@@ -114,13 +114,13 @@ class MosaicTask(Task):
         ccdSet = hscMosaic.readCcd(camera, ccdIdList)
 
         # Get single WCS for each exposure; assumes WCS is consistent across exposure
-        wcsList = hscMosaic.readWcs(butler, frameIdList, ccdSet)
+        wcsList, framesIdList = hscMosaic.readWcs(butler, frameIdList, ccdSet)
 
         # Read data for each 
         sourceSet, matchList = hscMosaic.readCatalog(butler, frameIdList, ccdIdList)
         radXMatch = afwGeom.Angle(config.radXMatch, afwGeom.arcseconds)
         allMat, allSource = hscMosaic.mergeCatalog(sourceSet, matchList, ccdSet.size(),
-                                                   config.radXMatch, config.nBrightest)
+                                                   radXMatch, config.nBrightest)
         matchVec  = hscMosaicLib.obsVecFromSourceGroup(allMat,    wcsList, ccdSet)
         sourceVec = hscMosaicLib.obsVecFromSourceGroup(allSource, wcsList, ccdSet)
 
@@ -130,7 +130,7 @@ class MosaicTask(Task):
         ffp.v_max = (math.floor(v_max / 10.) + 1) * 10
 
         fscale = afwMath.vectorD()
-        if config.internal:
+        if config.internalFitting:
             coeffSet = hscMosaicLib.solveMosaic_CCD(config.fittingOrder, len(allMat), len(allSource), matchVec,
                                                     sourceVec, wcsList, ccdSet, ffp, fscale, config.solveCcd,
                                                     config.allowRotation, verbose)
