@@ -139,9 +139,9 @@ class MosaicTask(Task):
                                                          ccdSet, ffp, fscale, config.solveCcd,
                                                          config.allowRotation, verbose)
 
-        exp = afwImage.ExposureI(0,0)
         for i in range(coeffSet.size()):
             for j in range(ccdSet.size()):
+                exp = afwImage.ExposureI(0,0)
                 wcs = hscMosaicLib.wcsFromCoeff(hscMosaicLib.convertCoeff(coeffSet[i], ccdSet[j]))
                 exp.setWcs(wcs)
                 md = exp.getMetadata()
