@@ -142,12 +142,12 @@ class MosaicTask(Task):
         exp = afwImage.ExposureI(0,0)
         for i in range(coeffSet.size()):
             for j in range(ccdSet.size()):
-                wcs = hscMosaic.wcsFromCoeff(hscMosaic.convertCoeff(coeffSet[i], ccdSet[j]));
+                wcs = hscMosaicLib.wcsFromCoeff(hscMosaicLib.convertCoeff(coeffSet[i], ccdSet[j]))
                 exp.setWcs(wcs)
                 md = exp.getMetadata()
                 params = hscMosaicLib.convertFluxFitParams(coeffSet[i], ccdSet[j],
-                                                           hscMosaic.FluxFitParams(ffp))
-                md.combine(hscMosaic.metadataFromFluxFitParams(params))
+                                                           hscMosaicLib.FluxFitParams(ffp))
+                md.combine(hscMosaicLib.metadataFromFluxFitParams(params))
 
                 scale = fscale[i] * fscale[coeffSet.size()+j]
                 calib = afwImage.Calib()
