@@ -7,16 +7,17 @@ import lsst.afw.coord as afwCoord
 import lsst.afw.geom as afwGeom
 import lsst.daf.base as dafBase
 import lsst.afw.math as afwMath
+import lsst.coadd.utils as coaddUtils
 
 import hsc.meas.mosaic.mosaicLib as hscMosaicLib
 import hsc.meas.mosaic.mosaic as hscMosaic
 from hsc.meas.mosaic.config import HscMosaicConfig as MosaicConfig
 
 from lsst.pex.config import Config, Field, ConfigField
-from lsst.pipe.base import Task, Struct
+from lsst.pipe.base import Task, Struct, timeMethod
 
 
-from lsst.pipe.tasks.outlierRejectedCoadd import OutlierRejectedCoaddTask, OutlierRejectedCoaddConfig
+from lsst.pipe.tasks.outlierRejectedCoadd import OutlierRejectedCoaddTask, OutlierRejectedCoaddConfig, ExposureMetadata, _subBBoxIter
 
 
 # Produce coadd for a "tract":
@@ -28,10 +29,194 @@ from lsst.pipe.tasks.outlierRejectedCoadd import OutlierRejectedCoaddTask, Outli
 #   + Warp and combine
 
 
-       
+class HscOverlapsTask(Task):
+    ConfigClass = Config
+    _DefaultName = "overlaps"
+    def run(self, dataRefList, skyMap):
+        tracts = {}
+        print "Patches as a function of calexp:"
+        for dataRef in dataRefList:
+            print "CalExp %s:" % dataRef.dataId
+            tractPatchList = self.getOverlaps(dataRef, skyMap)
+            if len(tractPatchList) == 0:
+                print "==> NONE"
+                continue
+            for tractInfo, patchInfoList in tractPatchList:
+                if not tractInfo in tracts:
+                    tracts[tractInfo] = {}
+                for patchInfo in patchInfoList:
+                    patchIndex = str(patchInfo.getIndex())
+                    print "==> tract=%d patch=%s" % (tractInfo.getId(), patchIndex)
+                    if not patchIndex in tracts[tractInfo]:
+                        tracts[tractInfo][patchIndex] = patchInfo
+        "Calexps as a function of patch:"
+        for tractInfo, patches in tracts.items():
+            for patchIndex, patchInfo in patches.items():
+                print "Tract %d Patch %s:" % (tractInfo.getId(), patchIndex)
+                wcs = tractInfo.getWcs()
+                bbox = patchInfo.getOuterBBox()
+                selectedRefList = selectInputs(dataRefList, wcs, bbox)
+                for selectedRef in selectedRefList:
+                    print selectedRef.dataId
+
+    def getOverlaps(self, dataRef, skyMap):
+        md = dataRef.get("calexp_md")
+        wcs = afwImage.makeWcs(md)
+        width, height = md.get("NAXIS1"), md.get("NAXIS2")
+        pointList = [(0,0), (width, 0), (width, height), (0, height)]
+        coordList = [wcs.pixelToSky(afwGeom.Point2D(x, y)) for x, y in pointList]
+        return skyMap.findTractPatchList(coordList)
+
 
 class HscCoaddTask(OutlierRejectedCoaddTask):
-    def getCalExp(self, dataRef, *args, **kwargs):
+    @timeMethod
+    def run(self, patchRef, dataRefList=[]):
+        """Coadd images by PSF-matching (optional), warping and computing a weighted sum
+        
+        PSF matching is to a double gaussian model with core FWHM = self.config.desiredFwhm
+        and wings of amplitude 1/10 of core and FWHM = 2.5 * core.
+        The size of the PSF matching kernel is the same as the size of the kernel
+        found in the first calibrated science exposure, since there is no benefit
+        to making it any other size.
+        
+        PSF-matching is performed before warping so the code can use the PSF models
+        associated with the calibrated science exposures (without having to warp those models).
+        
+        Coaddition is performed as a weighted sum. See lsst.coadd.utils.Coadd for details.
+    
+        @param patchRef: data reference for sky map patch. Must include keys "tract", "patch",
+            plus the camera-specific filter key (e.g. "filter" or "band")
+        @param dataRefList: list of data references to be coadded in the patch
+        @return: a pipeBase.Struct with fields:
+        - coadd: a coaddUtils.Coadd object
+        - coaddExposure: coadd exposure, as returned by coadd.getCoadd()
+        """
+        skyInfo = self.getSkyInfo(patchRef)
+        datasetType = self.config.coaddName + "Coadd"
+        
+        wcs = skyInfo.wcs
+        bbox = skyInfo.bbox
+        
+        imageRefList = self.selectExposures(patchRef=patchRef, dataRefList=dataRefList, wcs=wcs, bbox=bbox)
+        
+        numExp = len(imageRefList)
+        if numExp < 1:
+            raise RuntimeError("No exposures to coadd")
+        self.log.log(self.log.INFO, "Coadd %s calexp" % (numExp,))
+    
+        doPsfMatch = self.config.desiredFwhm > 0
+        if not doPsfMatch:
+            self.log.log(self.log.INFO, "No PSF matching will be done (desiredFwhm <= 0)")
+
+        exposureMetadataList = []
+        for ind, dataRef in enumerate(imageRefList):
+            if not dataRef.datasetExists("calexp"):
+                self.log.log(self.log.WARN, "Could not find calexp %s; skipping it" % (dataRef.dataId,))
+                continue
+
+            self.log.log(self.log.INFO, "Processing exposure %d of %d: id=%s" % \
+                (ind+1, numExp, dataRef.dataId))
+            exposure = self.getCalExp(dataRef, patchRef, getPsf=doPsfMatch)
+            exposure = self.preprocessExposure(exposure, wcs=wcs, destBBox=bbox)
+            tempDataId = dataRef.dataId.copy()
+            tempDataId.update(patchRef.dataId)
+            tempDataRef = dataRef.butlerSubset.butler.dataRef(
+                datasetType = "coaddTempExp",
+                dataId = tempDataId,
+            )
+            tempDataRef.put(exposure)
+            expMetadata = ExposureMetadata(
+                    dataRef = tempDataRef,
+                    exposure = exposure,
+                    badPixelMask = self.getBadPixelMask(),
+                )
+            exposureMetadataList.append(expMetadata)
+            del exposure
+        if not exposureMetadataList:
+            raise RuntimeError("No images to coadd")
+
+        edgeMask = afwImage.MaskU.getPlaneBitMask("EDGE")
+        
+        statsCtrl = afwMath.StatisticsControl()
+        statsCtrl.setNumSigmaClip(self.config.sigmaClip)
+        statsCtrl.setNumIter(self.config.clipIter)
+        statsCtrl.setAndMask(self.getBadPixelMask())
+        statsCtrl.setNanSafe(True)
+        statsCtrl.setCalcErrorFromInputVariance(True)
+
+        if self.config.doSigmaClip:
+            statsFlags = afwMath.MEANCLIP
+        else:
+            statsFlags = afwMath.MEAN
+    
+        coaddExposure = afwImage.ExposureF(bbox, wcs)
+        coaddExposure.setCalib(self.zeroPointScaler.getCalib())
+    
+        filterDict = {} # dict of name: Filter
+        for expMeta in exposureMetadataList:
+            filterDict.setdefault(expMeta.filter.getName(), expMeta.filter)
+        if len(filterDict) == 1:
+            coaddExposure.setFilter(filterDict.values()[0])
+        self.log.log(self.log.INFO, "Filter=%s" % (coaddExposure.getFilter().getName(),))
+    
+        coaddMaskedImage = coaddExposure.getMaskedImage()
+        subregionSizeArr = self.config.subregionSize
+        subregionSize = afwGeom.Extent2I(subregionSizeArr[0], subregionSizeArr[1])
+        for subBBox in _subBBoxIter(bbox, subregionSize):
+            self.log.log(self.log.INFO, "Computing coadd %s" % (subBBox,))
+            coaddView = afwImage.MaskedImageF(coaddMaskedImage, subBBox, afwImage.PARENT, False)
+            maskedImageList = afwImage.vectorMaskedImageF() # [] is rejected by afwMath.statisticsStack
+            weightList = []
+            for expMeta in exposureMetadataList:
+                if not subBBox.overlaps(expMeta.bbox):
+                    # there is no overlap between this temporary exposure and this coadd subregion
+                    self.log.log(self.log.INFO, "Skipping %s; no overlap" % (expMeta.path,))
+                    continue
+                
+                if expMeta.bbox.contains(subBBox):
+                    # this temporary image fully overlaps this coadd subregion
+                    exposure = expMeta.dataRef.get("coaddTempExp_sub", bbox=subBBox, imageOrigin="PARENT")
+                    maskedImage = exposure.getMaskedImage()
+                else:
+                    # this temporary image partially overlaps this coadd subregion;
+                    # make a new image of EDGE pixels using the coadd subregion
+                    # and set the overlapping pixels from the temporary exposure
+                    overlapBBox = afwGeom.Box2I(expMeta.bbox)
+                    overlapBBox.clip(subBBox)
+                    self.log.log(self.log.INFO,
+                        "Processing %s; grow from %s to %s" % (expMeta.path, overlapBBox, subBBox))
+                    maskedImage = afwImage.MaskedImageF(subBBox)
+                    maskedImage.getMask().set(edgeMask)
+                    tempExposure = expMeta.dataRef.get("coaddTempExp_sub",
+                        bbox=overlapBBox, imageOrigin="PARENT")
+                    tempMaskedImage = tempExposure.getMaskedImage()
+                    maskedImageView = afwImage.MaskedImageF(maskedImage, overlapBBox, afwImage.PARENT, False)
+                    maskedImageView <<= tempMaskedImage
+                maskedImageList.append(maskedImage)
+                weightList.append(expMeta.weight)
+
+            if len(maskedImageList) > 0:
+                try:
+                    coaddSubregion = afwMath.statisticsStack(
+                        maskedImageList, statsFlags, statsCtrl, weightList)
+        
+                    coaddView <<= coaddSubregion
+                except Exception, e:
+                    self.log.log(self.log.ERR, "Cannot compute this subregion: %s" % (e,))
+            else:
+                self.log.log(self.log.WARN, "No images to coadd in this subregion")
+    
+        coaddUtils.setCoaddEdgeBits(coaddMaskedImage.getMask(), coaddMaskedImage.getVariance())
+
+        if self.config.doWrite:
+            patchRef.put(coaddExposure, self.config.coaddName + "Coadd")
+    
+        return Struct(
+            coaddExposure = coaddExposure,
+        )
+
+
+    def getCalExp(self, dataRef, patchRef, *args, **kwargs):
         """Return one "calexp" calibrated exposure, perhaps with psf
         
         @param dataRef: a sensor-level data reference
@@ -40,14 +225,16 @@ class HscCoaddTask(OutlierRejectedCoaddTask):
         """
         exp = super(HscCoaddTask, self).getCalExp(dataRef, *args, **kwargs)
 
-        calib = dataRef.get("mosaicCalib").getMetadata()
+        calib = dataRef.get("mosaicCalib_md", **patchRef.dataId)
+        wcs = afwImage.makeWcs(calib)
         exp.setWcs(afwImage.makeWcs(calib))
         fluxPars = hscMosaicLib.FluxFitParams(calib)
         mi = exp.getMaskedImage()
         mi *= hscMosaicLib.getFCorImg(fluxPars, exp.getWidth(), exp.getHeight())
         # XXX apply result from background matching?
+        return exp
 
-    def selectExposures(self, patchRef, wcs, bbox):
+    def selectExposures(self, patchRef, wcs, bbox, dataRefList=[]):
         """Select exposures to coadd
         
         @param patchRef: data reference for sky map patch. Must include keys "tract", "patch",
@@ -59,17 +246,14 @@ class HscCoaddTask(OutlierRejectedCoaddTask):
 
         # XXX update this when a database with spatial extensions is available
 
-        patchId = patchRef.dataId
-        skyMap = butler.get(coaddName + "Coadd_skyMap", patchId)
-        tract = skyMap[patchId["tract"]]
-        patch = tract.getPatchInfo(patchId["patch"])
-        wcs = tract.getWcs()
-        bbox = patch.getOuterBBox()
+        skyInfo = self.getSkyInfo(patchRef)
+        if len(dataRefList) == 0:
+            # Need to find some suitable data
+            dataId = {'filter': patchRef.dataId['filter']}
+            butler = patchRef.getButler()
+            butler.subset('calexp', dataId=dataId) # All available CCDs!
 
-        dataId = {'filter': patchRef.dataId['filter']}
-        butler = patchRef.butlerSubset.butler
-
-        return selectInputs(butler, wcs, bbox, dataId=dataId)
+        return selectInputs(dataRefList, skyInfo.wcs, skyInfo.bbox)
 
 
 class MosaicTask(Task):
@@ -94,7 +278,8 @@ class MosaicTask(Task):
         tractWcs = tract.getWcs()
         tractBBox = tract.getBBox()
         dataId = {'filter': tractId['filter']}
-        return selectInputs(butler, tractWcs, tractBBox, dataId=dataId, exposures=True)
+        dataRefList = butler.subset('calexp', dataId=dataId) # All available CCDs!
+        return selectInputs(dataRefList, tractWcs, tractBBox, exposures=True)
 
     def mosaic(self, butler, tractId, frameIdList, verbose=False):
         camera = butler.mapper.camera # Assume single camera in use
@@ -157,8 +342,7 @@ class MosaicTask(Task):
 
 
 
-
-def selectInputs(butler, targetWcs, targetBBox, padding=1.1, dataId={}, exposures=False):
+def selectInputs(dataRefList, targetWcs, targetBBox, padding=1.1, exposures=False):
     """Brute force examination of all possible inputs to see if they overlap.
     If exposures=True, then only the exposure numbers ("visits") are returned;
     otherwise, a list of data references is returned.
@@ -171,16 +355,15 @@ def selectInputs(butler, targetWcs, targetBBox, padding=1.1, dataId={}, exposure
 
     targetBBox = afwGeom.Box2D(targetBBox)
     selected = set()
-    dataRefList = butler.subset('calexp', dataId=dataId) # All available CCDs!
     for dataRef in dataRefList:
         if exposures:
             frameId = dataRef.dataId['visit']
             if frameId in selected:
                 # Already have it in our collection
                 continue
-        if not butler.datasetExists('calexp', dataRef.dataId):
+        if not dataRef.getButler().datasetExists('calexp', dataRef.dataId):
             continue
-        print "Checking %s" % dataRef.dataId
+        #print "Checking %s" % dataRef.dataId
         md = dataRef.get("calexp_md")
         width = md.get("NAXIS1")
         height = md.get("NAXIS2")
