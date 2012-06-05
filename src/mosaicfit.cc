@@ -8,12 +8,6 @@
 #include "boost/make_shared.hpp"
 #include "boost/format.hpp"
 
-//#define DEBUG_MATRIX
-
-#if defined(DEBUG_MATRIX)
-#include "lsst/afw/image/Image.h"
-#endif
-
 #define D2R (M_PI/180.)
 #define R2D (180./M_PI)
 
@@ -1096,22 +1090,11 @@ double* solveMatrix_GSL(int size, double *a_data, double *b_data) {
     double *c_data = new double[size];
     gsl_vector_view c = gsl_vector_view_array(c_data, size);
 
-#if 0
     int s;
     gsl_permutation *p = gsl_permutation_alloc(size);
     gsl_linalg_LU_decomp(&a.matrix, p, &s);
     gsl_linalg_LU_solve(&a.matrix, p, &b.vector, &c.vector);
     gsl_permutation_free(p);
-#else
-    gsl_matrix *v = gsl_matrix_alloc(size, size);
-    gsl_vector *s = gsl_vector_alloc(size);
-    gsl_vector *work = gsl_vector_alloc(size);
-    gsl_linalg_SV_decomp(&a.matrix, v, s, work);
-    gsl_vector_free(work);
-    gsl_linalg_SV_solve(&a.matrix, v, s, &b.vector, &c.vector);
-    gsl_vector_free(s);
-    gsl_matrix_free(v);
-#endif
 
     return c_data;
 }
@@ -1148,17 +1131,6 @@ double* solveMatrix_MKL(int size, double *a_data, double *b_data) {
 #endif
 
 double* solveMatrix(int size, double *a_data, double *b_data) {
-#if defined(DEBUG_MATRIX)
-    typedef lsst::afw::image::Image<double> Image;
-    Image *image = new Image(size + 1, size);
-    for (int y = 0; y < size; ++y) {
-        double *begin = a_data + y * size;
-        std::copy(begin, begin + size, image->row_begin(y));
-        (*image)(size, y) = b_data[y];
-    }
-    image->writeFits("matrix.fits");
-    delete image;
-#endif
 #if defined(USE_GSL)
     return solveMatrix_GSL(size, a_data, b_data);
 #else
