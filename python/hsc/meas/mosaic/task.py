@@ -277,7 +277,9 @@ class MosaicTask(Task):
         tract = self.getTractInfo(butler, tractId, coaddName)
         tractWcs = tract.getWcs()
         tractBBox = tract.getBBox()
-        dataId = {'filter': tractId['filter']}
+        dataId = {}
+        if 'filter' in tractId:
+            dataId['filter'] = tractId['filter']
         dataRefList = butler.subset('calexp', dataId=dataId) # All available CCDs!
         return selectInputs(dataRefList, tractWcs, tractBBox, exposures=True)
 
