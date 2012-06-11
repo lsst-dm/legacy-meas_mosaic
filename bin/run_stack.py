@@ -34,7 +34,8 @@ def runStackWarp(warpInputs):
     trueSigma = -1.0
     try:
         warpResult = stack.stackMeasureWarpedPsf(f, wcs, butler=butler,
-                                            skipMosaic=skipMosaic, fileIO=fileIO)
+                                                 skipMosaic=skipMosaic,
+                                                 fileIO=fileIO)
         if fileIO:
             trueSigma = warpResult
         else:
@@ -204,14 +205,17 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                                          skipMosaic=skipMosaic, instrument=instrument, rerun=rerun))
 
         # process the job
-        pool = multiprocessing.Pool(processes=threads)
-        sigmas = pool.map(runStackWarp, warpInputs)
-        pool.close()
-        pool.join()
+        if doMatchPsf:
+            pool = multiprocessing.Pool(processes=threads)
+            sigmas = pool.map(runStackWarp, warpInputs)
+            pool.close()
+            pool.join()
+            print "sigmas: ", sigmas
+        else:
+            sigmas = None
 
         # use the largest sigma to determine the size of the double Gaussian PSF we want to match to.
         # we must *degrade* to worst seeing
-        print "sigmas: ", sigmas
         matchPsf = None
         if sigmas:
             maxSigma = max(sigmas)

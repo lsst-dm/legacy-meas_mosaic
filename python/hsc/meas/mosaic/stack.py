@@ -10,6 +10,7 @@ import lsst.afw.geom                     as afwGeom
 import lsst.daf.base                     as dafBase
 import lsst.afw.math                     as afwMath
 import lsst.pex.exceptions               as pexExceptions
+import lsst.pex.policy                   as pexPolicy
 import hsc.meas.mosaic.mosaicLib         as hscMosaic
 import hsc.meas.mosaic.config            as hscMosaicConfig
 
@@ -222,7 +223,7 @@ def setCache(kernel, cacheSize=10000, force=False):
 
 
 
-def warp(exp, wcsNew, interpLength=25):
+def warp(exp, wcsNew, interpLength=25, targdim=None):
 
     package = "hscMosaic"
     productDir = os.environ.get(package.upper() + "_DIR", None)
@@ -231,8 +232,11 @@ def warp(exp, wcsNew, interpLength=25):
 
     kernel = afwMath.makeWarpingKernel(policy.get("warpingKernel"))
     setCache(kernel, policy.get("cacheSize"))
-    
-    mimg = afwImage.MaskedImageF(exp.getWidth(), exp.getHeight())
+
+    if targdim == None:
+        mimg = afwImage.MaskedImageF(exp.getWidth(), exp.getHeight())
+    else:
+        mimg = afwImage.MaskedImageF(targdim[0], targdim[1])
     warpedExposure = afwImage.ExposureF(mimg, wcsNew)
     
     # Interpolate WCS every "interlLength" pixels.
@@ -250,8 +254,11 @@ def getPsf(exp, kernelWidth=25):
     config = ptCal.CalibrateConfig()
     config.doBackground = False
     config.doComputeApCorr = False
+    config.measurement.doApplyApCorr = False
     config.doAstrometry = False
     config.doPhotoCal = False
+    config.repair.doCrosstalk = False
+    config.repair.doLinearize = False
     config.repair.doInterpolate = False
     config.repair.doCosmicRay = False
     task = ptCal.CalibrateTask(config=config)
@@ -441,8 +448,29 @@ def stackMeasureWarpedPsf(fitsfile, wcs, butler=None, fileIO=False, skipMosaic=F
     cd = wcs.getCDMatrix()
     cd11, cd12 = cd[0,0], cd[0,1]
     cd21, cd22 = cd[1,0], cd[1,1]
-    wcsTmp = afwImage.makeWcs(w.getSkyOrigin(), w.getPixelOrigin(), cd11, cd12, cd21, cd22)
-    warpedExp, trueSigma = warp(origExp, wcsTmp)
+
+    llx = 9999999
+    lly = 9999999
+    urx = -999999
+    ury = -999999
+    xdim, ydim = origExp.getDimensions()
+    for x in [0, xdim]:
+        for y in [0, ydim]:
+            ret = wcs.skyToPixel(w.pixelToSky(x, y))
+            if ret[0] < llx:
+                llx = ret[0]
+            if ret[0] > urx:
+                urx = ret[0]
+            if ret[1] < lly:
+                lly = ret[1]
+            if ret[1] > ury:
+                ury = ret[1]
+
+    wcsTmp = wcs.clone()
+    wcsTmp.shiftReferencePixel(-llx, -lly)
+    xdim = int(urx - llx)
+    ydim = int(ury - lly)
+    warpedExp, trueSigma = warp(origExp, wcsTmp, targdim=[xdim, ydim])
     print "Measuring warped PSF in ", fitsfile
     if warpedExp:
         psf = warpedExp.getPsf()
@@ -479,8 +507,7 @@ def cullFileList(fileList, wcsDic, ixs, iys, wcs, subImgSize, width, height, dim
             else:
                 naxis2 = subImgSize
 
-            x = [0, naxis1/2,   naxis1,     0, naxis1/2, naxis1,   0, naxis1/2, naxis1]
-            y = [0, 0,  0,  naxis2/2,  naxis2/2, naxis2/2, naxis2,    naxis2,   naxis2]
+            x, y = checkPoints(naxis1, naxis2, 512)
     
             shiftX = -ix*subImgSize
             shiftY = -iy*subImgSize
@@ -715,28 +742,7 @@ def subRegionStack(wcs, subImgSize, imgMargin,
     
     mimgList = afwImage.vectorMaskedImageF()
 
-    x = []
-    y = []
-    step = 512
-    x0 = 0
-    while (x0 < naxis1):
-        y0 = 0
-        while (y0 < naxis2):
-            x.append(x0)
-            y.append(y0)
-            y0 = y0 + step
-        y0 = naxis2
-        x.append(x0)
-        y.append(y0)
-        x0 = x0 + step
-    x0 = naxis1
-    while (y0 < naxis2):
-        x.append(x0)
-        y.append(y0)
-        y0 = y0 + step
-    y0 = naxis2
-    x.append(x0)
-    y.append(naxis2)
+    x, y = checkPoints(naxis1, naxis2, 512)
     points = []
     for i in range(len(x)):
         p = wcs2.pixelToSky(x[i], y[i]).getPosition(afwGeom.degrees)
@@ -823,21 +829,24 @@ def subRegionStack(wcs, subImgSize, imgMargin,
 		
                 convKernSigma = 0.7
                 config = ipDiffim.ModelPsfMatchConfig()
-                config.kernelBasisSet = "alard-lupton"
-                config.alardNGauss    = 3
-                config.alardSigGauss  = [convKernSigma, 2.0*convKernSigma, 4.0*convKernSigma]
-                config.alardDegGauss  = [2, 3, 4]
+                config.kernel['AL'].kernelBasisSet = "alard-lupton"
+                config.kernel['AL'].alardNGauss    = 3
+                config.kernel['AL'].alardSigGauss  = [convKernSigma, 2.0*convKernSigma, 4.0*convKernSigma]
+                config.kernel['AL'].alardDegGauss  = [2, 3, 4]
 
                 validNx, validNy = warpedExpShallow.getWidth(), warpedExpShallow.getHeight()
-                config.sizeCellX =  validNx/5
-                config.sizeCellY =  validNy/5
+                config.kernel['AL'].sizeCellX =  validNx/5
+                config.kernel['AL'].sizeCellY =  validNy/5
                 config.validate()
                 
                 #newPolicy = ipDiffim.modifyForModelPsfMatch(policy)
-                modelMatch = ipDiffim.ModelPsfMatch(config)
+                modelMatch = ipDiffim.ModelPsfMatchTask(config)
 
 		# *** perform the PSF matching ***
-                expMatch, kern, cellset = modelMatch.matchExposure(warpedExpShallow, psf0)
+                structModelMatch = modelMatch.run(warpedExpShallow, psf0)
+                expMatch = structModelMatch.psfMatchedExposure
+                kern     = structModelMatch.psfMatchingKernel
+                cellset  = structModelMatch.kernelCellSet
 
                 # store the images for this ix,iy region 
                 writeDebugFits = False
@@ -877,10 +886,41 @@ def subRegionStack(wcs, subImgSize, imgMargin,
 
             
     if mimgList.size() > 0:
+        sctrl.setAndMask(~(afwImage.MaskU_getPlaneBitMask("DETECTED") |
+                           afwImage.MaskU_getPlaneBitMask("INTRP") |
+                           afwImage.MaskU_getPlaneBitMask("SAT") |
+                           afwImage.MaskU_getPlaneBitMask("CR") |
+                           afwImage.MaskU_getPlaneBitMask("CROSSTALK")))
         mimgStack = afwMath.statisticsStack(mimgList, flag, sctrl)
         return mimgStack, wcs2
     else:
         return None, wcs2
+
+def checkPoints(naxis1, naxis2, step=512):
+    x = list()
+    y = list()
+    x0 = 0
+    while (x0 < naxis1):
+        y0 = 0
+        while (y0 < naxis2):
+            x.append(x0)
+            y.append(y0)
+            y0 = y0 + step
+        y0 = naxis2
+        x.append(x0)
+        y.append(y0)
+        x0 = x0 + step
+    x0 = naxis1
+    y0 = 0
+    while (y0 < naxis2):
+        x.append(x0)
+        y.append(y0)
+        y0 = y0 + step
+    y0 = naxis2
+    x.append(x0)
+    y.append(naxis2)
+
+    return x, y
 
 def checkOverlap(wcs0, dims, points):
     ramin, ramax, decmin, decmax = skyLimit(wcs0, dims)
