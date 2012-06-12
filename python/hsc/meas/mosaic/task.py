@@ -224,9 +224,7 @@ class HscCoaddTask(OutlierRejectedCoaddTask):
         @return calibrated exposure with psf
         """
         exp = super(HscCoaddTask, self).getCalExp(dataRef, *args, **kwargs)
-
         calib = dataRef.get("mosaicCalib_md", **patchRef.dataId)
-        wcs = afwImage.makeWcs(calib)
         exp.setWcs(afwImage.makeWcs(calib))
         fluxPars = hscMosaicLib.FluxFitParams(calib)
         mi = exp.getMaskedImage()
@@ -300,7 +298,7 @@ class MosaicTask(Task):
         # Get (and revise!) CCD parameters
         ccdSet = hscMosaic.readCcd(camera, ccdIdList)
 
-        # Get single WCS for each exposure; assumes WCS is consistent across exposure
+        # Get single WCS for each exposure; for setting the tangent point
         wcsList, framesIdList = hscMosaic.readWcs(butler, frameIdList, ccdSet)
 
         # Read data for each 
