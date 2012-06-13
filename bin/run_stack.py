@@ -50,7 +50,7 @@ def runStackWarp(warpInputs):
         return trueSigma
 
 
-Inputs = collections.namedtuple('Inputs', ['rerun', 'instrument', 'ix', 'iy', 'subImgSize', 'stackId', 'imgMargin', 'fileIO', 'workDir', 'skipMosaic', 'filter', 'matchPsf'])
+Inputs = collections.namedtuple('Inputs', ['rerun', 'instrument', 'ix', 'iy', 'subImgSize', 'stackId', 'imgMargin', 'fileIO', 'workDir', 'skipMosaic', 'filter', 'matchPsf', 'zeropoint'])
 
 def runStackExec(inputs):
     rerun = inputs.rerun
@@ -65,6 +65,7 @@ def runStackExec(inputs):
     skipMosaic = inputs.skipMosaic
     filter = inputs.filter
     matchPsf= inputs.matchPsf
+    zeropoint=inputs.zeropoint
 
     print 'runStackExec ', ix, iy
 
@@ -76,7 +77,8 @@ def runStackExec(inputs):
                         fileIO=fileIO,
                         workDir=workDir,
                         skipMosaic=skipMosaic,
-                        filter=filter, matchPsf=matchPsf)
+                        filter=filter, matchPsf=matchPsf,
+                        zeropoint=zeropoint)
     except Exception, e:
         print e
     finally:
@@ -117,6 +119,12 @@ def main():
     parser.add_option("-m", "--doMatchPsf",
                       default=False, action='store_true',
                       help="match PSFs before stacking (default=%default)")
+    parser.add_option("--zeropoint",
+                      type="float", default=0.0,
+                      help="flux zeropoint for stacked image")
+    parser.add_option("--fwhm",
+                      type="float", default=0.0,
+                      help="fwhm for stacked image")
     
     (opts, args) = parser.parse_args()
 
@@ -131,10 +139,12 @@ def main():
     run(rerun=opts.rerun, instrument=opts.instrument, program=opts.program,
         filter=opts.filter, dateObs=opts.dateObs, destWcs=opts.destWcs,
         pScale=opts.pScale,
-        workDir=opts.workDir, workDirRoot=opts.workDirRoot, threads=opts.threads, doMatchPsf=opts.doMatchPsf)
+        workDir=opts.workDir, workDirRoot=opts.workDirRoot, threads=opts.threads, doMatchPsf=opts.doMatchPsf,
+        zeropoint=opts.zeropoint, fwhm=opts.fwhm)
     
 def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None, 
-        destWcs=None, pScale=0.0, workDir=None, workDirRoot=None, threads=None, doMatchPsf=False):
+        destWcs=None, pScale=0.0, workDir=None, workDirRoot=None, threads=None, doMatchPsf=False,
+        zeropoint=0.0, fwhm=0.0):
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
     butler = hscCamera.getButler(instrument, rerun)
@@ -186,10 +196,11 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         #  Init
         #############################################################
         nx, ny, fileList, wcs = stack.stackInit(butler, fileList, subImgSize, imgMargin,
-                                 fileIO,
-                                 workDir=workDir,
-                                 skipMosaic=skipMosaic,
-                                 destWcs=destWcs)
+                                                fileIO,
+                                                workDir=workDir,
+                                                skipMosaic=skipMosaic,
+                                                destWcs=destWcs,
+                                                zeropoint=zeropoint)
 
 
         #############################################################
@@ -202,8 +213,8 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         maxHeight = (max(iys)+1)*subImgSize
 
         
-        wcsDic, dims, fscale = stack.readParamsFromFileList(fileList,
-                                                      skipMosaic=skipMosaic)
+        wcsDic, dims, fscale, zp_ref = stack.readParamsFromFileList(fileList,
+                                                                    skipMosaic=skipMosaic, zeropoint=zeropoint)
 
         # get a list of files which overlap the ixs,iys requested
         # This makes it possible to hack the code easily to run a single ix,iy for debugging
@@ -243,7 +254,10 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         # we must *degrade* to worst seeing
         matchPsf = None
         if sigmas:
-            maxSigma = max(sigmas)
+            if fwhm == 0.0:
+                maxSigma = max(sigmas)
+            else:
+                maxSigma = fwhm / 2.35
             sigma1 = maxSigma
             sigma2 = 2.0*maxSigma
             kwid = int(4.0*sigma2) + 1
@@ -262,7 +276,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                 inputs.append(Inputs(rerun=rerun,instrument=instrument,ix=ix, iy=iy,
                                      stackId=stackId, subImgSize=subImgSize, imgMargin=imgMargin,
                                      fileIO=fileIO, workDir=workDir, skipMosaic=skipMosaic, filter=filter,
-                                     matchPsf=matchPsf
+                                     matchPsf=matchPsf, zeropoint=zp_ref
                                      ))
 
         pool = multiprocessing.Pool(processes=threads)
@@ -277,7 +291,8 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         expStack = stack.stackEnd(butler, stackId, subImgSize, imgMargin,
                                   fileIO=fileIO, width=maxWidth, height=maxHeight,
                                   nx=max(ixs)+1, ny=max(iys)+1,
-                                  workDir=workDir, filter=filter)
+                                  workDir=workDir, filter=filter,
+                                  matchPsf=matchPsf, zeropoint=zp_ref)
 
         expStack.writeFits('expStack.fits')
         
@@ -288,7 +303,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         stack.stackExec(butler, ix, iy, stackId, subImgSize, imgMargin,
                         fileIO=fileIO,
                         workDir=workDir, skipMosaic=skipMosaic,
-                        filter=filter)
+                        filter=filter, matchPsf=matchPsf, zeropoint=zeropoint)
 
     else:
         if (sys.argv[1] == "Init"):
@@ -319,12 +334,13 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                             workDir=workDir, skipMosaic=skipMosaic,
                             rerun=rerun, instrument=instrument, program=program,
                             filter=filter, dateObs=dateObs, destWcs=destWcs,
-                            pScale=pScale)
+                            pScale=pScale, zeropoint=zeropoint)
 
         elif (sys.argv[1] == "End"):
             stack.stackEnd(butler, stackId, subImgSize, imgMargin,
                            fileIO=fileIO,
-                           workDir=workDir, filter=filter)
+                           workDir=workDir, filter=filter,
+                           matchPsf=matchPsf, zeropoint=zeropoint)
             
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 

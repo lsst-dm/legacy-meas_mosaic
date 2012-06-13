@@ -121,7 +121,7 @@ def mkScript(nx, ny, rerun, instrument, program, filter, dateObs, workDir="."):
             f.write("qsub qqq%02d_%02d.sh\n" % (ix, iy))
     f.close()
 
-def readParamsFromFileList(fileList, skipMosaic=False):
+def readParamsFromFileList(fileList, skipMosaic=False, zeropoint=0.0):
     wcsDic = hscMosaic.WcsDic()
     dims = []
     fscale = []
@@ -146,13 +146,16 @@ def readParamsFromFileList(fileList, skipMosaic=False):
         fscale.append(1.0)
         i += 1
 
-    zp_ref = zp[0]
+    if zeropoint == 0.0:
+        zp_ref = zp[0]
+    else:
+        zp_ref = zeropoint
     for i in range(len(zp)):
         zp[i] -= zp_ref
     for i in range(len(zp)):
         fscale[i] = math.pow(10., -0.4*zp[i])
 
-    return wcsDic, dims, fscale
+    return wcsDic, dims, fscale, zp_ref
 
 def stackInit(butler, fileList, subImgSize,
               imgMargin=256,
@@ -168,12 +171,14 @@ def stackInit(butler, fileList, subImgSize,
               filter="please_set_this",
               pScale=0.0,
               dateObs=None,
-              destWcs=None):
+              destWcs=None,
+              zeropoint=None):
 
     print "Stack Init ..."
     
-    wcsDic, dims, fscale = readParamsFromFileList(fileList,
-                                                  skipMosaic=skipMosaic)
+    wcsDic, dims, fscale, zp_ref = readParamsFromFileList(fileList,
+                                                          skipMosaic=skipMosaic,
+                                                          zeropoint=zeropoint)
     
     if destWcs == None:
         if pScale == 0.0:
@@ -292,14 +297,16 @@ def stackExec(butler, ix, iy, stackId,
               filter="unknown",
               psfDict=None,
               matchPsf=None,
+              zeropoint=0.0,
               ):
 
     print "Stack Exec ..."
 
     if fileIO:
         fileList = flistIO(flistFname, "r", workDir=workDir)
-        wcsDic, dims, fscale = readParamsFromFileList(fileList,
-                                                      skipMosaic=skipMosaic)
+        wcsDic, dims, fscale, zp_ref = readParamsFromFileList(fileList,
+                                                              skipMosaic=skipMosaic,
+                                                              zeropoint=zeropoint)
         wcs, width, height, nx, ny = wcsIO(wcsFname, "r", workDir=workDir)
 
 
@@ -331,6 +338,18 @@ def stackExec(butler, ix, iy, stackId,
     if mimgStack != None:
         if fileIO:
             expStack = afwImage.ExposureF(mimgStack, wcs2)
+            # Write the information of matchPsf as FITS header
+            if matchPsf:
+                md = expStack.getMetadata()
+                md.addString("PSFTYPE", matchPsf[0])
+                md.addInt("KWIDTH", matchPsf[1])
+                md.addDouble("SIGMA1", matchPsf[3])
+                md.addDouble("SIGMA2", matchPsf[4])
+                md.addDouble("PRATIO", matchPsf[5])
+            fluxmag0 = math.pow(10.0, 0.4*zp_ref)
+            calib = expStack.getCalib()
+            calib.setFluxMag0(fluxmag0)
+            print 'stackExec: Write stack for %d %d' % (ix, iy)
             butler.put(expStack, 'stack', dict(stack=stackId,
                                                patch=int("%3d%02d" % (ix, iy)),
                                                filter=filter))
@@ -352,7 +371,9 @@ def stackEnd(butler,
              fileIO=False,
              wcsFname="destWcs.fits",
              workDir=".",
-             filter="unknown"):
+             filter="unknown",
+             matchPsf=None,
+             zeropoint=0.0):
 
     print "Stack End ..."
     
@@ -408,6 +429,16 @@ def stackEnd(butler,
             subImg <<= mimgStack
 
     expStack = afwImage.ExposureF(stackedMI, wcs)
+    if matchPsf:
+        md = expStack.getMetadata()
+        md.addString("PSFTYPE", matchPsf[0])
+        md.addInt("KWIDTH", matchPsf[1])
+        md.addDouble("SIGMA1", matchPsf[3])
+        md.addDouble("SIGMA2", matchPsf[4])
+        md.addDouble("PRATIO", matchPsf[5])
+    fluxmag0 = math.pow(10.0, 0.4*zeropoint)
+    calib = expStack.getCalib()
+    calib.setFluxMag0(fluxmag0)
     butler.put(expStack, 'stack', dict(stack=stackId,
                                        patch=999999,
                                        filter=filter))
@@ -433,12 +464,13 @@ def dictFromCalexpName(filename):
     return d
         
 
-def stackMeasureWarpedPsf(fitsfile, wcs, butler=None, fileIO=False, skipMosaic=False):
+def stackMeasureWarpedPsf(fitsfile, wcs, butler=None, fileIO=False, skipMosaic=False, zeropoint=0.0):
 
     psf, trueSigma = None, None
 
-    wcsDic, dims, fscale = readParamsFromFileList([fitsfile], 
-                                                  skipMosaic=skipMosaic)
+    wcsDic, dims, fscale, zp_ref = readParamsFromFileList([fitsfile], 
+                                                          skipMosaic=skipMosaic,
+                                                          zeropoint=zeropoint)
 
     
     origExp = afwImage.ExposureF(fitsfile)
@@ -535,7 +567,7 @@ def cullFileList(fileList, wcsDic, ixs, iys, wcs, subImgSize, width, height, dim
 
 def stack(butler, fileList, stackId, subImgSize, imgMargin, fileIO=False,
           workDir=".", skipMosaic=False, filter='unknown',
-          destWcs=None):
+          destWcs=None, zeropoint=0.0):
 
     print "Stack ..."
 
@@ -552,10 +584,10 @@ def stack(butler, fileList, stackId, subImgSize, imgMargin, fileIO=False,
     if fileIO:
         nx, ny, fileList, wcs  = stackInit(butler, fileList, subImgSize, imgMargin,
                                            fileIO, workDir=workDir,
-                                           skipMosaic=skipMosaic, destWcs=destWcs)
+                                           skipMosaic=skipMosaic, destWcs=destWcs, zeropoint=zeropoint)
     else:
         initList = stackInit(butler, fileList, subImgSize, imgMargin, fileIO, workDir=workDir,
-                             skipMosaic=skipMosaic, destWcs=destWcs)
+                             skipMosaic=skipMosaic, destWcs=destWcs, zeropoint=zeropoint)
         fileList, dims, fscale, wcs, wcsDic, width, height, nx, ny = initList
 
 
@@ -579,7 +611,7 @@ def stack(butler, fileList, stackId, subImgSize, imgMargin, fileIO=False,
         i = 0
         for f in fileList:
             print "********** ", f
-            psf, trueSigma = stackMeasureWarpedPsf(f, wcs, skipMosaic=skipMosaic)
+            psf, trueSigma = stackMeasureWarpedPsf(f, wcs, skipMosaic=skipMosaic, zp0=zp0)
             psfDict[f] = [psf, trueSigma, f]
             sigmas.append(trueSigma)
             
@@ -602,7 +634,7 @@ def stack(butler, fileList, stackId, subImgSize, imgMargin, fileIO=False,
                           workDir=workDir,
                           skipMosaic=skipMosaic,
                           filter=filter,
-                          psfDict=psfDict, matchPsf=matchPsf)
+                          psfDict=psfDict, matchPsf=matchPsf, zeropoint=zeropoint)
             else:
                 mimgStack = stackExec(butler, ix, iy, stackId,
                                       subImgSize, imgMargin,
@@ -610,7 +642,7 @@ def stack(butler, fileList, stackId, subImgSize, imgMargin, fileIO=False,
                                       wcs, wcsDic, width, height,
                                       nx, ny, fileIO,
                                       skipMosaic=skipMosaic,
-                                      filter=filter, matchPsf=matchPsf, psfDict=psfDict)
+                                      filter=filter, matchPsf=matchPsf, psfDict=psfDict, zeropoint=zeropoint)
 
                 if mimgStack != None:
                     mimgMap["%d %d" % (ix, iy)] = mimgStack
@@ -818,6 +850,9 @@ def subRegionStack(wcs, subImgSize, imgMargin,
                 psfType, kwid0, kwid0, sigma1, sigma2, peakRatio = matchPsf
                 psf0 = afwDet.createPsf(psfType, kwid, kwid, sigma1, sigma2, peakRatio)
 
+                if trueSigma > sigma1:
+                    continue
+
 		# In a perfect Gaussian world, the convolution kernel should have width
 		# sigmaConv = sqrt(sigmaBigger**2 - sigmaSmaller**2)
 		# I had hoped that such a sigmaConv could be used for the width of the
@@ -841,39 +876,43 @@ def subRegionStack(wcs, subImgSize, imgMargin,
                 modelMatch = ipDiffim.ModelPsfMatchTask(config)
 
 		# *** perform the PSF matching ***
-                structModelMatch = modelMatch.run(warpedExpShallow, psf0)
-                expMatch = structModelMatch.psfMatchedExposure
-                kern     = structModelMatch.psfMatchingKernel
-                cellset  = structModelMatch.kernelCellSet
+                try:
+                    structModelMatch = modelMatch.run(warpedExpShallow, psf0)
+                    expMatch = structModelMatch.psfMatchedExposure
+                    kern     = structModelMatch.psfMatchingKernel
+                    cellset  = structModelMatch.kernelCellSet
 
-                # store the images for this ix,iy region 
-                writeDebugFits = False
-		debugdir = "debug"
-                if writeDebugFits:
-                    warpedExpShallow.writeFits(debugdir+"/warpExp%02d-%02d-%02d.fits" % (ix, iy, iWcs))
-                    expMatch.writeFits(debugdir+"/expMatch%02d-%02d-%02d.fits" % (ix, iy, iWcs))
-                    fp = open(debugdir+"/psfInfo%02d-%02d-%02d.dat" % (ix, iy, iWcs), 'w')
-                    fp.write("%s %d %d %.2f %.2f %.2f\n" % (psfType, kwid, kwid, sigma1, sigma2, peakRatio))
-                    fp.close()
-                    psfFile = debugdir+"/psf%02d-%02d-%02d.boost" % (ix, iy, iWcs)
-                    writePsf(warpedExpShallow.getPsf(), psfFile)
-
-                
-                # now copy the PSF-matched pixels back into the warped image
-                matchMimg       = expMatch.getMaskedImage()
-                warpMimgShallow = warpedExpShallow.getMaskedImage()
-                warpMimgShallow <<= matchMimg
+                    # store the images for this ix,iy region 
+                    writeDebugFits = False
+                    debugdir = "debug"
+                    if writeDebugFits:
+                        warpedExpShallow.writeFits(debugdir+"/warpExp%02d-%02d-%02d.fits" % (ix, iy, iWcs))
+                        expMatch.writeFits(debugdir+"/expMatch%02d-%02d-%02d.fits" % (ix, iy, iWcs))
+                        fp = open(debugdir+"/psfInfo%02d-%02d-%02d.dat" % (ix, iy, iWcs), 'w')
+                        fp.write("%s %d %d %.2f %.2f %.2f\n" % (psfType, kwid, kwid, sigma1, sigma2, peakRatio))
+                        fp.close()
+                        psfFile = debugdir+"/psf%02d-%02d-%02d.boost" % (ix, iy, iWcs)
+                        writePsf(warpedExpShallow.getPsf(), psfFile)
 
                 
-                mimg = warpedExposure.getMaskedImage()
+                    # now copy the PSF-matched pixels back into the warped image
+                    matchMimg       = expMatch.getMaskedImage()
+                    warpMimgShallow = warpedExpShallow.getMaskedImage()
+                    warpMimgShallow <<= matchMimg
 
-		if False: #writeDebugFits:
-                    mimg.writeFits(debugdir+"/warpExp%02d-%02d-%02d.fits" % (ix, iy, iWcs))
                 
-                bbox = afwGeom.Box2I(afwGeom.Point2I(edge, edge), afwGeom.Extent2I(naxis1_in, naxis2_in))
-                mimgNoEdge = afwImage.MaskedImageF(mimg, bbox)
+                    mimg = warpedExposure.getMaskedImage()
+
+                    if False: #writeDebugFits:
+                        mimg.writeFits(debugdir+"/warpExp%02d-%02d-%02d.fits" % (ix, iy, iWcs))
                 
-                mimgList.push_back(mimgNoEdge)
+                    bbox = afwGeom.Box2I(afwGeom.Point2I(edge, edge), afwGeom.Extent2I(naxis1_in, naxis2_in))
+                    mimgNoEdge = afwImage.MaskedImageF(mimg, bbox)
+                
+                    mimgList.push_back(mimgNoEdge)
+                except Exception, e:
+                    print "Failed to perform the PSF matching: %s" % fileList[k]
+                    print e
             else:
                 mimgList.push_back(mimg)
                 
