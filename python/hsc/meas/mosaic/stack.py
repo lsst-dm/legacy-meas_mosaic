@@ -929,9 +929,9 @@ def subRegionStack(wcs, subImgSize, imgMargin,
                            afwImage.MaskU_getPlaneBitMask("CR") |
                            afwImage.MaskU_getPlaneBitMask("CROSSTALK")))
         mimgStack = afwMath.statisticsStack(mimgList, flag, sctrl)
-        return mimgStack, wcs2
+        return mimgStack, wcsNoEdge
     else:
-        return None, wcs2
+        return None, wcsNoEdge
 
 def checkPoints(naxis1, naxis2, step=512):
     x = list()
