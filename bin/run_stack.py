@@ -17,17 +17,21 @@ except:
     pass
 
 
-WarpInputs = collections.namedtuple('WarpInputs', ['fileIO', 'f', 'wcs', 'skipMosaic', 'instrument', 'rerun'])
+#WarpInputs = collections.namedtuple('WarpInputs', ['fileIO', 'f', 'wcs', 'skipMosaic', 'instrument', 'rerun'])
+WarpInputs = collections.namedtuple('WarpInputs', ['fileIO', 'f', 'workDir', 'destWcs', 'skipMosaic', 'instrument', 'rerun'])
 
 def runStackWarp(warpInputs):
 
     fileIO     = warpInputs.fileIO
     f          = warpInputs.f
-    wcs        = warpInputs.wcs
+    #wcs        = warpInputs.wcs
+    workDir    = warpInputs.workDir
+    destWcs    = warpInputs.destWcs
     skipMosaic = warpInputs.skipMosaic
     instrument = warpInputs.instrument
     rerun      = warpInputs.rerun
     
+    wcs, width, height, nx, ny = stack.wcsIO(destWcs, "r", workDir=workDir)
     # wcsDic, dims, fscale = stack.readParamsFromFileList([f], skipMosaic=skipMosaic)
     butler = hscCamera.getButler(instrument, rerun=rerun)
     
@@ -40,6 +44,8 @@ def runStackWarp(warpInputs):
             trueSigma = warpResult
         else:
             psf, trueSigma = warpResult
+    except Exception, e:
+        print e
     finally:
         return trueSigma
 
@@ -64,12 +70,17 @@ def runStackExec(inputs):
 
     butler = hscCamera.getButler(instrument, rerun)
 
-    stack.stackExec(butler, ix, iy, stackId,
-                    subImgSize, imgMargin,
-                    fileIO=fileIO,
-                    workDir=workDir,
-                    skipMosaic=skipMosaic,
-                    filter=filter, matchPsf=matchPsf)
+    try:
+        stack.stackExec(butler, ix, iy, stackId,
+                        subImgSize, imgMargin,
+                        fileIO=fileIO,
+                        workDir=workDir,
+                        skipMosaic=skipMosaic,
+                        filter=filter, matchPsf=matchPsf)
+    except Exception, e:
+        print e
+    finally:
+        return
 
 def main():
     parser = optparse.OptionParser()
@@ -201,8 +212,22 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
 
         warpInputs = list()
         for f in fileList:
-            warpInputs.append(WarpInputs(fileIO=fileIO, f=f, wcs=wcs,
-                                         skipMosaic=skipMosaic, instrument=instrument, rerun=rerun))
+            #warpInputs.append(WarpInputs(fileIO=fileIO, f=f, wcs=wcs,
+            #                             skipMosaic=skipMosaic, instrument=instrument, rerun=rerun))
+            if destWcs:
+                warpInputs.append(WarpInputs(fileIO=fileIO, f=f,
+                                             workDir=workDir,
+                                             destWcs=destWcs,
+                                             skipMosaic=skipMosaic,
+                                             instrument=instrument,
+                                             rerun=rerun))
+            else:
+                warpInputs.append(WarpInputs(fileIO=fileIO, f=f,
+                                             workDir=workDir,
+                                             destWcs='destWcs.fits',
+                                             skipMosaic=skipMosaic,
+                                             instrument=instrument,
+                                             rerun=rerun))
 
         # process the job
         if doMatchPsf:

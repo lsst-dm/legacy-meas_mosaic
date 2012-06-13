@@ -445,9 +445,6 @@ def stackMeasureWarpedPsf(fitsfile, wcs, butler=None, fileIO=False, skipMosaic=F
 
     # use the orig crval,crpix, but warp to the CD matrix in wcs
     w = wcsDic[0]  # origExp.getWcs()
-    cd = wcs.getCDMatrix()
-    cd11, cd12 = cd[0,0], cd[0,1]
-    cd21, cd22 = cd[1,0], cd[1,1]
 
     llx = 9999999
     lly = 9999999
@@ -476,6 +473,7 @@ def stackMeasureWarpedPsf(fitsfile, wcs, butler=None, fileIO=False, skipMosaic=F
         psf = warpedExp.getPsf()
         del warpedExp
     del origExp
+    del wcsTmp
 
     if fileIO:
         d = dictFromCalexpName(fitsfile)
