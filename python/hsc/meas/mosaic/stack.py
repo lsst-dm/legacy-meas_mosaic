@@ -349,6 +349,7 @@ def stackExec(butler, ix, iy, stackId,
             fluxmag0 = math.pow(10.0, 0.4*zp_ref)
             calib = expStack.getCalib()
             calib.setFluxMag0(fluxmag0)
+            expStack.setFilter(afwImage.Filter(filter))
             print 'stackExec: Write stack for %d %d' % (ix, iy)
             butler.put(expStack, 'stack', dict(stack=stackId,
                                                patch=int("%3d%02d" % (ix, iy)),
@@ -439,6 +440,7 @@ def stackEnd(butler,
     fluxmag0 = math.pow(10.0, 0.4*zeropoint)
     calib = expStack.getCalib()
     calib.setFluxMag0(fluxmag0)
+    expStack.setFilter(afwImage.Filter(filter))
     butler.put(expStack, 'stack', dict(stack=stackId,
                                        patch=999999,
                                        filter=filter))
