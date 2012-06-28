@@ -2451,7 +2451,7 @@ double calcChi2(std::vector<Obs::Ptr>& o, Coeff::Ptr c, Poly::Ptr p)
     return chi2;
 }
 
-double calcChi2(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, Poly::Ptr p)
+double calcChi2(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, Poly::Ptr p, bool norm=false)
 {
     int nobs  = o.size();
 
@@ -2467,6 +2467,7 @@ double calcChi2(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, Poly::Ptr p)
     }
 
     double chi2 = 0.0;
+    int num = 0;
     for (int i = 0; i < nobs; i++) {
 	if (!o[i]->good) continue;
 	double Ax = o[i]->xi;
@@ -2476,12 +2477,16 @@ double calcChi2(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, Poly::Ptr p)
 	    Ay -= b[o[i]->iexp][k] * pow(o[i]->u, xorder[k])   * pow(o[i]->v, yorder[k]);
 	}
 	chi2 += Ax * Ax + Ay * Ay;
+	num++;
     }
 
     delete [] a;
     delete [] b;
 
-    return chi2;
+    if (norm)
+	return chi2/num;
+    else
+	return chi2;
 }
 
 void flagObj2(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, Poly::Ptr p, double e2)
@@ -3147,6 +3152,9 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
     printf("Before fitting calcChi2: %e %e\n",
 	   calcChi2(matchVec, coeffVec, p),
 	   calcChi2_Star(matchVec, sourceVec, coeffVec, p));
+    printf("Before fitting matched: %5.3f (arcsec) sources: %5.3f (arcsec)\n",
+	   sqrt(calcChi2(matchVec, coeffVec, p, true))*3600.0,
+	   sqrt(calcChi2(sourceVec, coeffVec, p, true))*3600.0);
 
     double *coeff;
     for (int k = 0; k < 3; k++) {
@@ -3215,9 +3223,15 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 
 	double chi2 = calcChi2_Star(matchVec, sourceVec, coeffVec, p);
 	printf("%dth iteration calcChi2: %e %e\n", (k+1), calcChi2(matchVec, coeffVec, p), chi2);
-	double e2 = chi2 / (matchVec.size() + sourceVec.size());
-	flagObj2(matchVec, coeffVec, p, 9.0*e2);
-	flagObj2(sourceVec, coeffVec, p, 9.0*e2);
+	printf("%dth iteration matched: %5.3f (arcsec) sources: %5.3f (arcsec)\n",
+	       (k+1),
+	       sqrt(calcChi2(matchVec, coeffVec, p, true))*3600.0,
+	       sqrt(calcChi2(sourceVec, coeffVec, p, true))*3600.0);
+	///double e2 = chi2 / (matchVec.size() + sourceVec.size());
+	//flagObj2(matchVec, coeffVec, p, 9.0*e2);
+	//flagObj2(sourceVec, coeffVec, p, 9.0*e2);
+	flagObj2(matchVec, coeffVec, p, 9.0*calcChi2(matchVec, coeffVec, p, true));
+	flagObj2(sourceVec, coeffVec, p, 9.0*calcChi2(sourceVec, coeffVec, p, true));
     }
 
     std::vector<Eigen::Matrix2d> cd(nexp);
