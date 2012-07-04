@@ -401,14 +401,18 @@ def stackEnd(butler,
                     naxis1 = subImgSize
 
                 #mimg = afwImage.MaskedImageF(file)
-                mimg = butler.get('stack', dict(stack=stackId,
-                                                patch=int("%3d%02d" % (ix, iy)),
-                                                filter=filter)).getMaskedImage()
-                llc = afwGeom.Point2I(ix*(subImgSize-imgMargin),          iy*(subImgSize-imgMargin))
-                urc = afwGeom.Point2I(ix*(subImgSize-imgMargin)+naxis1-1, iy*(subImgSize-imgMargin)+naxis2-1)
-                subImg = stackedMI.Factory(stackedMI, afwGeom.Box2I(llc, urc), afwImage.LOCAL)
-                subImg <<= mimg
-                del mimg
+                try:
+                    mimg = butler.get('stack', dict(stack=stackId,
+                                                    patch=int("%3d%02d" % (ix, iy)),
+                                                    filter=filter)).getMaskedImage()
+                    llc = afwGeom.Point2I(ix*(subImgSize-imgMargin),          iy*(subImgSize-imgMargin))
+                    urc = afwGeom.Point2I(ix*(subImgSize-imgMargin)+naxis1-1, iy*(subImgSize-imgMargin)+naxis2-1)
+                    subImg = stackedMI.Factory(stackedMI, afwGeom.Box2I(llc, urc), afwImage.LOCAL)
+                    subImg <<= mimg
+                    del mimg
+                except Exception, e:
+                    print "No sub-stacked image for (%d %d). Skip it." % (ix, iy)
+                    print e
     else:
         for k in mimgMap.keys():
             ix = int(k.split()[0])

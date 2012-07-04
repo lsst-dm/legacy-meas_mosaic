@@ -29,26 +29,22 @@ def readCcd(camera, ccdIds):
     for i in ccdIds:
         ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(i)))
         ccds.push_back(ccd)
-        w = 0;
-        for amp in ccd:
-            w += amp.getDataSec(True).getWidth()
-            h = amp.getDataSec(True).getHeight()
-        width.append(w)
-        height.append(h)
+        width.append(ccd.getAllPixels(True).getWidth())
+        height.append(ccd.getAllPixels(True).getHeight())
 
     # Calculate mean position of all CCD chips
     sx = sy = 0.
     for i in range(ccds.size()):
         center = ccds[i].getCenter().getPixels(ccds[i].getPixelSize())
-        sx += center[0] + 0.5 * width[i]
-        sy += center[1] + 0.5 * height[i]
+        sx += center[0]
+        sy += center[1]
     dx = sx / ccds.size()
     dy = sy / ccds.size()
 
     # Shift the origin of CCD chips
     for i in range(ccds.size()):
         pixelSize = ccds[i].getPixelSize()
-        ccds[i].setCenter(ccds[i].getCenter() - cameraGeom.FpPoint(dx * pixelSize, dy * pixelSize))
+        ccds[i].setCenter(ccds[i].getCenter() - cameraGeom.FpPoint(dx * pixelSize, dy * pixelSize) - cameraGeom.FpPoint(width[i]*0.5, height[i]*0.5))
         
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -154,10 +150,11 @@ def readCatalog(butler, frameIds, ccdIds):
                         src.setChip(ccdId)
                         ss.append(src)
                 for m in matches:
-                    match = hscMosaic.SourceMatch(hscMosaic.Source(m.first, wcs), hscMosaic.Source(m.second))
-                    match.second.setExp(frameIds.index(frameId))
-                    match.second.setChip(ccdId)
-                    ml.append(match)
+                    if m.first != None and m.second != None:
+                        match = hscMosaic.SourceMatch(hscMosaic.Source(m.first, wcs), hscMosaic.Source(m.second))
+                        match.second.setExp(frameIds.index(frameId))
+                        match.second.setChip(ccdId)
+                        ml.append(match)
         sourceSet.push_back(ss)
         matchList.push_back(ml)
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
@@ -284,10 +281,8 @@ def plotJCont(num, coeff, ccdSet, outputDir):
     plt.colorbar()
 
     for ccd in ccdSet:
-        w = 0;
-        for amp in ccd:
-            w += amp.getDataSec(True).getWidth()
-            h = amp.getDataSec(True).getHeight()
+        w = ccd.getAllPixels(True).getWidth()
+        h = ccd.getAllPixels(True).getHeight()
         x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeff.x0
         y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + coeff.y0
         t0 = ccd.getOrientation().getYaw()
@@ -327,10 +322,8 @@ def plotFCorCont(num, coeff, ccdSet, ffp, outputDir):
     plt.colorbar()
 
     for ccd in ccdSet:
-        w = 0;
-        for amp in ccd:
-            w += amp.getDataSec(True).getWidth()
-            h = amp.getDataSec(True).getHeight()
+        w = ccd.getAllPixels(True).getWidth()
+        h = ccd.getAllPixels(True).getHeight()
         x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeff.x0
         y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + coeff.y0
         t0 = ccd.getOrientation().getYaw()
@@ -844,8 +837,8 @@ def mosaic(butler, frameIds, ccdIds, config=hscMosaicConfig.HscMosaicConfig(),
     print "(Memory) After solveMosaic_CCD : ", mem
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    writeNewWcs(butler, coeffSet, ccdSet, fscale, frameIds, ccdIds)
-    writeFcr(butler, coeffSet, ccdSet, fscale, frameIds, ccdIds, ffp)
+    writeNewWcs(butler, coeffSet, ccdSet, fscale, frameIdsExist, ccdIds)
+    writeFcr(butler, coeffSet, ccdSet, fscale, frameIdsExist, ccdIds, ffp)
 
     #if internal:
     #    outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir)

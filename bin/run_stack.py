@@ -6,9 +6,9 @@ import shutil
 import optparse
 import collections
 import multiprocessing
+import hsc.pipe.base.camera as hscCamera
 import hsc.meas.mosaic.mosaicLib  as hscMosaic
 import hsc.meas.mosaic.stack             as stack
-import hsc.pipe.base.camera as hscCamera
 
 try:
     from IPython.core.debugger import Tracer
