@@ -3028,7 +3028,7 @@ hsc::meas::mosaic::solveMosaic_CCD_shot(int order,
 		lsst::afw::cameraGeom::Orientation o2(o.getNQuarter(),
 						      o.getPitch(),
 						      o.getRoll(),
-						      o.getYaw() + coeff[2*ncoeff*nexp+3*i+2]);
+                              o.getYaw() + coeff[2*ncoeff*nexp+3*i+2] * lsst::afw::geom::radians);
 		ccdSet[i]->setOrientation(o2);
 	    }
 	} else {
@@ -3176,9 +3176,9 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 		ccdSet[i]->setCenter(lsst::afw::cameraGeom::FpPoint(offset));
 		lsst::afw::cameraGeom::Orientation o = ccdSet[i]->getOrientation();
 		lsst::afw::cameraGeom::Orientation o2(o.getNQuarter(),
-						      o.getPitch(),
-						      o.getRoll(),
-		                                      o.getYaw() + coeff[2*ncoeff*nexp+3*i+2]);
+                                              o.getPitch(),
+                                              o.getRoll(),
+		              o.getYaw() + coeff[2*ncoeff*nexp+3*i+2] * lsst::afw::geom::radians);
 		ccdSet[i]->setOrientation(o2);
 	    }
 	} else {
