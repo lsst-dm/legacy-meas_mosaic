@@ -18,7 +18,7 @@ using namespace hsc::meas::mosaic;
 #else
 #include <mkl_lapack.h>
 #endif
-double* solveMatrix(int size, double *a_data, double *b_data);
+double* solveMatrix(long size, double *a_data, double *b_data);
 
 
 double calXi(double a, double d, double A, double D);
@@ -1084,7 +1084,7 @@ double calEta_D(double a, double d, double A, double D) {
 }
 
 #if defined(USE_GSL)
-double* solveMatrix_GSL(int size, double *a_data, double *b_data) {
+double* solveMatrix_GSL(long size, double *a_data, double *b_data) {
     gsl_matrix_view a = gsl_matrix_view_array(a_data, size, size);
     gsl_vector_view b = gsl_vector_view_array(b_data, size);
     double *c_data = new double[size];
@@ -1099,7 +1099,7 @@ double* solveMatrix_GSL(int size, double *a_data, double *b_data) {
     return c_data;
 }
 #else
-double* solveMatrix_MKL(int size, double *a_data, double *b_data) {
+double* solveMatrix_MKL(long size, double *a_data, double *b_data) {
     //char L = 'L';
     MKL_INT n = size;
     MKL_INT nrhs = 1;
@@ -1130,7 +1130,7 @@ double* solveMatrix_MKL(int size, double *a_data, double *b_data) {
 }
 #endif
 
-double* solveMatrix(int size, double *a_data, double *b_data) {
+double* solveMatrix(long size, double *a_data, double *b_data) {
 #if defined(USE_GSL)
     return solveMatrix_GSL(size, a_data, b_data);
 #else
@@ -1362,7 +1362,7 @@ solveLinApprox(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, int nchip, Poly::Pt
 	b[i] = coeffVec[i]->b;
     }
 
-    int size, np = 0;
+    long size, np = 0;
     if (solveCcd) {
 	if (allowRotation) {
 	    size = 2 * ncoeff * nexp + 3 * nchip + 1;
@@ -1377,9 +1377,9 @@ solveLinApprox(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, int nchip, Poly::Pt
     double *a_data = new double[size*size];
     double *b_data = new double[size];
 
-    for (int j = 0; j < size; j++) {
+    for (long j = 0; j < size; j++) {
 	b_data[j] = 0.0;
-	for (int i = 0; i < size; i++) {
+	for (long i = 0; i < size; i++) {
 	    a_data[i+j*size] = 0.0;
 	}
     }
@@ -1556,7 +1556,7 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 	}
     }
 
-    int size, size0, np = 0;
+    long size, size0, np = 0;
     if (solveCcd) {
 	if (allowRotation) {
 	    size  = 2 * ncoeff * nexp + 3 * nchip + 1 + nstar2 * 2;
@@ -1589,9 +1589,9 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 	abort();
     }
 
-    for (int j = 0; j < size; j++) {
+    for (long j = 0; j < size; j++) {
 	b_data[j] = 0.0;
-	for (int i = 0; i < size; i++) {
+	for (long i = 0; i < size; i++) {
 	    a_data[i+j*size] = 0.0;
 	}
     }
@@ -3197,7 +3197,7 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 	    matchVec[i]->setFitVal(coeffVec[matchVec[i]->iexp], p);
 	}
 
-	int size0;
+	long size0;
 	if (allowRotation) {
 	    size0 = 2*ncoeff*nexp + 3*nchip + 1;
 	} else {

@@ -6,6 +6,7 @@ import shutil
 import optparse
 import collections
 import multiprocessing
+import lsst.afw.image as afwImage
 import hsc.pipe.base.camera as hscCamera
 import hsc.meas.mosaic.mosaicLib  as hscMosaic
 import hsc.meas.mosaic.stack             as stack
@@ -160,12 +161,19 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
 
     if workDirRoot:
         workDir = os.path.join(workDirRoot, program, filter)
-    subImgSize = 4096
+    subImgSize = 2048
     imgMargin = 256
     fileIO = True
     writePBSScript = True
     skipMosaic = False
     stackId = pointings[0]
+
+    if destWcs != None:
+        md = afwImage.readMetadata(destWcs)
+        if md.exists('SUBIMGSZ'):
+            subImgSize = md.get('SUBIMGSZ')
+        if md.exists('IMGMARGN'):
+            imgMargin  = md.get('IMGMARGN')
 
     if (len(sys.argv) == 1):
         fileList = []
