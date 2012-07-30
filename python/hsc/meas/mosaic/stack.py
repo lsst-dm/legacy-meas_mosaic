@@ -146,7 +146,7 @@ def readParamsFromFileList(fileList, skipMosaic=False, zeropoint=0.0):
         fscale.append(1.0)
         i += 1
 
-    if zeropoint == 0.0:
+    if zeropoint == 0.0 or zeropoint is None:
         zp_ref = zp[0]
     else:
         zp_ref = zeropoint
