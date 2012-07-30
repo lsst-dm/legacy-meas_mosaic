@@ -96,7 +96,7 @@ class HscCoaddTask(OutlierRejectedCoaddTask):
         
         wcs = skyInfo.wcs
         bbox = skyInfo.bbox
-        
+
         imageRefList = self.selectExposures(patchRef=patchRef, dataRefList=dataRefList, wcs=wcs, bbox=bbox)
         
         numExp = len(imageRefList)
@@ -258,8 +258,8 @@ class MosaicTask(Task):
     ConfigClass = MosaicConfig
     _DefaultName = "mosaic"
 
-    def run(self, butler, tractId, coaddName):
-        frameIdList = self.select(butler, tractId, coaddName)
+    def run(self, butler, dataRefList, tractId, coaddName):
+        frameIdList = self.select(butler, dataRefList, tractId, coaddName)
         if len(frameIdList) < 2:
             raise RuntimeError("Insufficient frames to mosaic: %s" % frameIdList)
         solutions = self.mosaic(butler, tractId, frameIdList)
@@ -270,15 +270,11 @@ class MosaicTask(Task):
         tractId = tractId["tract"]
         return skyMap[tractId]
 
-    def select(self, butler, tractId, coaddName):
+    def select(self, butler, dataRefList, tractId, coaddName):
         """Brute force examination of all possible inputs to see if they overlap"""
         tract = self.getTractInfo(butler, tractId, coaddName)
         tractWcs = tract.getWcs()
         tractBBox = tract.getBBox()
-        dataId = {}
-        if 'filter' in tractId:
-            dataId['filter'] = tractId['filter']
-        dataRefList = butler.subset('calexp', dataId=dataId) # All available CCDs!
         return selectInputs(dataRefList, tractWcs, tractBBox, exposures=True)
 
     def mosaic(self, butler, tractId, frameIdList, verbose=False):
