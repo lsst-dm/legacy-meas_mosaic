@@ -82,7 +82,7 @@ def readWcs(butler, frameIds, ccdSet):
 
     return wcsDic, frameIdsExist
 
-def selectStars(sources):
+def selectStars(sources, includeSaturated=False):
     if len(sources) == 0:
         return []
     if isinstance(sources, afwTable.SourceCatalog):
@@ -106,11 +106,11 @@ def selectStars(sources):
     for includeSource, checkSource in zip(sources, sourceList):
         star = (psfKey is not None and checkSource.get(psfKey)) or checkSource.get(extKey) < 0.5
         saturated = checkSource.get(satKey)
-        if star and not saturated:
+        if star and (includeSaturated or not saturated):
             stars.append(includeSource)
     return stars
 
-def getAllForCcd(butler, frame, ccd):
+def getAllForCcd(butler, astrom, frame, ccd):
 
     data = {'visit': frame, 'ccd': ccd}
 
@@ -123,10 +123,19 @@ def getAllForCcd(butler, frame, ccd):
         wcs = afwImage.makeWcs(md)
 
         sources = butler.get('src', data)
-        matches = measAstrom.readMatches(butler, data)
+        if False:
+            matches = measAstrom.readMatches(butler, data)
+        else:
+            icSrces = butler.get('icSrc', data)
+            packedMatches = butler.get('icMatch', data)
+            matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces)
 
         sources = selectStars(sources)
-        matches = selectStars(matches)
+        selMatches = selectStars(matches)
+        if len(selMatches) < 10:
+            matches = selectStars(matches, True)
+        else:
+            matches = selMatches
     except Exception, e:
         print "Failed to read: %s" % (e)
         return None, None, None
@@ -137,11 +146,12 @@ def readCatalog(butler, frameIds, ccdIds):
     print "Reading catalogs ..."
     sourceSet = hscMosaic.SourceGroup()
     matchList = hscMosaic.SourceMatchGroup()
+    astrom = measAstrom.Astrometry(measAstrom.MeasAstromConfig())
     for frameId in frameIds:
         ss = []
         ml = []
         for ccdId in ccdIds:
-            sources, matches, wcs = getAllForCcd(butler, frameId, ccdId)
+            sources, matches, wcs = getAllForCcd(butler, astrom, frameId, ccdId)
             if sources != None:
                 for s in sources:
                     if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
