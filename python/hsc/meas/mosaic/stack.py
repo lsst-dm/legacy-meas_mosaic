@@ -74,7 +74,7 @@ def flistIO(outfile, mode, fileList=None, dims=None, fscale=None, workDir="."):
 
     return fileList
 
-def mkScript(nx, ny, rerun, instrument, program, filter, dateObs, workDir="."):
+def mkScript(nx, ny, rerun, instrument, program, filter, dateObs, workDir=".", inRootDir=None, outRootDir=None):
     for ix in range(nx):
         for iy in range(ny):
             fname = "qqq%02d_%02d.sh" % (ix, iy)
@@ -88,12 +88,17 @@ def mkScript(nx, ny, rerun, instrument, program, filter, dateObs, workDir="."):
             f.write("#OMP_NUM_THREADS=1; export OMP_NUM_THREADS\n");
             f.write("cd $PBS_O_WORKDIR\n");
             f.write("#\n");
+            optionToMapper = ' '
+            if inRootDir:
+                optionToMapper += '--inRootDir=%s ' % inRootDir
+            if outRootDir:
+                optionToMapper += '--outRootDir=%s ' % outRootDir
             if (dateObs == None):
-                f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --workDir=%s %d %d\n" %
-                        (rerun, instrument, program, filter, workDir, ix, iy))
+                f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --workDir=%s %s %d %d\n" %
+                        (rerun, instrument, program, filter, workDir, optionToMapper, ix, iy))
             else:
-                f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --dateObs=%s --workDir=%s %d %d\n" %
-                        (rerun, instrument, program, filter, dateObs, workDir, ix, iy))
+                f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --dateObs=%s --workDir=%s %s %d %d\n" %
+                        (rerun, instrument, program, filter, dateObs, workDir, optionToMapper, ix, iy))
             f.close()
     
     fname = "qqqEnd.sh"
@@ -107,12 +112,17 @@ def mkScript(nx, ny, rerun, instrument, program, filter, dateObs, workDir="."):
     f.write("#OMP_NUM_THREADS=1; export OMP_NUM_THREADS\n");
     f.write("cd $PBS_O_WORKDIR\n");
     f.write("#\n");
+    optionToMapper = ' '
+    if inRootDir:
+        optionToMapper += '--inRootDir=%s ' % inRootDir
+    if outRootDir:
+        optionToMapper += '--outRootDir=%s ' % outRootDir
     if (dateObs == None):
-        f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --workDir=%s End\n" %
-                (rerun, instrument, program, filter, workDir))
+        f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --workDir=%s %s End\n" %
+                (rerun, instrument, program, filter, workDir, optionToMapper))
     else:
-        f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --dateObs=%s --workDir=%s End\n" %
-                (rerun, instrument, program, filter, dateObs, workDir))
+        f.write("python run_stack.py --rerun=%s --instrument=%s --program=%s --filter=%s --dateObs=%s --workDir=%s %s End\n" %
+                (rerun, instrument, program, filter, dateObs, workDir, optionToMapper))
     f.close()
     
     f = open(os.path.join(workDir, "run_qsub.sh"), "w")
@@ -166,6 +176,8 @@ def stackInit(butler, fileList, subImgSize,
               workDir=".",
               skipMosaic=False,
               rerun="please_set_this",
+              inRootDir=None,
+              outRootDir=None,
               instrument="please_set_this",
               program="please_set_this",
               filter="please_set_this",
@@ -206,7 +218,7 @@ def stackInit(butler, fileList, subImgSize,
 
     if (writePBSScript):
         if (fileIO):
-            mkScript(nx, ny, rerun, instrument, program, filter, dateObs, workDir)
+            mkScript(nx, ny, rerun, instrument, program, filter, dateObs, workDir, inRootDir=inRootDir, outRootDir=outRootDir)
         else:
             print "Should define fileIO=True"
             sys.exit(1)
@@ -572,7 +584,7 @@ def cullFileList(fileList, wcsDic, ixs, iys, wcs, subImgSize, width, height, dim
 
 
 def stack(butler, fileList, stackId, subImgSize, imgMargin, fileIO=False,
-          workDir=".", skipMosaic=False, filter='unknown',
+          workDir=".", skipMosaic=False, filter='unknown', inRootDir=None, outRootDir=None, 
           destWcs=None, zeropoint=0.0):
 
     print "Stack ..."
@@ -590,9 +602,11 @@ def stack(butler, fileList, stackId, subImgSize, imgMargin, fileIO=False,
     if fileIO:
         nx, ny, fileList, wcs  = stackInit(butler, fileList, subImgSize, imgMargin,
                                            fileIO, workDir=workDir,
+                                           inRootDir=None, outRootDir=None,
                                            skipMosaic=skipMosaic, destWcs=destWcs, zeropoint=zeropoint)
     else:
         initList = stackInit(butler, fileList, subImgSize, imgMargin, fileIO, workDir=workDir,
+                             inRootDir=None, outRootDir=None,
                              skipMosaic=skipMosaic, destWcs=destWcs, zeropoint=zeropoint)
         fileList, dims, fscale, wcs, wcsDic, width, height, nx, ny = initList
 
