@@ -43,13 +43,13 @@ def main():
         raise SystemExit("failed to parse arguments")
 
     sys.argv = [sys.argv[0]] + args
-    print "rerun=%s, instrument=%s, program=%s, filter=%s, dateObs=%s, outputDir=%s, args=%s" % \
-        (opts.rerun, opts.instrument, opts.program, opts.filter, opts.dateObs, opts.outputDir, sys.argv)
+    print "rerun=%s, instrument=%s, program=%s, filter=%s, dateObs=%s, inRootDir=%s, outRootDir=%s, args=%s" % \
+        (opts.rerun, opts.instrument, opts.program, opts.filter, opts.dateObs, opts.inRootDir, opts.outRootDir, sys.argv)
 
     run(rerun=opts.rerun, instrument=opts.instrument, program=opts.program, \
-            filter=opts.filter, dateObs=opts.dateObs, outputDir=opts.outputDir, inRootDir=opts.inRootDir, outRootDir=opts.outRootDir)
+            filter=opts.filter, dateObs=opts.dateObs, inRootDir=opts.inRootDir, outRootDir=opts.outRootDir)
 
-def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None, outputDir=None, inRootDir=None, outRootDir=None):
+def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None, inRootDir=None, outRootDir=None):
     print program, filter, dateObs
     butler = hscCamera.getButler(instrument, rerun=rerun, root=inRootDir, outputRoot=outRootDir)
     dataId = dict(field=program, filter=filter)
