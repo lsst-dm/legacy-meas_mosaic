@@ -39,7 +39,7 @@ class HscMosaicConfig(pexConfig.Config):
     fluxFitAbsolute = pexConfig.Field(
         doc="Fit to catalog flux?",
         dtype=bool,
-        default=True)
+        default=False)
 
 
 class HscStackConfig(pexConfig.Config):

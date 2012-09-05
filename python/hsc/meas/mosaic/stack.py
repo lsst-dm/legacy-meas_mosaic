@@ -198,7 +198,8 @@ def stackInit(butler, fileList, subImgSize,
 
     if (fileIO):
         flistIO(flistFname, "w", fileList, dims, fscale, workDir=workDir)
-        wcsIO(wcsFname, "w", wcs, width, height, nx, ny, workDir=workDir)
+        if destWcs == None:
+            wcsIO(wcsFname, "w", wcs, width, height, nx, ny, workDir=workDir)
         #wcsDicIO(wcsDicFname, "w", wcsDic)
         #f = open(sizeFname, "w")
         #f.write("%d %d %d %d" % (width, height, nx ,ny))
@@ -336,6 +337,8 @@ def stackExec(butler, ix, iy, stackId,
                                      psfDict=psfDict, matchPsf=matchPsf)
 
     if mimgStack != None:
+        # Clear DETECTED mask
+        mimgStack.getMask().clearMaskPlane(afwImage.MaskU_getMaskPlane("DETECTED"))
         if fileIO:
             expStack = afwImage.ExposureF(mimgStack, wcs2)
             # Write the information of matchPsf as FITS header
@@ -929,11 +932,17 @@ def subRegionStack(wcs, subImgSize, imgMargin,
 
             
     if mimgList.size() > 0:
-        sctrl.setAndMask(~(afwImage.MaskU_getPlaneBitMask("DETECTED") |
-                           afwImage.MaskU_getPlaneBitMask("INTRP") |
-                           afwImage.MaskU_getPlaneBitMask("SAT") |
-                           afwImage.MaskU_getPlaneBitMask("CR") |
-                           afwImage.MaskU_getPlaneBitMask("CROSSTALK")))
+        try:
+            sctrl.setAndMask(~(afwImage.MaskU_getPlaneBitMask("DETECTED") |
+                               afwImage.MaskU_getPlaneBitMask("INTRP") |
+                               afwImage.MaskU_getPlaneBitMask("SAT") |
+                               afwImage.MaskU_getPlaneBitMask("CR") |
+                               afwImage.MaskU_getPlaneBitMask("CROSSTALK")))
+        except:
+            sctrl.setAndMask(~(afwImage.MaskU_getPlaneBitMask("DETECTED") |
+                               afwImage.MaskU_getPlaneBitMask("INTRP") |
+                               afwImage.MaskU_getPlaneBitMask("SAT") |
+                               afwImage.MaskU_getPlaneBitMask("CR")))
         mimgStack = afwMath.statisticsStack(mimgList, flag, sctrl)
         return mimgStack, wcsNoEdge
     else:

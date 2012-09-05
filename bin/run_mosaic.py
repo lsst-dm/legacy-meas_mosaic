@@ -48,9 +48,14 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None, ou
     butler = hscCamera.getButler(instrument, rerun)
     dataId = dict(field=program, filter=filter)
     if dateObs is not None:
-        dataId['dateObs'] = dateObs
-        
-    frameIds = butler.queryMetadata('calexp', None, 'visit', dataId)
+        dateObss = dateObs.split(':')
+        frameIds = list()
+        for date in dateObss:
+            dataId['dateObs'] = date
+            fr = butler.queryMetadata('calexp', None, 'visit', dataId)
+            frameIds += fr
+    else:
+            frameIds = butler.queryMetadata('calexp', None, 'visit', dataId)
     print frameIds
     ccdIds = range(hscCamera.getNumCcds(instrument))
 

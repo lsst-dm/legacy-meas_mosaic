@@ -567,7 +567,7 @@ void KDTree::_initializeSources(SourceSet& s, int depth)
 
         size_t middle = s.size() / 2;
         SourceSet s_left(s.begin(), s.begin() + middle);
-        SourceSet s_right(s.begin() + middle, s.end());
+        SourceSet s_right(s.begin() + middle + 1, s.end());
 
 	if (s_left.size() > 0) {
 	    this->left  = KDTree::Ptr(new KDTree(s_left,  depth+1));
@@ -608,16 +608,17 @@ void KDTree::_initializeMatches(SourceMatchSet &m, int depth) {
             std::sort(m.begin(), m.end(), SourceMatchCmpDec());
         }
 
-	this->location[0] = m[m.size()/2].first->getRa();
-	this->location[1] = m[m.size()/2].first->getDec();
+        size_t middle = m.size() / 2;
+
+	this->location[0] = m[middle].first->getRa();
+	this->location[1] = m[middle].first->getDec();
 	this->c = lsst::afw::coord::Coord(this->location[0], this->location[1]);
 
-	this->set.push_back(m[m.size()/2].first);
-	this->set.push_back(m[m.size()/2].second);
+	this->set.push_back(m[middle].first);
+	this->set.push_back(m[middle].second);
 
-        size_t middle = m.size() / 2;
         std::vector<SourceMatch> m_left(m.begin(), m.begin() + middle);
-        std::vector<SourceMatch> m_right(m.begin() + middle, m.end());
+        std::vector<SourceMatch> m_right(m.begin() + middle + 1, m.end());
 
 	if (m_left.size() > 0) {
 	    this->left  = KDTree::Ptr(new KDTree(m_left, depth+1));
@@ -2292,11 +2293,12 @@ double *fluxFit_abs(std::vector<Obs::Ptr> &m,
 }
 
 double calcChi2_rel(std::vector<Obs::Ptr> &m, 
-			 std::vector<Obs::Ptr> &s,
-			 int nexp,
-			 int nchip,
-			 double *fsol,
-			 FluxFitParams::Ptr p)
+		    std::vector<Obs::Ptr> &s,
+		    int nexp,
+		    int nchip,
+		    double *fsol,
+		    FluxFitParams::Ptr p,
+		    bool norm=false)
 {
     int nMobs = m.size();
     int nSobs = s.size();
@@ -2304,20 +2306,26 @@ double calcChi2_rel(std::vector<Obs::Ptr> &m,
     int ncoeff = p->ncoeff - 3;
 
     double chi2 = 0.0;
+    int num = 0;
     for (int i = 0; i < nMobs; i++) {
 	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999) continue;
 	double val = m[i]->mag + fsol[m[i]->iexp] + fsol[nexp+m[i]->ichip];
 	val += p->eval(m[i]->u, m[i]->v);
 	chi2 += pow(val - fsol[nexp+nchip+ncoeff+m[i]->jstar], 2.0);
+	num++;
     }
     for (int i = 0; i < nSobs; i++) {
 	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
 	double val = s[i]->mag + fsol[s[i]->iexp] + fsol[nexp+s[i]->ichip];
 	val += p->eval(s[i]->u, s[i]->v);
 	chi2 += pow(val - fsol[nexp+nchip+ncoeff+s[i]->jstar], 2.0);
+	num++;
     }
 
-    return chi2;
+    if (norm)
+	return chi2 / num;
+    else
+	return chi2;
 }
 
 double calcChi2_abs(std::vector<Obs::Ptr> &m, 
@@ -2325,7 +2333,8 @@ double calcChi2_abs(std::vector<Obs::Ptr> &m,
 		    int nexp,
 		    int nchip,
 		    double *fsol,
-		    FluxFitParams::Ptr p)
+		    FluxFitParams::Ptr p,
+		    bool norm=false)
 {
     int nMobs = m.size();
     int nSobs = s.size();
@@ -2333,20 +2342,26 @@ double calcChi2_abs(std::vector<Obs::Ptr> &m,
     int ncoeff = p->ncoeff - 3;
 
     double chi2 = 0.0;
+    int num;
     for (int i = 0; i < nMobs; i++) {
 	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->mag0 == -9999) continue;
 	double val = m[i]->mag + fsol[m[i]->iexp] + fsol[nexp+m[i]->ichip];
 	val += p->eval(m[i]->u, m[i]->v);
 	chi2 += pow(val - m[i]->mag0, 2.0);
+	num++;
     }
     for (int i = 0; i < nSobs; i++) {
 	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
 	double val = s[i]->mag + fsol[s[i]->iexp] + fsol[nexp+s[i]->ichip];
 	val += p->eval(s[i]->u, s[i]->v);
 	chi2 += pow(val - fsol[nexp+nchip+ncoeff+s[i]->jstar], 2.0);
+	num++;
     }
 
-    return chi2;
+    if (norm)
+	return chi2 / num;
+    else
+	return chi2;
 }
 
 void flagObj_rel(std::vector<Obs::Ptr> &m,
@@ -2596,24 +2611,24 @@ void fluxFitRelative(ObsVec& matchVec,
     double *fsol = fluxFit_rel(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffp);
     double chi2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
-    double e2f = chi2f / (matchVec.size() + sourceVec.size());
-    printf("e2f: %e\n", e2f);
+    double e2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
+    printf("e2f: %f (mag)\n", sqrt(e2f));
     flagObj_rel(matchVec, sourceVec, nexp, nchip, fsol, 9.0*e2f, ffp);
     delete [] fsol;
 
     fsol = fluxFit_rel(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffp);
     chi2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
-    e2f = chi2f / (matchVec.size() + sourceVec.size());
-    printf("e2f: %e\n", e2f);
+    e2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
+    printf("e2f: %f (mag)\n", sqrt(e2f));
     flagObj_rel(matchVec, sourceVec, nexp, nchip, fsol, 9.0*e2f, ffp);
     delete [] fsol;
 
     fsol = fluxFit_rel(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffp);
     chi2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
-    e2f = chi2f / (matchVec.size() + sourceVec.size());
-    printf("e2f: %e\n", e2f);
+    e2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
+    printf("e2f: %f (mag)\n", sqrt(e2f));
     for (int i = 0; i < nexp + nchip; i++) {
 	fscale.push_back(pow(10., -0.4*fsol[i]));
     }
@@ -2634,27 +2649,26 @@ void fluxFitAbsolute(ObsVec& matchVec,
     int nexp = coeffVec.size();
 
     double *fsol = fluxFit_abs(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffp);
-    printf("Before calcChi2_abs\n");
     double chi2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
-    double e2f = chi2f / (matchVec.size() + sourceVec.size());
-    printf("e2f: %e\n", e2f);
+    double e2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
+    printf("e2f: %f (mag)\n", sqrt(e2f));
     flagObj_abs(matchVec, sourceVec, nexp, nchip, fsol, 9.0*e2f, ffp);
     delete [] fsol;
 
     fsol = fluxFit_abs(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffp);
     chi2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
-    e2f = chi2f / (matchVec.size() + sourceVec.size());
-    printf("e2f: %e\n", e2f);
+    e2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
+    printf("e2f: %f (mag)\n", sqrt(e2f));
     flagObj_abs(matchVec, sourceVec, nexp, nchip, fsol, 9.0*e2f, ffp);
     delete [] fsol;
 
     fsol = fluxFit_abs(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffp);
     chi2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
-    e2f = chi2f / (matchVec.size() + sourceVec.size());
-    printf("e2f: %e\n", e2f);
+    e2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
+    printf("e2f: %f (mag)\n", sqrt(e2f));
     for (int i = 0; i < nexp + nchip; i++) {
 	fscale.push_back(pow(10., -0.4*fsol[i]));
     }
@@ -3176,9 +3190,9 @@ hsc::meas::mosaic::solveMosaic_CCD(int order,
 		ccdSet[i]->setCenter(lsst::afw::cameraGeom::FpPoint(offset));
 		lsst::afw::cameraGeom::Orientation o = ccdSet[i]->getOrientation();
 		lsst::afw::cameraGeom::Orientation o2(o.getNQuarter(),
-                                              o.getPitch(),
-                                              o.getRoll(),
-		              o.getYaw() + coeff[2*ncoeff*nexp+3*i+2] * lsst::afw::geom::radians);
+						      o.getPitch(),
+						      o.getRoll(),
+						      o.getYaw() + coeff[2*ncoeff*nexp+3*i+2] * lsst::afw::geom::radians);
 		ccdSet[i]->setOrientation(o2);
 	    }
 	} else {

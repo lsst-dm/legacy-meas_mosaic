@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, os
+import sys, os, os.path
 import datetime
 import shutil
 import optparse
@@ -51,7 +51,7 @@ def runStackWarp(warpInputs):
         return trueSigma
 
 
-Inputs = collections.namedtuple('Inputs', ['rerun', 'instrument', 'ix', 'iy', 'subImgSize', 'stackId', 'imgMargin', 'fileIO', 'workDir', 'skipMosaic', 'filter', 'matchPsf', 'zeropoint'])
+Inputs = collections.namedtuple('Inputs', ['rerun', 'instrument', 'ix', 'iy', 'subImgSize', 'stackId', 'imgMargin', 'fileIO', 'workDir', 'skipMosaic', 'filter', 'matchPsf', 'zeropoint', 'flistFname'])
 
 def runStackExec(inputs):
     rerun = inputs.rerun
@@ -67,6 +67,7 @@ def runStackExec(inputs):
     filter = inputs.filter
     matchPsf= inputs.matchPsf
     zeropoint=inputs.zeropoint
+    flistFname = inputs.flistFname
 
     print 'runStackExec ', ix, iy
 
@@ -79,7 +80,8 @@ def runStackExec(inputs):
                         workDir=workDir,
                         skipMosaic=skipMosaic,
                         filter=filter, matchPsf=matchPsf,
-                        zeropoint=zeropoint)
+                        zeropoint=zeropoint,
+                        flistFname=flistFname)
     except Exception, e:
         print e
     finally:
@@ -153,9 +155,18 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
     dataId = dict(field=program, filter=filter)
 
     if dateObs is not None:
-        dataId['dateObs'] = dateObs
-    frameIds = butler.queryMetadata('calexp', None, 'visit', dataId)
-    pointings = butler.queryMetadata('calexp', None, 'pointing', dataId)
+        dateObss = dateObs.split(':')
+        frameIds = list()
+        pointings = list()
+        for date in dateObss:
+            dataId['dateObs'] = date
+            frameids = butler.queryMetadata('calexp', None, 'visit', dataId)
+            frameIds += frameids
+            po = butler.queryMetadata('calexp', None, 'pointing', dataId)
+            pointings += po
+    else:
+            frameIds = butler.queryMetadata('calexp', None, 'visit', dataId)
+            pointings = butler.queryMetadata('calexp', None, 'pointing', dataId)
     print frameIds
     print pointings
 
@@ -200,6 +211,8 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
         if destWcs != None:
             destWcs = os.path.abspath(destWcs)
 
+        flistFname = 'fileList%d.txt' % (os.getpid())
+
         #############################################################
         #  Init
         #############################################################
@@ -208,7 +221,8 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                                                 workDir=workDir,
                                                 skipMosaic=skipMosaic,
                                                 destWcs=destWcs,
-                                                zeropoint=zeropoint)
+                                                zeropoint=zeropoint,
+                                                flistFname=flistFname)
 
 
         #############################################################
@@ -284,7 +298,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                 inputs.append(Inputs(rerun=rerun,instrument=instrument,ix=ix, iy=iy,
                                      stackId=stackId, subImgSize=subImgSize, imgMargin=imgMargin,
                                      fileIO=fileIO, workDir=workDir, skipMosaic=skipMosaic, filter=filter,
-                                     matchPsf=matchPsf, zeropoint=zp_ref
+                                     matchPsf=matchPsf, zeropoint=zp_ref, flistFname=flistFname
                                      ))
 
         pool = multiprocessing.Pool(processes=threads)
@@ -302,7 +316,8 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                                   workDir=workDir, filter=filter,
                                   matchPsf=matchPsf, zeropoint=zp_ref)
 
-        expStack.writeFits('expStack.fits')
+        os.remove(os.path.join(workDir, flistFname))
+        #expStack.writeFits('expStack.fits')
         
     elif (len(sys.argv) == 3):
         ix = int(sys.argv[1])
