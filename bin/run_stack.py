@@ -11,11 +11,11 @@ import hsc.pipe.base.camera as hscCamera
 import hsc.meas.mosaic.mosaicLib  as hscMosaic
 import hsc.meas.mosaic.stack             as stack
 
-try:
-    from IPython.core.debugger import Tracer
-    debug_here = Tracer()
-except:
-    pass
+#try:
+#    from IPython.core.debugger import Tracer
+#    debug_here = Tracer()
+#except:
+#    pass
 
 
 #WarpInputs = collections.namedtuple('WarpInputs', ['fileIO', 'f', 'wcs', 'skipMosaic', 'instrument', 'rerun'])

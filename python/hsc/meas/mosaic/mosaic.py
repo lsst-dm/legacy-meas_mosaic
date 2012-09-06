@@ -851,9 +851,9 @@ def mosaic(butler, frameIds, ccdIds, config=hscMosaicConfig.HscMosaicConfig(),
     writeFcr(butler, coeffSet, ccdSet, fscale, frameIdsExist, ccdIds, ffp)
 
     #if internal:
-    #    outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir)
+    #    outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir='.')
     #else:
-    #    outputDiag(matchVec, None, coeffSet, ccdSet, fscale, ffp, outputDir)
+    #    outputDiag(matchVec, None, coeffSet, ccdSet, fscale, ffp, outputDir='.')
 
     #writeDetJImg(butler, coeffSet, ccdSet, frameIds, ccdIds)
     #writeDCorImg(butler, coeffSet, ccdSet, frameIds, ccdIds, ffp)
