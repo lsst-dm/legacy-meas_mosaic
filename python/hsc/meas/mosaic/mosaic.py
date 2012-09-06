@@ -778,7 +778,7 @@ def getExtent(matchVec):
     return u_max, v_max
 
 def mosaic(butler, frameIds, ccdIds, config=hscMosaicConfig.HscMosaicConfig(),
-           outputDir=".", debug=False, verbose=False):
+           debug=False, verbose=False):
 
     ccdSet = readCcd(butler.mapper.camera, ccdIds)
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
@@ -855,9 +855,9 @@ def mosaic(butler, frameIds, ccdIds, config=hscMosaicConfig.HscMosaicConfig(),
     writeFcr(butler, coeffSet, ccdSet, fscale, frameIdsExist, ccdIds, ffp)
 
     #if internal:
-    #    outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir)
+    #    outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir='.')
     #else:
-    #    outputDiag(matchVec, None, coeffSet, ccdSet, fscale, ffp, outputDir)
+    #    outputDiag(matchVec, None, coeffSet, ccdSet, fscale, ffp, outputDir='.')
 
     #writeDetJImg(butler, coeffSet, ccdSet, frameIds, ccdIds)
     #writeDCorImg(butler, coeffSet, ccdSet, frameIds, ccdIds, ffp)
