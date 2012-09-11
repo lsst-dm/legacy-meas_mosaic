@@ -3,9 +3,9 @@
 #include <vector>
 #include <lsst/afw/image/Wcs.h>
 #include <lsst/afw/image/Exposure.h>
-#include "hsc/meas/mosaic/mosaicfit.h"
+#include "lsst/meas/mosaic/mosaicfit.h"
 
-using namespace hsc::meas::mosaic;
+using namespace lsst::meas::mosaic;
 using namespace lsst::afw::detection;
 
 int main(int argc, char **argv)

@@ -10,7 +10,7 @@
 #include "lsst/utils/ieee.h"
 #include "boost/enable_shared_from_this.hpp"
 
-namespace hsc {
+namespace lsst {
     namespace meas {
 	namespace mosaic {
 

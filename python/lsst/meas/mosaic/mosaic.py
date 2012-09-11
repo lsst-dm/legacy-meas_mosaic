@@ -16,14 +16,14 @@ import lsst.afw.table                   as afwTable
 import lsst.afw.geom                    as afwGeom
 import lsst.meas.algorithms.utils       as malgUtils
 import lsst.meas.astrom.astrom          as measAstrom
-import hsc.meas.mosaic.mosaicLib        as hscMosaic
-import hsc.meas.mosaic.config           as hscMosaicConfig
+import lsst.meas.mosaic.mosaicLib        as measMosaic
+import lsst.meas.mosaic.config           as measMosaicConfig
 
 def readCcd(camera, ccdIds):
 
     print "Reading CCD info ..."
 
-    ccds = hscMosaic.CcdSet()
+    ccds = measMosaic.CcdSet()
     width = []
     height = []
     for i in ccdIds:
@@ -65,7 +65,7 @@ def readWcs(butler, frameIds, ccdSet):
         
     print "Reading WCS ..."
 
-    wcsDic = hscMosaic.WcsDic()
+    wcsDic = measMosaic.WcsDic()
     frameIdsExist = []
     i = 0
     for frameId in frameIds:
@@ -168,8 +168,8 @@ def getAllForCcd(butler, astrom, frame, ccd, ct=None):
 
 def readCatalog(butler, frameIds, ccdIds, ct=None):
     print "Reading catalogs ..."
-    sourceSet = hscMosaic.SourceGroup()
-    matchList = hscMosaic.SourceMatchGroup()
+    sourceSet = measMosaic.SourceGroup()
+    matchList = measMosaic.SourceMatchGroup()
     astrom = measAstrom.Astrometry(measAstrom.MeasAstromConfig())
     for frameId in frameIds:
         ss = []
@@ -179,13 +179,13 @@ def readCatalog(butler, frameIds, ccdIds, ct=None):
             if sources != None:
                 for s in sources:
                     if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
-                        src = hscMosaic.Source(s)
+                        src = measMosaic.Source(s)
                         src.setExp(frameIds.index(frameId))
                         src.setChip(ccdId)
                         ss.append(src)
                 for m in matches:
                     if m.first != None and m.second != None:
-                        match = hscMosaic.SourceMatch(hscMosaic.Source(m.first, wcs), hscMosaic.Source(m.second))
+                        match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs), measMosaic.Source(m.second))
                         match.second.setExp(frameIds.index(frameId))
                         match.second.setChip(ccdId)
                         ml.append(match)
@@ -206,7 +206,7 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
 
     print "Creating kd-tree for matched catalog ..."
     print 'len(matchList) = ', len(matchList)
-    rootMat = hscMosaic.kdtreeMat(matchList)
+    rootMat = measMosaic.kdtreeMat(matchList)
     #rootMat.printMat()
     allMat = rootMat.mergeMat()
     print "# of allMat : ", countObsInSourceGroup(allMat)
@@ -215,7 +215,7 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
     
     print "Creating kd-tree for source catalog ..."
     print 'len(sourceSet) = ', len(sourceSet), [len(sources) for sources in sourceSet]
-    rootSource = hscMosaic.kdtreeSource(sourceSet, rootMat, nchip, d_lim, nbrightest)
+    rootSource = measMosaic.kdtreeSource(sourceSet, rootMat, nchip, d_lim, nbrightest)
     #rootSource.printSource()
     allSource = rootSource.mergeSource()
     print "# of allSource : ", countObsInSourceGroup(allSource)
@@ -229,8 +229,8 @@ def writeNewWcs(butler, coeffSet, ccdSet, fscale, frameIds, ccdIds):
     exp = afwImage.ExposureI(0,0)
     for i in range(coeffSet.size()):
         for j in range(ccdSet.size()):
-            c = hscMosaic.convertCoeff(coeffSet[i], ccdSet[j]);
-            wcs = hscMosaic.wcsFromCoeff(c);
+            c = measMosaic.convertCoeff(coeffSet[i], ccdSet[j]);
+            wcs = measMosaic.wcsFromCoeff(c);
             exp.setWcs(wcs)
             scale = fscale[i] * fscale[coeffSet.size()+j]
             calib = afwImage.Calib()
@@ -247,7 +247,7 @@ def writeDetJImg(butler, coeffSet, ccdSet, frameIds, ccdIds):
     print "Write detJ Imgs ..."
     for i in range(coeffSet.size()):
         for j in range(ccdSet.size()):
-            img = hscMosaic.getJImg(coeffSet[i], ccdSet[j])
+            img = measMosaic.getJImg(coeffSet[i], ccdSet[j])
             exp = afwImage.ExposureF(afwImage.MaskedImageF(img))
             try:
                 butler.put(exp, 'detj', dict(visit=frameIds[i], ccd=ccdIds[j]))
@@ -260,7 +260,7 @@ def writeDCorImg(butler, coeffSet, ccdSet, frameIds, ccdIds, ffp):
     print "Write DCor Imgs ..."
     for i in range(coeffSet.size()):
         for j in range(ccdSet.size()):
-            img = hscMosaic.getFCorImg(ffp, ccdSet[j], coeffSet[i])
+            img = measMosaic.getFCorImg(ffp, ccdSet[j], coeffSet[i])
             exp = afwImage.ExposureF(afwImage.MaskedImageF(img))
             try:
                 butler.put(exp, 'dcor', dict(visit=frameIds[i], ccd=ccdIds[j]))
@@ -273,8 +273,8 @@ def writeFcr(butler, coeffSet, ccdSet, fscale, frameIds, ccdIds, ffp):
     print "Write Fcr ..."
     for i in range(coeffSet.size()):
         for j in range(ccdSet.size()):
-            newP = hscMosaic.convertFluxFitParams(coeffSet[i], ccdSet[j], hscMosaic.FluxFitParams(ffp))
-            metadata = hscMosaic.metadataFromFluxFitParams(newP)
+            newP = measMosaic.convertFluxFitParams(coeffSet[i], ccdSet[j], measMosaic.FluxFitParams(ffp))
+            metadata = measMosaic.metadataFromFluxFitParams(newP)
             exp = afwImage.ExposureI(0,0)
             exp.getMetadata().combine(metadata)
             scale = fscale[i] * fscale[coeffSet.size()+j]
@@ -797,8 +797,7 @@ def getExtent(matchVec):
 
     return u_max, v_max
 
-
-def mosaic(butler, frameIds, ccdIds, ct=None, config=hscMosaicConfig.HscMosaicConfig(),
+def mosaic(butler, frameIds, ccdIds, ct=None, config=measMosaicConfig.HscMosaicConfig(),
            outputDir=".", debug=False, verbose=False):
 
     ccdSet = readCcd(butler.mapper.camera, ccdIds)
@@ -834,8 +833,8 @@ def mosaic(butler, frameIds, ccdIds, ct=None, config=hscMosaicConfig.HscMosaicCo
 
     nmatch  = allMat.size()
     nsource = allSource.size()
-    matchVec  = hscMosaic.obsVecFromSourceGroup(allMat,    wcsDic, ccdSet)
-    sourceVec = hscMosaic.obsVecFromSourceGroup(allSource, wcsDic, ccdSet)
+    matchVec  = measMosaic.obsVecFromSourceGroup(allMat,    wcsDic, ccdSet)
+    sourceVec = measMosaic.obsVecFromSourceGroup(allSource, wcsDic, ccdSet)
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
     print "(Memory) After obsVecFromSourceGroup : ", mem
 
@@ -848,7 +847,7 @@ def mosaic(butler, frameIds, ccdIds, ct=None, config=hscMosaicConfig.HscMosaicCo
     chebyshev = config.chebyshev
     absolute = config.fluxFitAbsolute
 
-    ffp = hscMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
+    ffp = measMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
     u_max, v_max = getExtent(matchVec)
     ffp.u_max = (math.floor(u_max / 10.) + 1) * 10
     ffp.v_max = (math.floor(v_max / 10.) + 1) * 10
@@ -861,11 +860,11 @@ def mosaic(butler, frameIds, ccdIds, ct=None, config=hscMosaicConfig.HscMosaicCo
 
     fscale = afwMath.vectorD()
     if internal:
-        coeffSet = hscMosaic.solveMosaic_CCD(order, nmatch, nsource, matchVec, sourceVec,
+        coeffSet = measMosaic.solveMosaic_CCD(order, nmatch, nsource, matchVec, sourceVec,
                                              wcsDic, ccdSet, ffp,
                                              fscale, solveCcd, allowRotation, verbose)
     else:
-        coeffSet = hscMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
+        coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
                                                   wcsDic, ccdSet, ffp, fscale,
                                                   solveCcd, allowRotation, verbose)
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
