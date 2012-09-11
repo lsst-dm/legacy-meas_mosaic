@@ -1,12 +1,12 @@
 // -*- lsst-c++ -*-
 %define fitLib_DOCSTRING
 "
-Python interface to hsc::meas::fit
+Python interface to lsst::meas::mosaic
 "
 %enddef
 
 %feature("autodoc", "1");
-%module(package="hsc.meas.mosaic", docstring=fitLib_DOCSTRING) mosaicLib
+%module(package="lsst.meas.mosaic", docstring=fitLib_DOCSTRING) mosaicLib
 
 %{
 #include "lsst/afw/image.h"
@@ -16,9 +16,6 @@ Python interface to hsc::meas::fit
 %}
 
 %include "lsst/p_lsstSwig.i"
-
-%pythoncode %{
-import lsst.utils
 
 %import "lsst/afw/image/imageLib.i"
 %import "lsst/afw/geom/geomLib.i"
