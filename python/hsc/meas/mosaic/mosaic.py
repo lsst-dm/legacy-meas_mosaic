@@ -114,7 +114,7 @@ def selectStars(sources, includeSaturated=False):
             stars.append(includeSource)
     return stars
 
-def getAllForCcd(butler, astrom, frame, ccd):
+def getAllForCcd(butler, astrom, frame, ccd, ct=None):
 
     data = {'visit': frame, 'ccd': ccd}
 
@@ -132,7 +132,27 @@ def getAllForCcd(butler, astrom, frame, ccd):
         else:
             icSrces = butler.get('icSrc', data)
             packedMatches = butler.get('icMatch', data)
-            matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces)
+            matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
+            if ct != None:
+                if matches[0].first != None:
+                    refSchema = matches[0].first.schema
+                else:
+                    refSchema = matches[1].first.schema
+                key_p = refSchema.find(ct.primary).key
+                key_s = refSchema.find(ct.secondary).key
+                key_f = refSchema.find("flux").key
+                for m in matches:
+                    if m.first != None:
+                        refFlux1 = m.first.get(key_p)
+                        refFlux2 = m.first.get(key_s)
+                        refMag1 = -2.5*math.log10(refFlux1)
+                        refMag2 = -2.5*math.log10(refFlux2)
+                        refMag = ct.transformMags(ct.primary, refMag1, refMag2)
+                        refFlux = math.pow(10.0, -0.4*refMag)
+                        if refFlux == refFlux:
+                            m.first.set(key_f, refFlux)
+                        else:
+                            m.first = None
 
         sources = selectStars(sources)
         selMatches = selectStars(matches)
@@ -146,7 +166,7 @@ def getAllForCcd(butler, astrom, frame, ccd):
     
     return sources, matches, wcs
 
-def readCatalog(butler, frameIds, ccdIds):
+def readCatalog(butler, frameIds, ccdIds, ct=None):
     print "Reading catalogs ..."
     sourceSet = hscMosaic.SourceGroup()
     matchList = hscMosaic.SourceMatchGroup()
@@ -155,7 +175,7 @@ def readCatalog(butler, frameIds, ccdIds):
         ss = []
         ml = []
         for ccdId in ccdIds:
-            sources, matches, wcs = getAllForCcd(butler, astrom, frameId, ccdId)
+            sources, matches, wcs = getAllForCcd(butler, astrom, frameId, ccdId, ct)
             if sources != None:
                 for s in sources:
                     if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
@@ -777,7 +797,7 @@ def getExtent(matchVec):
 
     return u_max, v_max
 
-def mosaic(butler, frameIds, ccdIds, config=hscMosaicConfig.HscMosaicConfig(),
+def mosaic(butler, frameIds, ccdIds, ct=None, config=hscMosaicConfig.HscMosaicConfig(),
            outputDir=".", debug=False, verbose=False):
 
     ccdSet = readCcd(butler.mapper.camera, ccdIds)
@@ -798,7 +818,7 @@ def mosaic(butler, frameIds, ccdIds, config=hscMosaicConfig.HscMosaicConfig(),
         for i, wcs in wcsDic.iteritems():
             print i, wcs.getPixelOrigin(), wcs.getSkyOrigin().getPosition(afwCoord.DEGREES)
 
-    sourceSet, matchList = readCatalog(butler, frameIdsExist, ccdIds)
+    sourceSet, matchList = readCatalog(butler, frameIdsExist, ccdIds, ct)
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
     print "(Memory) After readCatalog : ", mem
 

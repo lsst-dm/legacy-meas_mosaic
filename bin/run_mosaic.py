@@ -10,6 +10,9 @@ import lsst.obs.suprimecam              as obsSc
 import hsc.meas.mosaic.mosaic           as mosaic
 import hsc.meas.mosaic.config           as hscMosaicConfig
 
+from lsst.meas.photocal.colorterms  import Colorterm
+from lsst.obs.suprimecam.colorterms import colortermsData
+
 def main():
     parser = optparse.OptionParser()
     parser.add_option("-r", "--rerun",
@@ -59,11 +62,21 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None, ou
     print frameIds
     ccdIds = range(hscCamera.getNumCcds(instrument))
 
+    Colorterm.setColorterms(colortermsData)
+    if instrument == 'suprimecam':
+        Colorterm.setActiveDevice("Hamamatsu")
+        ct = Colorterm.getColorterm(butler.mapper.filters[filter])
+    elif instrument == 'suprimecam-mit':
+        Colorterm.setActiveDevice("MIT")
+        ct = Colorterm.getColorterm(butler.mapper.filters[filter])
+    else:
+        ct = None
+
     if (len(frameIds) == 0):
         print "There is no frameIds"
         sys.exit(1)
     else:
-        mosaic.mosaic(butler, frameIds, ccdIds, outputDir=outputDir, verbose=True)
+        mosaic.mosaic(butler, frameIds, ccdIds, ct, outputDir=outputDir, verbose=True)
 
 if __name__ == '__main__':
     main()
