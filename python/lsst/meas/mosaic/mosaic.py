@@ -797,7 +797,7 @@ def getExtent(matchVec):
 
     return u_max, v_max
 
-def mosaic(butler, frameIds, ccdIds, ct=None, config=measMosaicConfig.HscMosaicConfig(),
+def mosaic(butler, frameIds, ccdIds, ct=None, config=measMosaicConfig.MosaicConfig(),
            outputDir=".", debug=False, verbose=False):
 
     ccdSet = readCcd(butler.mapper.camera, ccdIds)

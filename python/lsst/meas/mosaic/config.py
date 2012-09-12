@@ -3,7 +3,7 @@
 import lsst.pex.config as pexConfig
 import lsst.afw.math as afwMath
 
-class HscMosaicConfig(pexConfig.Config):
+class MosaicConfig(pexConfig.Config):
     nBrightest = pexConfig.RangeField(
         doc="number of stars used for fitting per exposure",
         dtype=int,
