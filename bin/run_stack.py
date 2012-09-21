@@ -11,15 +11,15 @@ import hsc.pipe.base.camera as hscCamera
 import hsc.meas.mosaic.mosaicLib  as hscMosaic
 import hsc.meas.mosaic.stack             as stack
 
-try:
-    from IPython.core.debugger import Tracer
-    debug_here = Tracer()
-except:
-    pass
+#try:
+#    from IPython.core.debugger import Tracer
+#    debug_here = Tracer()
+#except:
+#    pass
 
 
 #WarpInputs = collections.namedtuple('WarpInputs', ['fileIO', 'f', 'wcs', 'skipMosaic', 'instrument', 'rerun'])
-WarpInputs = collections.namedtuple('WarpInputs', ['fileIO', 'f', 'workDir', 'destWcs', 'skipMosaic', 'instrument', 'rerun'])
+WarpInputs = collections.namedtuple('WarpInputs', ['fileIO', 'f', 'workDir', 'destWcs', 'skipMosaic', 'instrument', 'rerun', 'inRootDir', 'outRootDir'])
 
 def runStackWarp(warpInputs):
 
@@ -31,10 +31,12 @@ def runStackWarp(warpInputs):
     skipMosaic = warpInputs.skipMosaic
     instrument = warpInputs.instrument
     rerun      = warpInputs.rerun
-    
+    inRootDir  = warpInputs.inRootDir
+    outRootDir  = warpInputs.outRootDir
+ 
     wcs, width, height, nx, ny = stack.wcsIO(destWcs, "r", workDir=workDir)
     # wcsDic, dims, fscale = stack.readParamsFromFileList([f], skipMosaic=skipMosaic)
-    butler = hscCamera.getButler(instrument, rerun=rerun)
+    butler = hscCamera.getButler(instrument, rerun=rerun, root=inRootDir, outputRoot=outRootDir)
     
     trueSigma = -1.0
     try:
@@ -51,7 +53,7 @@ def runStackWarp(warpInputs):
         return trueSigma
 
 
-Inputs = collections.namedtuple('Inputs', ['rerun', 'instrument', 'ix', 'iy', 'subImgSize', 'stackId', 'imgMargin', 'fileIO', 'workDir', 'skipMosaic', 'filter', 'matchPsf', 'zeropoint', 'flistFname'])
+Inputs = collections.namedtuple('Inputs', ['rerun', 'instrument', 'ix', 'iy', 'subImgSize', 'stackId', 'imgMargin', 'fileIO', 'workDir', 'skipMosaic', 'filter', 'matchPsf', 'zeropoint', 'inRootDir', 'outRootDir'])
 
 def runStackExec(inputs):
     rerun = inputs.rerun
@@ -67,11 +69,13 @@ def runStackExec(inputs):
     filter = inputs.filter
     matchPsf= inputs.matchPsf
     zeropoint=inputs.zeropoint
+    inRootDir=inputs.inRootDir
+    outRootDir=inputs.outRootDir
     flistFname = inputs.flistFname
 
     print 'runStackExec ', ix, iy
 
-    butler = hscCamera.getButler(instrument, rerun)
+    butler = hscCamera.getButler(instrument, rerun=rerun, root=inRootDir, outputRoot=outRootDir)
 
     try:
         stack.stackExec(butler, ix, iy, stackId,
@@ -95,6 +99,12 @@ def main():
     parser.add_option("-I", "--instrument",
                       type=str, default='suprimecam',
                       help="instument to treat (hsc or suprimecam)")
+    parser.add_option("-i", "--inRootDir",
+                      type=str, default=None,
+                      help="butler's input root (e.g., /data/Subaru/SUPA)")
+    parser.add_option("-o", "--outRootDir",
+                      type=str, default=None,
+                      help="butler's outputput root (e.g., /data/Subaru/SUPA/rerun/XXX - rerun option is ignored)")
     parser.add_option("-p", "--program",
                       type=str, default=None,
                       help="program name (e.g. COSMOS_0)")
@@ -143,14 +153,16 @@ def main():
         filter=opts.filter, dateObs=opts.dateObs, destWcs=opts.destWcs,
         pScale=opts.pScale,
         workDir=opts.workDir, workDirRoot=opts.workDirRoot, threads=opts.threads, doMatchPsf=opts.doMatchPsf,
-        zeropoint=opts.zeropoint, fwhm=opts.fwhm)
+        zeropoint=opts.zeropoint, fwhm=opts.fwhm,
+        inRootDir=opts.inRootDir, outRootDir=opts.outRootDir)
     
 def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None, 
         destWcs=None, pScale=0.0, workDir=None, workDirRoot=None, threads=None, doMatchPsf=False,
-        zeropoint=0.0, fwhm=0.0):
+        zeropoint=0.0, fwhm=0.0,
+        inRootDir=None, outRootDir=None):
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    butler = hscCamera.getButler(instrument, rerun)
+    butler = hscCamera.getButler(instrument, rerun=rerun, root=inRootDir, outputRoot=outRootDir)
     ccdIds = range(hscCamera.getNumCcds(instrument))
     dataId = dict(field=program, filter=filter)
 
@@ -222,6 +234,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                                                 skipMosaic=skipMosaic,
                                                 destWcs=destWcs,
                                                 zeropoint=zeropoint,
+                                                inRootDir=inRootDir, outRootDir=outRootDir,
                                                 flistFname=flistFname)
 
 
@@ -253,14 +266,19 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                                              destWcs=destWcs,
                                              skipMosaic=skipMosaic,
                                              instrument=instrument,
-                                             rerun=rerun))
+                                             rerun=rerun,
+                                             inRootDir=inRootDir,
+                                             outRootDir=outRootDir))
             else:
                 warpInputs.append(WarpInputs(fileIO=fileIO, f=f,
                                              workDir=workDir,
                                              destWcs='destWcs.fits',
                                              skipMosaic=skipMosaic,
                                              instrument=instrument,
-                                             rerun=rerun))
+                                             rerun=rerun,
+                                             inRootDir=inRootDir,
+                                             outRootDir=outRootDir
+                                             ))
 
         # process the job
         if doMatchPsf:
@@ -298,6 +316,7 @@ def run(rerun=None, instrument=None, program=None, filter=None, dateObs=None,
                 inputs.append(Inputs(rerun=rerun,instrument=instrument,ix=ix, iy=iy,
                                      stackId=stackId, subImgSize=subImgSize, imgMargin=imgMargin,
                                      fileIO=fileIO, workDir=workDir, skipMosaic=skipMosaic, filter=filter,
+                                     inRootDir=inRootDir, outRootDir=outRootDir, 
                                      matchPsf=matchPsf, zeropoint=zp_ref, flistFname=flistFname
                                      ))
 

@@ -797,6 +797,7 @@ def getExtent(matchVec):
 
     return u_max, v_max
 
+
 def mosaic(butler, frameIds, ccdIds, ct=None, config=hscMosaicConfig.HscMosaicConfig(),
            outputDir=".", debug=False, verbose=False):
 
@@ -875,9 +876,9 @@ def mosaic(butler, frameIds, ccdIds, ct=None, config=hscMosaicConfig.HscMosaicCo
     writeFcr(butler, coeffSet, ccdSet, fscale, frameIdsExist, ccdIds, ffp)
 
     #if internal:
-    #    outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir)
+    #    outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir=outputDir)
     #else:
-    #    outputDiag(matchVec, None, coeffSet, ccdSet, fscale, ffp, outputDir)
+    #    outputDiag(matchVec, None, coeffSet, ccdSet, fscale, ffp, outputDir=outputDir)
 
     #writeDetJImg(butler, coeffSet, ccdSet, frameIds, ccdIds)
     #writeDCorImg(butler, coeffSet, ccdSet, frameIds, ccdIds, ffp)
