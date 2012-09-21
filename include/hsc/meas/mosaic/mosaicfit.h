@@ -125,6 +125,18 @@ namespace hsc {
 		double detJ(double u, double v);
 		int getNcoeff() { return p->ncoeff; }
 		double pixelScale(void);
+
+                // below lines for coeffFromTanWcs()
+		void set_D(double v) { D = v; }
+		void set_A(double v) { A = v; }
+		void set_x0(double v) { x0 = v; }
+		void set_y0(double v) { y0 = v; }
+		void set_iexp(int v) { iexp = v; }
+		double get_D() { return D; }
+		double get_A() { return A; }
+		double get_x0() { return x0; }
+		double get_y0() { return y0; }
+		int get_iexp() { return iexp; }
 	    };
 
 	    class Obs {
@@ -280,6 +292,8 @@ namespace hsc {
 				    lsst::afw::cameraGeom::Ccd::Ptr& ccd);
 
 	    lsst::afw::image::TanWcs::Ptr wcsFromCoeff(Coeff::Ptr& coeff);
+
+            Coeff::Ptr coeffFromTanWcs(lsst::afw::image::Wcs::Ptr& wcs);
 
 	    FluxFitParams::Ptr
 	      convertFluxFitParams(Coeff::Ptr& coeff,

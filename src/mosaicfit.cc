@@ -20,6 +20,10 @@ using namespace hsc::meas::mosaic;
 #endif
 double* solveMatrix(long size, double *a_data, double *b_data);
 
+static void decodeSipHeader(CONST_PTR(lsst::daf::base::PropertySet) const& fitsMetadata,
+                            std::string const& which,
+                            Eigen::MatrixXd *m);
+
 
 double calXi(double a, double d, double A, double D);
 double calXi_a(double a, double d, double A, double D);
@@ -3512,6 +3516,111 @@ hsc::meas::mosaic::wcsFromCoeff(Coeff::Ptr& coeff)
     return wcs;
 }
 
+// wholesale copied from afw::image::TanWcs.cc
+///@brief Decode the SIP headers for a given matrix, if present.
+static void decodeSipHeader(CONST_PTR(lsst::daf::base::PropertySet) const& fitsMetadata,
+                            std::string const& which,
+                            Eigen::MatrixXd *m) {
+    std::string header = which + "_ORDER";
+    if (!fitsMetadata->exists(header)) return;
+    int order = fitsMetadata->getAsInt(header);
+    m->resize(order + 1, order + 1);
+    boost::format format("%1%_%2%_%3%");
+    for (int i = 0; i <= order; ++i) {
+        for (int j = 0; j <= order; ++j) {
+            header = (format % which % i % j).str();
+            if (fitsMetadata->exists(header)) {
+                (*m)(i,j) = fitsMetadata->getAsDouble(header);
+            }
+            else {
+                (*m)(i, j) = 0.0;
+            }
+        }
+    }
+}
+
+//hsc::meas::mosaic::coeffFromTanWcs(lsst::afw::image::TanWcs::Ptr& tanwcs)
+Coeff::Ptr hsc::meas::mosaic::coeffFromTanWcs(lsst::afw::image::Wcs::Ptr& wcs)
+{
+
+//    lsst::daf::base::PropertyList::Ptr fitsMetadata = tanwcs->getFitsMetadata();
+    lsst::daf::base::PropertyList::Ptr fitsMetadata = wcs->getFitsMetadata();
+    int orderA = fitsMetadata->get<int>("A_ORDER");
+    int orderB = fitsMetadata->get<int>("B_ORDER");
+    int orderAP = fitsMetadata->get<int>("AP_ORDER");
+    int orderBP = fitsMetadata->get<int>("BP_ORDER");
+    int order = orderA;
+    int orderP = orderAP;
+
+    Poly::Ptr p = Poly::Ptr(new Poly( order ));
+    Coeff::Ptr coeff = Coeff::Ptr(new Coeff(p));
+
+    double cd00 = fitsMetadata->get<double>("CD1_1");
+    double cd11 = fitsMetadata->get<double>("CD2_2");
+    double cd01 = fitsMetadata->get<double>("CD1_2");
+    double cd10 = fitsMetadata->get<double>("CD2_1");
+    double crval0 = fitsMetadata->get<double>("CRVAL1");
+    double crval1 = fitsMetadata->get<double>("CRVAL2");
+    double crpix0 = fitsMetadata->get<double>("CRPIX1");
+    double crpix1 = fitsMetadata->get<double>("CRPIX2");
+
+    Eigen::MatrixXd sipA = Eigen::MatrixXd::Zero(orderA+1,orderA+1);
+    Eigen::MatrixXd sipB = Eigen::MatrixXd::Zero(orderB+1,orderB+1);
+    Eigen::MatrixXd sipAp = Eigen::MatrixXd::Zero(orderAP+1,orderAP+1);
+    Eigen::MatrixXd sipBp = Eigen::MatrixXd::Zero(orderBP+1,orderBP+1);
+    decodeSipHeader(fitsMetadata, "A", &sipA);
+    decodeSipHeader(fitsMetadata, "B", &sipB);
+    decodeSipHeader(fitsMetadata, "AP", &sipAp);
+    decodeSipHeader(fitsMetadata, "BP", &sipBp);
+
+    coeff->set_A(crval0*D2R);
+    coeff->set_D(crval1*D2R);
+    coeff->set_x0(-crpix0);
+    coeff->set_y0(-crpix1);
+
+    coeff->set_iexp(0);
+
+    for (int k = 2; k <= order; k++) {
+	for (int i = k; i >= 0; i--) {
+	    int j = k - i;
+	    int n = k*(k+1)/2 - 1;
+
+            std::cout << "sipA(" << i << "," << j << "): " << sipA(i,j) << std::endl;
+            std::cout << "sipB(" << i << "," << j << "): " << sipB(i,j) << std::endl;
+            coeff->set_a(n+j, cd00*sipA(i,j)+cd01*sipB(i,j));
+            coeff->set_b(n+j, cd10*sipA(i,j)+cd11*sipB(i,j));
+
+	}
+    }
+    //std::cout << sipA << std::endl;
+    //std::cout << sipB << std::endl;
+
+    //cd *= R2D;
+
+    for (int k = 1; k <= orderP; k++) {
+	for (int i = k; i >= 0; i--) {
+	    int j = k - i;
+	    int n = k*(k+1)/2 - 1;
+
+	    coeff->set_ap(n+j, sipAp(i,j));
+            coeff->set_bp(n+j, sipBp(i,j));
+	}
+    }
+    //std::cout << sipAp << std::endl;
+    //std::cout << sipBp << std::endl;
+
+    // setting CD matrix to coeff.a(0,1) & b(0,1)
+    coeff->set_a(0, cd00);
+    coeff->set_a(1, cd01);
+    coeff->set_b(0, cd10);
+    coeff->set_b(1, cd11);
+    //double D = cd(0,0) * cd(1,1) - cd(0,1) * cd(1,0);
+    //std::cout << cd << std::endl;
+
+    return coeff;
+}
+
+
 lsst::daf::base::PropertySet::Ptr
 hsc::meas::mosaic::metadataFromFluxFitParams(FluxFitParams::Ptr& ffp)
 {
@@ -3758,3 +3867,4 @@ hsc::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 
     return getFCorImg(p, width, height);
 }
+
