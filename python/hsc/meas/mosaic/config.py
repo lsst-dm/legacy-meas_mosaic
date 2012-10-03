@@ -88,6 +88,10 @@ class HscStackConfig(pexConfig.Config):
         doc="Working directory root name",
         dtype=str,
         )
+    flistFname = pexConfig.Field(
+        doc="file list name",
+        dtype=str,
+        )
     warper = pexConfig.ConfigField(
         doc="Warping configuration",
         dtype=afwMath.WarperConfig,

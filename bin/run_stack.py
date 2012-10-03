@@ -53,7 +53,7 @@ def runStackWarp(warpInputs):
         return trueSigma
 
 
-Inputs = collections.namedtuple('Inputs', ['rerun', 'instrument', 'ix', 'iy', 'subImgSize', 'stackId', 'imgMargin', 'fileIO', 'workDir', 'skipMosaic', 'filter', 'matchPsf', 'zeropoint', 'inRootDir', 'outRootDir'])
+Inputs = collections.namedtuple('Inputs', ['rerun', 'instrument', 'ix', 'iy', 'subImgSize', 'stackId', 'imgMargin', 'fileIO', 'workDir', 'skipMosaic', 'filter', 'matchPsf', 'zeropoint', 'inRootDir', 'outRootDir', 'flistFname'])
 
 def runStackExec(inputs):
     rerun = inputs.rerun

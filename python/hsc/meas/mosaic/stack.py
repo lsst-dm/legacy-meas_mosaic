@@ -199,7 +199,7 @@ def stackInit(butler, fileList, subImgSize,
             pixelScale = pScale / 3600.
         wcs, width, height = globalWcs(wcsDic, dims, pixelScale)
     else:
-        wcs, width, height, nx, ny = wcsIO(destWcs, "r", workDir)
+        wcs, width, height, nx, ny = wcsIO(destWcs, "r", workDir=workDir)
 
     nx = width  / (subImgSize - imgMargin) + 1
     ny = height / (subImgSize - imgMargin) + 1
@@ -447,6 +447,10 @@ def stackEnd(butler,
             subImg = stackedMI.Factory(stackedMI, afwImage.BBox(llc, urc))
             mimgStack = mimgMap[k]
             subImg <<= mimgStack
+
+    if zeropoint == 0.0:
+        md = butler.get('stack_md', dict(stack=stackId, patch=0, filter=filter))
+        zeropoint = 2.5 * math.log10(md.get('FLUXMAG0'))
 
     expStack = afwImage.ExposureF(stackedMI, wcs)
     if matchPsf:

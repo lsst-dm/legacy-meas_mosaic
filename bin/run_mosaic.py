@@ -46,7 +46,7 @@ def main():
         raise SystemExit("failed to parse arguments")
 
     sys.argv = [sys.argv[0]] + args
-    print "rerun=%s, instrument=%s, program=%s, filter=%s, dateObs=%s, inRootDir=%s, outRootDir=%s, args=%s" % \
+    print "rerun=%s, instrument=%s, program=%s, filter=%s, dateObs=%s, inRootDir=%s, outRootDir=%s, outputDir=%s args=%s" % \
         (opts.rerun, opts.instrument, opts.program, opts.filter, opts.dateObs, opts.inRootDir, opts.outRootDir, opts.outputDir, sys.argv)
 
     run(rerun=opts.rerun, instrument=opts.instrument, program=opts.program,
