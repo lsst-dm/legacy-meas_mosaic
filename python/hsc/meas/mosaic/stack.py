@@ -210,8 +210,7 @@ def stackInit(butler, fileList, subImgSize,
 
     if (fileIO):
         flistIO(flistFname, "w", fileList, dims, fscale, workDir=workDir)
-        if destWcs == None:
-            wcsIO(wcsFname, "w", wcs, width, height, nx, ny, workDir=workDir)
+        wcsIO(wcsFname, "w", wcs, width, height, nx, ny, workDir=workDir)
         #wcsDicIO(wcsDicFname, "w", wcsDic)
         #f = open(sizeFname, "w")
         #f.write("%d %d %d %d" % (width, height, nx ,ny))
