@@ -3540,7 +3540,7 @@ static void decodeSipHeader(CONST_PTR(lsst::daf::base::PropertySet) const& fitsM
 }
 
 //hsc::meas::mosaic::coeffFromTanWcs(lsst::afw::image::TanWcs::Ptr& tanwcs)
-Coeff::Ptr hsc::meas::mosaic::coeffFromTanWcs(lsst::afw::image::Wcs::Ptr& wcs)
+Coeff::Ptr lsst::meas::mosaic::coeffFromTanWcs(lsst::afw::image::Wcs::Ptr& wcs)
 {
 
 //    lsst::daf::base::PropertyList::Ptr fitsMetadata = tanwcs->getFitsMetadata();
