@@ -19,7 +19,8 @@ using namespace lsst::meas::mosaic;
 #ifdef USE_MKL
 #include <mkl_lapack.h>
 #else
-#include <gsl/gsl_linalg.h>
+#include "Eigen/Core"
+#include "Eigen/LU"
 #endif
 Eigen::VectorXd solveMatrix(long size, Eigen::MatrixXd &a_data, Eigen::VectorXd &b_data);
 
@@ -1135,19 +1136,9 @@ Eigen::VectorXd solveMatrix_MKL(long size, Eigen::MatrixXd &a_data, Eigen::Vecto
     return c_data;
 }
 #else
-Eigen::VectorXd solveMatrix_GSL(long size, Eigen::MatrixXd &a_data, Eigen::VectorXd &b_data) {
-    gsl_matrix_view a = gsl_matrix_view_array(&a_data(0), size, size);
-    gsl_vector_view b = gsl_vector_view_array(&b_data(0), size);
-    Eigen::VectorXd c_data(size);
-    gsl_vector_view c = gsl_vector_view_array(&c_data(0), size);
-
-    int s;
-    gsl_permutation *p = gsl_permutation_alloc(size);
-    gsl_linalg_LU_decomp(&a.matrix, p, &s);
-    gsl_linalg_LU_solve(&a.matrix, p, &b.vector, &c.vector);
-    gsl_permutation_free(p);
-
-    return c_data;
+Eigen::VectorXd solveMatrix_Eigen(long size, Eigen::MatrixXd &a, Eigen::VectorXd &b) {
+    Eigen::PartialPivLU<Eigen::MatrixXd> lu(a);
+    return lu.solve(b);
 }
 #endif
 
@@ -1155,7 +1146,7 @@ Eigen::VectorXd solveMatrix(long size, Eigen::MatrixXd &a_data, Eigen::VectorXd 
 #ifdef USE_MKL
     return solveMatrix_MKL(size, a_data, b_data);
 #else
-    return solveMatrix_GSL(size, a_data, b_data);
+    return solveMatrix_Eigen(size, a_data, b_data);
 #endif
 }
 
