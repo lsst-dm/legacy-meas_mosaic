@@ -2346,7 +2346,7 @@ double calcChi2_abs(std::vector<Obs::Ptr> &m,
     int ncoeff = p->ncoeff - 3;
 
     double chi2 = 0.0;
-    int num;
+    int num = 0;
     for (int i = 0; i < nMobs; i++) {
 	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->mag0 == -9999) continue;
 	double val = m[i]->mag + fsol[m[i]->iexp] + fsol[nexp+m[i]->ichip];

@@ -205,7 +205,7 @@ def countObsInSourceGroup(sg):
 def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
 
     print "Creating kd-tree for matched catalog ..."
-    print 'len(matchList) = ', len(matchList)
+    print 'len(matchList) = ', len(matchList), [len(matches) for matches in matchList]
     rootMat = measMosaic.kdtreeMat(matchList)
     #rootMat.printMat()
     allMat = rootMat.mergeMat()
