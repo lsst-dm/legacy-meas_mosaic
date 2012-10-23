@@ -451,15 +451,22 @@ def saveResPos(matchVec, sourceVec, outputDir):
     _ybad = []
     _xm = []
     _ym = []
+    f = open("dpos.dat", "wt")
     for i in range(matchVec.size()):
         if (matchVec[i].good == True):
             _x.append((matchVec[i].xi_fit - matchVec[i].xi) * 3600)
             _y.append((matchVec[i].eta_fit - matchVec[i].eta) * 3600)
             _xm.append((matchVec[i].xi_fit - matchVec[i].xi) * 3600)
             _ym.append((matchVec[i].eta_fit - matchVec[i].eta) * 3600)
+            f.write("m %f %f %f %f %f %f 1\n" % (matchVec[i].xi_fit, matchVec[i].eta_fit,
+                                                 matchVec[i].xi, matchVec[i].eta,
+                                                 matchVec[i].u, matchVec[i].v))
         else:
             _xbad.append((matchVec[i].xi_fit - matchVec[i].xi) * 3600)
             _ybad.append((matchVec[i].eta_fit - matchVec[i].eta) * 3600)
+            f.write("m %f %f %f %f %f %f 0\n" % (matchVec[i].xi_fit, matchVec[i].eta_fit,
+                                                 matchVec[i].xi, matchVec[i].eta,
+                                                 matchVec[i].u, matchVec[i].v))
     _xs = []
     _ys = []
     if (sourceVec != None):
@@ -469,9 +476,16 @@ def saveResPos(matchVec, sourceVec, outputDir):
                 _y.append((sourceVec[i].eta_fit - sourceVec[i].eta) * 3600)
                 _xs.append((sourceVec[i].xi_fit - sourceVec[i].xi) * 3600)
                 _ys.append((sourceVec[i].eta_fit - sourceVec[i].eta) * 3600)
+                f.write("s %f %f %f %f %f %f 1\n" % (sourceVec[i].xi_fit, sourceVec[i].eta_fit,
+                                                     sourceVec[i].xi, sourceVec[i].eta,
+                                                     sourceVec[i].u, sourceVec[i].v))
             else:
                 _xbad.append((sourceVec[i].xi_fit - sourceVec[i].xi) * 3600)
                 _ybad.append((sourceVec[i].eta_fit - sourceVec[i].eta) * 3600)
+                f.write("s %f %f %f %f %f %f 0\n" % (sourceVec[i].xi_fit, sourceVec[i].eta_fit,
+                                                     sourceVec[i].xi, sourceVec[i].eta,
+                                                     sourceVec[i].u, sourceVec[i].v))
+    f.close()
 
     d_xi = numpy.array(_x)
     d_eta = numpy.array(_y)
@@ -493,9 +507,9 @@ def saveResPos(matchVec, sourceVec, outputDir):
     plt.rc('text', usetex=True)
 
     plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
-    plt.plot(d_xi_bad, d_eta_bad, 'k,', markeredgecolor='black')
-    plt.plot(d_xi_m, d_eta_m, 'g,', markeredgecolor='green')
-    plt.plot(d_xi_s, d_eta_s, 'r,', markeredgecolor='red')
+    plt.plot(d_xi_bad, d_eta_bad, 'k,', markeredgewidth=0)
+    plt.plot(d_xi_m, d_eta_m, 'g,', markeredgewidth=0)
+    plt.plot(d_xi_s, d_eta_s, 'r,', markeredgewidth=0)
     plt.xlim(-0.5, 0.5)
     plt.ylim(-0.5, 0.5)
 
@@ -651,10 +665,12 @@ def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
     _dmag_a = []
     _mag0_m = []
     _mag0_s = []
+    f = open('dmag.dat', 'wt')
     for i in range(matchVec.size()):
         if (matchVec[i].good == True and matchVec[i].mag != -9999 and matchVec[i].jstar != -1 and matchVec[i].mag0 != -9999):
             mag = matchVec[i].mag
             mag0 = matchVec[i].mag0
+            mag_cat = matchVec[i].mag_cat
             exp_cor = -2.5 * math.log10(fscale[matchVec[i].iexp])
             chip_cor = -2.5 * math.log10(fscale[nexp+matchVec[i].ichip])
             gain_cor = ffp.eval(matchVec[i].u, matchVec[i].v)
@@ -663,6 +679,19 @@ def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
             _dmag_m.append(diff)
             _dmag_a.append(diff)
             _mag0_m.append(mag0)
+            f.write("m %f %f %f %f %f 1\n" % (mag_cor, mag0, mag_cat,
+                                              matchVec[i].u, matchVec[i].v))
+        else:
+            mag = matchVec[i].mag
+            mag0 = matchVec[i].mag0
+            mag_cat = matchVec[i].mag_cat
+            exp_cor = -2.5 * math.log10(fscale[matchVec[i].iexp])
+            chip_cor = -2.5 * math.log10(fscale[nexp+matchVec[i].ichip])
+            gain_cor = ffp.eval(matchVec[i].u, matchVec[i].v)
+            mag_cor = mag + exp_cor + chip_cor + gain_cor
+            diff = mag_cor - mag0
+            f.write("m %f %f %f %f %f 0\n" % (mag_cor, mag0, mag_cat,
+                                              matchVec[i].u, matchVec[i].v))
     if sourceVec != None:
         for i in range(sourceVec.size()):
             if (sourceVec[i].good == True and sourceVec[i].mag != -9999 and sourceVec[i].jstar != -1):
@@ -676,6 +705,19 @@ def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
                 _dmag_s.append(diff)
                 _dmag_a.append(diff)
                 _mag0_s.append(mag0)
+                f.write("s %f %f %f %f %f 1\n" % (mag_cor, mag0, -9999,
+                                                  sourceVec[i].u, sourceVec[i].v))
+            else:
+                mag = sourceVec[i].mag
+                mag0 = sourceVec[i].mag0
+                exp_cor = -2.5 * math.log10(fscale[sourceVec[i].iexp])
+                chip_cor = -2.5 * math.log10(fscale[nexp+sourceVec[i].ichip])
+                gain_cor = ffp.eval(sourceVec[i].u, sourceVec[i].v)
+                mag_cor = mag + exp_cor + chip_cor + gain_cor
+                diff = mag_cor - mag0
+                f.write("s %f %f %f %f %f 0\n" % (mag_cor, mag0, -9999,
+                                                  sourceVec[i].u, sourceVec[i].v))
+    f.close()
 
     d_mag_m = numpy.array(_dmag_m)
     d_mag_s = numpy.array(_dmag_s)
@@ -692,8 +734,8 @@ def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
 
     plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
     if sourceVec != None:
-        plt.plot(mag0_s, d_mag_s, 'r,', markeredgecolor='red')
-    plt.plot(mag0_m, d_mag_m, 'g,', markeredgecolor='green')
+        plt.plot(mag0_s, d_mag_s, 'r,', markeredgewidth=0)
+    plt.plot(mag0_m, d_mag_m, 'g,', markeredgewidth=0)
     plt.plot([15,25], [0,0], 'k--')
     plt.xlim(15, 25)
     plt.ylim(-0.25, 0.25)
@@ -773,10 +815,10 @@ def outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir="."
         f.write("%3ld %10.3f %10.3f %10.7f %5.3f\n" % (i, center[0], center[1], orient.getYaw(), fscale[coeffSet.size()+i]));
     f.close()
 
-    for i in range(coeffSet.size()):
-        plotJCont(i, coeffSet[i], ccdSet, outputDir=outputDir)
-        plotFCorCont(i, coeffSet[i], ccdSet, ffp, outputDir)
-        saveResPos3(matchVec, sourceVec, i, coeffSet[i], ccdSet, outputDir)
+    #for i in range(coeffSet.size()):
+    #    plotJCont(i, coeffSet[i], ccdSet, outputDir=outputDir)
+    #    plotFCorCont(i, coeffSet[i], ccdSet, ffp, outputDir)
+    #    saveResPos3(matchVec, sourceVec, i, coeffSet[i], ccdSet, outputDir)
 
     saveResPos(matchVec, sourceVec, outputDir)
     #saveResPos2(matchVec, sourceVec, outputDir)
@@ -874,10 +916,10 @@ def mosaic(butler, frameIds, ccdIds, ct=None, config=measMosaicConfig.MosaicConf
     writeNewWcs(butler, coeffSet, ccdSet, fscale, frameIdsExist, ccdIds)
     writeFcr(butler, coeffSet, ccdSet, fscale, frameIdsExist, ccdIds, ffp)
 
-    #if internal:
-    #    outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir=outputDir)
-    #else:
-    #    outputDiag(matchVec, None, coeffSet, ccdSet, fscale, ffp, outputDir=outputDir)
+    if internal:
+        outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir=outputDir)
+    else:
+        outputDiag(matchVec, None, coeffSet, ccdSet, fscale, ffp, outputDir=outputDir)
 
     #writeDetJImg(butler, coeffSet, ccdSet, frameIds, ccdIds)
     #writeDCorImg(butler, coeffSet, ccdSet, frameIds, ccdIds, ffp)
