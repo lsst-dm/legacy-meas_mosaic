@@ -839,6 +839,27 @@ def getExtent(matchVec):
 
     return u_max, v_max
 
+def checkInputs(wcsDic, frameIdsExist, sourceSet, matchList):
+    newWcsDic = measMosaic.WcsDic()
+    newFrameIdsExist = []
+    newSourceSet = measMosaic.SourceGroup()
+    newMatchList = measMosaic.SourceMatchGroup()
+    num = 0
+    for i, (wcs, frame, ss, ml) in enumerate(zip(wcsDic, frameIdsExist, sourceSet, matchList)):
+        if len(ss) > 0 or len(ml) > 0:
+            newWcsDic[num] = wcsDic[wcs]
+            newFrameIdsExist.append(frame)
+            if num != i:
+                for s in ss:
+                    s.setExp(num)
+                for m in ml:
+                    m[1].setExp(num)
+            newSourceSet.push_back(ss)
+            newMatchList.push_back(ml)
+            num += 1
+    return newWcsDic, newFrameIdsExist, newSourceSet, newMatchList
+
+
 def mosaic(butler, frameIds, ccdIds, ct=None, config=measMosaicConfig.MosaicConfig(),
            outputDir=".", debug=False, verbose=False):
 
@@ -863,6 +884,9 @@ def mosaic(butler, frameIds, ccdIds, ct=None, config=measMosaicConfig.MosaicConf
     sourceSet, matchList = readCatalog(butler, frameIdsExist, ccdIds, ct)
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
     print "(Memory) After readCatalog : ", mem
+
+    wcsDic, frameIdsExist, sourceSet, matchList = checkInputs(wcsDic, frameIdsExist, sourceSet, matchList)
+
 
     d_lim = afwGeom.Angle(config.radXMatch, afwGeom.arcseconds)
     nbrightest = config.nBrightest
