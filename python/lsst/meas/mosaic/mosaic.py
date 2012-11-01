@@ -16,35 +16,34 @@ import lsst.afw.table                   as afwTable
 import lsst.afw.geom                    as afwGeom
 import lsst.meas.algorithms.utils       as malgUtils
 import lsst.meas.astrom.astrom          as measAstrom
-import lsst.meas.mosaic.mosaicLib        as measMosaic
-import lsst.meas.mosaic.config           as measMosaicConfig
+import lsst.meas.mosaic.mosaicLib       as measMosaic
+import lsst.meas.mosaic.config          as measMosaicConfig
 
 def readCcd(camera, ccdIds):
 
     print "Reading CCD info ..."
 
     ccds = measMosaic.CcdSet()
-    width = []
-    height = []
     for i in ccdIds:
         ccd = cameraGeomUtils.findCcd(camera, cameraGeom.Id(int(i)))
-        ccds.push_back(ccd)
-        width.append(ccd.getAllPixels(True).getWidth())
-        height.append(ccd.getAllPixels(True).getHeight())
+        ccds[i] = ccd
 
     # Calculate mean position of all CCD chips
     sx = sy = 0.
-    for i in range(ccds.size()):
-        center = ccds[i].getCenter().getPixels(ccds[i].getPixelSize())
+    for ccd in ccds.values():
+        center = ccd.getCenter().getPixels(ccd.getPixelSize())
         sx += center[0]
         sy += center[1]
     dx = sx / ccds.size()
     dy = sy / ccds.size()
 
     # Shift the origin of CCD chips
-    for i in range(ccds.size()):
-        pixelSize = ccds[i].getPixelSize()
-        ccds[i].setCenter(ccds[i].getCenter() - cameraGeom.FpPoint(dx * pixelSize, dy * pixelSize) - cameraGeom.FpPoint(width[i]*0.5, height[i]*0.5))
+    for ccd in ccds.values():
+        pixelSize = ccd.getPixelSize()
+        ccd.setCenter(ccd.getCenter()
+                      - cameraGeom.FpPoint(dx*pixelSize, dy*pixelSize)
+                      - cameraGeom.FpPoint(ccd.getAllPixels(True).getWidth()*0.5,
+                                           ccd.getAllPixels(True).getHeight()*0.5))
         
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -66,22 +65,48 @@ def readWcs(butler, frameIds, ccdSet):
     print "Reading WCS ..."
 
     wcsDic = measMosaic.WcsDic()
-    frameIdsExist = []
-    i = 0
     for frameId in frameIds:
-        ccdId = ccdSet[0].getId().getSerial()
-        wcs = getWcsForCcd(butler, frameId, ccdId)
+        found = 0
+        for ccdId in ccdSet.keys():
+            ccd = ccdSet[ccdId]
+            dataId = {'visit': frameId, 'ccd': ccdId}
+            if (butler.datasetExists('calexp',  dataId) and
+                butler.datasetExists('src',     dataId) and
+                butler.datasetExists('icSrc',   dataId) and
+                butler.datasetExists('icMatch', dataId)):
+                found = 1
+                break
+        if found:
+            wcs = getWcsForCcd(butler, frameId, ccdId)
+        else:
+            wcs = None
         if wcs != None:
-            offset = ccdSet[0].getCenter().getPixels(ccdSet[0].getPixelSize())
+            offset = ccd.getCenter().getPixels(ccd.getPixelSize())
             wcs.shiftReferencePixel(offset[0], offset[1])
-            wcsDic[i] = wcs
-            frameIdsExist.append(frameId)
-            i += 1
+            wcsDic[frameId] = wcs
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    return wcsDic, frameIdsExist
+    return wcsDic
 
+def removeNonExistCcd(butler, ccdSet, wcsDic):
+    num = dict()
+    for ichip in ccdSet.keys():
+        num[ichip] = 0
+
+    for iexp in wcsDic.keys():
+        for ichip in ccdSet.keys():
+            dataId = {'visit': iexp, 'ccd': ichip}
+            if (butler.datasetExists('calexp',  dataId) and
+                butler.datasetExists('src',     dataId) and
+                butler.datasetExists('icSrc',   dataId) and
+                butler.datasetExists('icMatch', dataId)):
+                num[ichip] += 1
+
+    for ichip in ccdSet.keys():
+        if num[ichip] == 0:
+            ccdSet.erase(ichip)
+            
 def selectStars(sources, includeSaturated=False):
     if len(sources) == 0:
         return []
@@ -180,13 +205,13 @@ def readCatalog(butler, frameIds, ccdIds, ct=None):
                 for s in sources:
                     if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
                         src = measMosaic.Source(s)
-                        src.setExp(frameIds.index(frameId))
+                        src.setExp(frameId)
                         src.setChip(ccdId)
                         ss.append(src)
                 for m in matches:
                     if m.first != None and m.second != None:
                         match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs), measMosaic.Source(m.second))
-                        match.second.setExp(frameIds.index(frameId))
+                        match.second.setExp(frameId)
                         match.second.setChip(ccdId)
                         ml.append(match)
         sourceSet.push_back(ss)
@@ -202,7 +227,7 @@ def countObsInSourceGroup(sg):
 
     return num
 
-def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
+def mergeCatalog(sourceSet, matchList, ccdSet, d_lim, nbrightest):
 
     print "Creating kd-tree for matched catalog ..."
     print 'len(matchList) = ', len(matchList), [len(matches) for matches in matchList]
@@ -215,7 +240,7 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
     
     print "Creating kd-tree for source catalog ..."
     print 'len(sourceSet) = ', len(sourceSet), [len(sources) for sources in sourceSet]
-    rootSource = measMosaic.kdtreeSource(sourceSet, rootMat, nchip, d_lim, nbrightest)
+    rootSource = measMosaic.kdtreeSource(sourceSet, rootMat, ccdSet, d_lim, nbrightest)
     #rootSource.printSource()
     allSource = rootSource.mergeSource()
     print "# of allSource : ", countObsInSourceGroup(allSource)
@@ -224,33 +249,33 @@ def mergeCatalog(sourceSet, matchList, nchip, d_lim, nbrightest):
 
     return allMat, allSource
 
-def writeNewWcs(butler, coeffSet, ccdSet, fscale, frameIds, ccdIds):
+def writeNewWcs(butler, coeffSet, ccdSet, fexp, fchip):
     print "Write New WCS ..."
     exp = afwImage.ExposureI(0,0)
-    for i in range(coeffSet.size()):
-        for j in range(ccdSet.size()):
-            c = measMosaic.convertCoeff(coeffSet[i], ccdSet[j]);
+    for iexp in coeffSet.keys():
+        for ichip in ccdSet.keys():
+            c = measMosaic.convertCoeff(coeffSet[iexp], ccdSet[ichip]);
             wcs = measMosaic.wcsFromCoeff(c);
             exp.setWcs(wcs)
-            scale = fscale[i] * fscale[coeffSet.size()+j]
+            scale = fexp[iexp] * fchip[ichip]
             calib = afwImage.Calib()
             calib.setFluxMag0(1.0/scale)
             exp.setCalib(calib)
             try:
-                butler.put(exp, 'wcs', dict(visit=frameIds[i], ccd=ccdIds[j]))
+                butler.put(exp, 'wcs', dict(visit=iexp, ccd=ichip))
             except Exception, e:
                 print "failed to write something: %s" % (e)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-def writeDetJImg(butler, coeffSet, ccdSet, frameIds, ccdIds):
+def writeDetJImg(butler, coeffSet, ccdSet):
     print "Write detJ Imgs ..."
-    for i in range(coeffSet.size()):
-        for j in range(ccdSet.size()):
-            img = measMosaic.getJImg(coeffSet[i], ccdSet[j])
+    for iexp in coeffSet.keys():
+        for ichip in ccdSet.keys():
+            img = measMosaic.getJImg(coeffSet[iexp], ccdSet[ichip])
             exp = afwImage.ExposureF(afwImage.MaskedImageF(img))
             try:
-                butler.put(exp, 'detj', dict(visit=frameIds[i], ccd=ccdIds[j]))
+                butler.put(exp, 'detj', dict(visit=iexp, ccd=ichip))
             except Exception, e:
                 print "failed to write something: %s" % (e)
 
@@ -258,33 +283,32 @@ def writeDetJImg(butler, coeffSet, ccdSet, frameIds, ccdIds):
 
 def writeDCorImg(butler, coeffSet, ccdSet, frameIds, ccdIds, ffp):
     print "Write DCor Imgs ..."
-    for i in range(coeffSet.size()):
-        for j in range(ccdSet.size()):
-            img = measMosaic.getFCorImg(ffp, ccdSet[j], coeffSet[i])
+    for iexp in coeffSet.keys():
+        for ichip in ccdSet.keys():
+            img = measMosaic.getFCorImg(ffp, ccdSet[ichip], coeffSet[iexp])
             exp = afwImage.ExposureF(afwImage.MaskedImageF(img))
             try:
-                butler.put(exp, 'dcor', dict(visit=frameIds[i], ccd=ccdIds[j]))
+                butler.put(exp, 'dcor', dict(visit=iexp, ccd=ichip))
             except Exception, e:
                 print "failed to write something: %s" % (e)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-def writeFcr(butler, coeffSet, ccdSet, fscale, frameIds, ccdIds, ffp):
+def writeFcr(butler, coeffSet, ccdSet, fexp, fchip, ffp):
     print "Write Fcr ..."
-    for i in range(coeffSet.size()):
-        for j in range(ccdSet.size()):
-            newP = measMosaic.convertFluxFitParams(coeffSet[i], ccdSet[j], measMosaic.FluxFitParams(ffp))
+    for iexp in coeffSet.keys():
+        for ichip in ccdSet.keys():
+            newP = measMosaic.convertFluxFitParams(coeffSet[iexp], ccdSet[ichip],
+                                                   measMosaic.FluxFitParams(ffp))
             metadata = measMosaic.metadataFromFluxFitParams(newP)
             exp = afwImage.ExposureI(0,0)
             exp.getMetadata().combine(metadata)
-            scale = fscale[i] * fscale[coeffSet.size()+j]
+            scale = fexp[iexp] * fchip[ichip]
             calib = afwImage.Calib()
             calib.setFluxMag0(1.0/scale)
             exp.setCalib(calib)
             try:
-                butler.put(exp, 'fcr', dict(visit=frameIds[i], ccd=ccdIds[j]))
-                #filename = butler.get("calexp_filename", dict(visit=frameIds[i], ccd=ccdIds[j]))[0]
-                #exp.writeFits(re.sub("CORR", "fcr", filename))
+                butler.put(exp, 'fcr', dict(visit=iexp, ccd=ichip))
             except Exception, e:
                 print "failed to write something: %s" % (e)
 
@@ -314,7 +338,7 @@ def plotJCont(num, coeff, ccdSet, outputDir):
     plt.contourf(X, Y, Z, levels=levels)
     plt.colorbar()
 
-    for ccd in ccdSet:
+    for ccd in ccdSet.values():
         w = ccd.getAllPixels(True).getWidth()
         h = ccd.getAllPixels(True).getHeight()
         x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeff.x0
@@ -355,7 +379,7 @@ def plotFCorCont(num, coeff, ccdSet, ffp, outputDir):
     plt.contourf(X, Y, Z, levels=levels)
     plt.colorbar()
 
-    for ccd in ccdSet:
+    for ccd in ccdSet.values():
         w = ccd.getAllPixels(True).getWidth()
         h = ccd.getAllPixels(True).getHeight()
         x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeff.x0
@@ -414,7 +438,7 @@ def saveResPos3(matchVec, sourceVec, num, coeff, ccdSet, outputDir):
     plt.quiverkey(q, 0, 4500, 0.1, "0.1 arcsec", coordinates='data', color='black')
     plt.quiver(xs, ys, dxs, dys, units='inches', angles='xy', scale=1, color='red')
 
-    for ccd in ccdSet:
+    for ccd in ccdSet.values():
         w = ccd.getAllPixels(True).getWidth()
         h = ccd.getAllPixels(True).getHeight()
         x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeff.x0
@@ -570,28 +594,28 @@ def saveResPos2(matchVec, sourceVec, outputDir):
     plt.rc('text', usetex=True)
 
     plt.subplot(2, 2, 1)
-    plt.plot(xi, d_xi, ',')
+    plt.plot(xi, d_xi, ',', markeredgewidth=0)
     plt.xlabel(r'$\xi$ (arcsec)')
     plt.ylabel(r'$\Delta\xi$ (arcsec)')
 
     plt.subplot(2, 2, 3)
-    plt.plot(xi, d_eta, ',')
+    plt.plot(xi, d_eta, ',', markeredgewidth=0)
     plt.xlabel(r'$\xi$ (arcsec)')
     plt.ylabel(r'$\Delta\eta$ (arcsec)')
 
     plt.subplot(2, 2, 2)
-    plt.plot(eta, d_xi, ',')
+    plt.plot(eta, d_xi, ',', markeredgewidth=0)
     plt.xlabel(r'$\eta$ (arcsec)')
     plt.ylabel(r'$\Delta\xi$ (arcsec)')
 
     plt.subplot(2, 2, 4)
-    plt.plot(eta, d_xi, ',')
+    plt.plot(eta, d_xi, ',', markeredgewidth=0)
     plt.xlabel(r'$\eta$ (arcsec)')
     plt.ylabel(r'$\Delta\eta$ (arcsec)')
 
     plt.savefig(os.path.join(outputDir, "res_pos2.png"), format='png')
 
-def saveResFlux(matchVec, fscale, nexp, ccdSet, ffp, outputDir):
+def saveResFlux(matchVec, fexp, fchip, nexp, ccdSet, ffp, outputDir):
     _dmag = []
     _iexp = []
     _ichip = []
@@ -600,8 +624,8 @@ def saveResFlux(matchVec, fscale, nexp, ccdSet, ffp, outputDir):
         if (matchVec[i].good == True and matchVec[i].mag != -9999 and matchVec[i].jstar != -1):
             mag = matchVec[i].mag
             mag0 = matchVec[i].mag0
-            exp_cor = -2.5 * math.log10(fscale[matchVec[i].iexp])
-            chip_cor = -2.5 * math.log10(fscale[nexp+matchVec[i].ichip])
+            exp_cor = -2.5 * math.log10(fexp[matchVec[i].iexp])
+            chip_cor = -2.5 * math.log10(fchip[matchVec[i].ichip])
             gain_cor = ffp.eval(matchVec[i].u, matchVec[i].v)
             mag_cor = mag + exp_cor + chip_cor + gain_cor
             diff = mag_cor - mag0
@@ -617,15 +641,13 @@ def saveResFlux(matchVec, fscale, nexp, ccdSet, ffp, outputDir):
 
     _r = []
     _dm = []
-    for i in range(ccdSet.size()):
-        w = 0;
-        for amp in ccdSet[i]:
-            w += amp.getDataSec(True).getWidth()
-            h = amp.getDataSec(True).getHeight()
-        _x0 = ccdSet[i].getCenter().getPixels(ccd.getPixelSize())[0] + 0.5 * w
-        _y0 = ccdSet[i].getCenter().getPixels(ccd.getPixelSize())[1] + 0.5 * h
+    for ccd in ccdSet.values():
+        w = ccd.getAllPixels(True).getWidth()
+        h = ccd.getAllPixels(True).getHeight()
+        _x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + 0.5 * w
+        _y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + 0.5 * h
         _r.append(math.sqrt(_x0*_x0 + _y0*_y0))
-        _dm.append(-2.5 * math.log10(fscale[nexp+i]))
+        _dm.append(-2.5 * math.log10(fchip[ccd.getId().getSerial()]))
 
     r = numpy.array(_r)
     dm = numpy.array(_dm)
@@ -644,14 +666,14 @@ def saveResFlux(matchVec, fscale, nexp, ccdSet, ffp, outputDir):
     plt.ylabel(r'Offset in magnitude')
 
     ax = plt.subplot(2, 2, 3)
-    plt.plot(iexp, d_mag, ',')
+    plt.plot(iexp, d_mag, ',', markeredgewidth=0)
     plt.xlabel(r'Exposure ID')
     plt.ylabel(r'$\Delta mag$ (mag)')
     plt.xlim(iexp.min()-1, iexp.max()+1)
     plt.ylim(-0.2, 0.2)
 
     ax = plt.subplot(2, 2, 4)
-    plt.plot(ichip, d_mag, ',')
+    plt.plot(ichip, d_mag, ',', markeredgewidth=0)
     plt.xlabel(r'Chip ID')
     plt.ylabel(r'$\Delta mag$ (mag)')
     plt.xlim(ichip.min()-1, ichip.max()+1)
@@ -659,20 +681,22 @@ def saveResFlux(matchVec, fscale, nexp, ccdSet, ffp, outputDir):
 
     plt.savefig(os.path.join(outputDir, "res_flux.png"), format='png')
 
-def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
+def saveResFlux0(matchVec, sourceVec, fexp, fchip, nexp, ccdSet, ffp, outputDir):
     _dmag_m = []
     _dmag_s = []
     _dmag_a = []
+    _dmag_bad = []
     _mag0_m = []
     _mag0_s = []
+    _mag0_bad = []
     f = open('dmag.dat', 'wt')
     for i in range(matchVec.size()):
         if (matchVec[i].good == True and matchVec[i].mag != -9999 and matchVec[i].jstar != -1 and matchVec[i].mag0 != -9999):
             mag = matchVec[i].mag
             mag0 = matchVec[i].mag0
             mag_cat = matchVec[i].mag_cat
-            exp_cor = -2.5 * math.log10(fscale[matchVec[i].iexp])
-            chip_cor = -2.5 * math.log10(fscale[nexp+matchVec[i].ichip])
+            exp_cor = -2.5 * math.log10(fexp[matchVec[i].iexp])
+            chip_cor = -2.5 * math.log10(fchip[matchVec[i].ichip])
             gain_cor = ffp.eval(matchVec[i].u, matchVec[i].v)
             mag_cor = mag + exp_cor + chip_cor + gain_cor
             diff = mag_cor - mag0
@@ -685,11 +709,13 @@ def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
             mag = matchVec[i].mag
             mag0 = matchVec[i].mag0
             mag_cat = matchVec[i].mag_cat
-            exp_cor = -2.5 * math.log10(fscale[matchVec[i].iexp])
-            chip_cor = -2.5 * math.log10(fscale[nexp+matchVec[i].ichip])
+            exp_cor = -2.5 * math.log10(fexp[matchVec[i].iexp])
+            chip_cor = -2.5 * math.log10(fchip[matchVec[i].ichip])
             gain_cor = ffp.eval(matchVec[i].u, matchVec[i].v)
             mag_cor = mag + exp_cor + chip_cor + gain_cor
             diff = mag_cor - mag0
+            _dmag_bad.append(diff)
+            _mag0_bad.append(mag0)
             f.write("m %f %f %f %f %f 0\n" % (mag_cor, mag0, mag_cat,
                                               matchVec[i].u, matchVec[i].v))
     if sourceVec != None:
@@ -697,8 +723,8 @@ def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
             if (sourceVec[i].good == True and sourceVec[i].mag != -9999 and sourceVec[i].jstar != -1):
                 mag = sourceVec[i].mag
                 mag0 = sourceVec[i].mag0
-                exp_cor = -2.5 * math.log10(fscale[sourceVec[i].iexp])
-                chip_cor = -2.5 * math.log10(fscale[nexp+sourceVec[i].ichip])
+                exp_cor = -2.5 * math.log10(fexp[sourceVec[i].iexp])
+                chip_cor = -2.5 * math.log10(fchip[sourceVec[i].ichip])
                 gain_cor = ffp.eval(sourceVec[i].u, sourceVec[i].v)
                 mag_cor = mag + exp_cor + chip_cor + gain_cor
                 diff = mag_cor - mag0
@@ -710,11 +736,13 @@ def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
             else:
                 mag = sourceVec[i].mag
                 mag0 = sourceVec[i].mag0
-                exp_cor = -2.5 * math.log10(fscale[sourceVec[i].iexp])
-                chip_cor = -2.5 * math.log10(fscale[nexp+sourceVec[i].ichip])
+                exp_cor = -2.5 * math.log10(fexp[sourceVec[i].iexp])
+                chip_cor = -2.5 * math.log10(fchip[sourceVec[i].ichip])
                 gain_cor = ffp.eval(sourceVec[i].u, sourceVec[i].v)
                 mag_cor = mag + exp_cor + chip_cor + gain_cor
                 diff = mag_cor - mag0
+                _dmag_bad.append(diff)
+                _mag0_bad.append(mag0)
                 f.write("s %f %f %f %f %f 0\n" % (mag_cor, mag0, -9999,
                                                   sourceVec[i].u, sourceVec[i].v))
     f.close()
@@ -722,8 +750,10 @@ def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
     d_mag_m = numpy.array(_dmag_m)
     d_mag_s = numpy.array(_dmag_s)
     d_mag_a = numpy.array(_dmag_a)
+    d_mag_bad = numpy.array(_dmag_bad)
     mag0_m = numpy.array(_mag0_m)
     mag0_s = numpy.array(_mag0_s)
+    mag0_bad = numpy.array(_mag0_bad)
 
     mag_std_m  = clippedStd(d_mag_m, 3)
     mag_std_s  = clippedStd(d_mag_s, 3)
@@ -733,6 +763,7 @@ def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
     plt.rc('text', usetex=True)
 
     plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
+    plt.plot(mag0_bad, d_mag_bad, 'k,', markeredgewidth=0)
     if sourceVec != None:
         plt.plot(mag0_s, d_mag_s, 'r,', markeredgewidth=0)
     plt.plot(mag0_m, d_mag_m, 'g,', markeredgewidth=0)
@@ -757,7 +788,7 @@ def saveResFlux0(matchVec, sourceVec, fscale, nexp, ccdSet, ffp, outputDir):
 
     plt.savefig(os.path.join(outputDir, "res_flux0.png"), format='png')
 
-def saveResFlux2(matchVec, fscale, nexp, ccdSet, ffp, outputDir):
+def saveResFlux2(matchVec, fexp, fchip, nexp, ccdSet, ffp, outputDir):
     _dmag = []
     _u = []
     _v = []
@@ -765,8 +796,8 @@ def saveResFlux2(matchVec, fscale, nexp, ccdSet, ffp, outputDir):
         if (matchVec[i].good == True and matchVec[i].mag != -9999 and matchVec[i].jstar != -1):
             mag = matchVec[i].mag
             mag0 = matchVec[i].mag0
-            exp_cor = -2.5 * math.log10(fscale[matchVec[i].iexp])
-            chip_cor = -2.5 * math.log10(fscale[nexp+matchVec[i].ichip])
+            exp_cor = -2.5 * math.log10(fexp[matchVec[i].iexp])
+            chip_cor = -2.5 * math.log10(fchip[matchVec[i].ichip])
             gain_cor = ffp.eval(matchVec[i].u, matchVec[i].v)
             mag_cor = mag + exp_cor + chip_cor + gain_cor
             diff = mag_cor - mag0
@@ -796,35 +827,35 @@ def saveResFlux2(matchVec, fscale, nexp, ccdSet, ffp, outputDir):
 
     plt.savefig(os.path.join(outputDir, "res_flux2.png"), format='png')
 
-def outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir="."):
+def outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fexp, fchip, ffp, outputDir="."):
     print "Output Diagnostic Figures..."
 
     f = open(os.path.join(outputDir, "coeffs.dat"), "wt")
-    for i in range(coeffSet.size()):
-        f.write("%ld %12.5e %12.5e\n" % (i, coeffSet[i].A, coeffSet[i].D));
-        f.write("%ld %12.5f %12.5f\n" % (i, coeffSet[i].x0, coeffSet[i].y0));
-        for k in range(coeffSet[i].getNcoeff()):
-            f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" % (i, coeffSet[i].get_a(k), coeffSet[i].get_b(k), coeffSet[i].get_ap(k), coeffSet[i].get_bp(k)));
-        f.write("%5.3f\n" % (-2.5*math.log10(fscale[i])))
+    for iexp in coeffSet.keys():
+        f.write("%ld %12.5e %12.5e\n" % (iexp, coeffSet[iexp].A, coeffSet[iexp].D));
+        f.write("%ld %12.5f %12.5f\n" % (iexp, coeffSet[iexp].x0, coeffSet[iexp].y0));
+        for k in range(coeffSet[iexp].getNcoeff()):
+            f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" % (iexp, coeffSet[iexp].get_a(k), coeffSet[iexp].get_b(k), coeffSet[iexp].get_ap(k), coeffSet[iexp].get_bp(k)));
+        f.write("%5.3f\n" % (-2.5*math.log10(fexp[iexp])))
     f.close()
 
     f = open(os.path.join(outputDir, "ccd.dat"), "wt")
-    for i in range(ccdSet.size()):
-        center = ccdSet[i].getCenter().getPixels(ccdSet[i].getPixelSize())
-        orient = ccdSet[i].getOrientation()
-        f.write("%3ld %10.3f %10.3f %10.7f %5.3f\n" % (i, center[0], center[1], orient.getYaw(), fscale[coeffSet.size()+i]));
+    for ichip in ccdSet.keys():
+        center = ccdSet[ichip].getCenter().getPixels(ccdSet[ichip].getPixelSize())
+        orient = ccdSet[ichip].getOrientation()
+        f.write("%3ld %10.3f %10.3f %10.7f %5.3f\n" % (ichip, center[0], center[1], orient.getYaw(), fchip[ichip]));
     f.close()
 
-    #for i in range(coeffSet.size()):
-    #    plotJCont(i, coeffSet[i], ccdSet, outputDir=outputDir)
-    #    plotFCorCont(i, coeffSet[i], ccdSet, ffp, outputDir)
-    #    saveResPos3(matchVec, sourceVec, i, coeffSet[i], ccdSet, outputDir)
+    #for iexp in coeffSet.keys():
+    #    plotJCont(iexp, coeffSet[iexp], ccdSet, outputDir=outputDir)
+    #    plotFCorCont(iexp, coeffSet[iexp], ccdSet, ffp, outputDir)
+    #    saveResPos3(matchVec, sourceVec, iexp, coeffSet[iexp], ccdSet, outputDir)
 
     saveResPos(matchVec, sourceVec, outputDir)
     #saveResPos2(matchVec, sourceVec, outputDir)
-    #saveResFlux(matchVec, fscale, coeffSet.size(), ccdSet, ffp, outputDir)
-    #saveResFlux2(matchVec, fscale, coeffSet.size(), ccdSet, ffp, outputDir)
-    saveResFlux0(matchVec, sourceVec, fscale, coeffSet.size(), ccdSet, ffp, outputDir)
+    #saveResFlux(matchVec, fexp, fchip, coeffSet.size(), ccdSet, ffp, outputDir)
+    #saveResFlux2(matchVec, fexp, fchip, coeffSet.size(), ccdSet, ffp, outputDir)
+    saveResFlux0(matchVec, sourceVec, fexp, fchip, coeffSet.size(), ccdSet, ffp, outputDir)
 
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -839,25 +870,16 @@ def getExtent(matchVec):
 
     return u_max, v_max
 
-def checkInputs(wcsDic, frameIdsExist, sourceSet, matchList):
+def checkInputs(wcsDic, sourceSet, matchList):
     newWcsDic = measMosaic.WcsDic()
-    newFrameIdsExist = []
     newSourceSet = measMosaic.SourceGroup()
     newMatchList = measMosaic.SourceMatchGroup()
-    num = 0
-    for i, (wcs, frame, ss, ml) in enumerate(zip(wcsDic, frameIdsExist, sourceSet, matchList)):
+    for i, (wcs, frame, ss, ml) in enumerate(zip(wcsDic.values(), wcsDic.keys(), sourceSet, matchList)):
         if len(ss) > 0 or len(ml) > 0:
-            newWcsDic[num] = wcsDic[wcs]
-            newFrameIdsExist.append(frame)
-            if num != i:
-                for s in ss:
-                    s.setExp(num)
-                for m in ml:
-                    m[1].setExp(num)
+            newWcsDic[frame] = wcs
             newSourceSet.push_back(ss)
             newMatchList.push_back(ml)
-            num += 1
-    return newWcsDic, newFrameIdsExist, newSourceSet, newMatchList
+    return newWcsDic, newSourceSet, newMatchList
 
 
 def mosaic(butler, frameIds, ccdIds, ct=None, config=measMosaicConfig.MosaicConfig(),
@@ -868,32 +890,36 @@ def mosaic(butler, frameIds, ccdIds, ct=None, config=measMosaicConfig.MosaicConf
     print "(Memory) After readCcd : ", mem
 
     if debug:
-        for ccd in ccdSet:
+        for ccd in ccdSet.values():
             print (ccd.getId().getSerial(), ccd.getCenter().getPixels(ccd.getPixelSize()),
                    ccd.getOrientation().getYaw())
 
-    wcsDic, frameIdsExist = readWcs(butler, frameIds, ccdSet)
-    print frameIdsExist
+    wcsDic = readWcs(butler, frameIds, ccdSet)
+    print wcsDic.keys()
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
     print "(Memory) After readWcs : ", mem
 
-    if debug:
-        for i, wcs in wcsDic.iteritems():
-            print i, wcs.getPixelOrigin(), wcs.getSkyOrigin().getPosition(afwCoord.DEGREES)
+    removeNonExistCcd(butler, ccdSet, wcsDic)
+    print ccdSet.keys()
 
-    sourceSet, matchList = readCatalog(butler, frameIdsExist, ccdIds, ct)
+    if debug:
+        for iexp, wcs in wcsDic.iteritems():
+            print iexp, wcs.getPixelOrigin(), wcs.getSkyOrigin().getPosition(afwGeom.degrees)
+
+    sourceSet, matchList = readCatalog(butler, wcsDic.keys(), ccdSet.keys(), ct)
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
     print "(Memory) After readCatalog : ", mem
 
-    wcsDic, frameIdsExist, sourceSet, matchList = checkInputs(wcsDic, frameIdsExist, sourceSet, matchList)
-
+    wcsDic, sourceSet, matchList = checkInputs(wcsDic, sourceSet, matchList)
+    print wcsDic.size(), sourceSet.size(), matchList.size()
+    print wcsDic.keys()
 
     d_lim = afwGeom.Angle(config.radXMatch, afwGeom.arcseconds)
     nbrightest = config.nBrightest
     if verbose:
         print "d_lim : ", d_lim
         print "nbrightest : ", nbrightest
-    allMat, allSource = mergeCatalog(sourceSet, matchList, ccdSet.size(), d_lim, nbrightest)
+    allMat, allSource = mergeCatalog(sourceSet, matchList, ccdSet, d_lim, nbrightest)
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
     print "(Memory) After mergeCatalog : ", mem
 
@@ -924,28 +950,31 @@ def mosaic(butler, frameIds, ccdIds, ct=None, config=measMosaicConfig.MosaicConf
         print "solveCcd : ", solveCcd
         print "allowRotation : ", allowRotation
 
-    fscale = afwMath.vectorD()
+    #fscale = afwMath.vectorD()
+    fexp = measMosaic.map_int_float()
+    fchip = measMosaic.map_int_float()
     if internal:
-        coeffSet = measMosaic.solveMosaic_CCD(order, nmatch, nsource, matchVec, sourceVec,
-                                             wcsDic, ccdSet, ffp,
-                                             fscale, solveCcd, allowRotation, verbose)
+        coeffSet = measMosaic.solveMosaic_CCD(order, nmatch, nsource,
+                                              matchVec, sourceVec,
+                                              wcsDic, ccdSet, ffp, fexp, fchip,
+                                              solveCcd, allowRotation, verbose)
     else:
         coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
-                                                  wcsDic, ccdSet, ffp, fscale,
-                                                  solveCcd, allowRotation, verbose)
+                                                   wcsDic, ccdSet, ffp, fexp, fchip,
+                                                   solveCcd, allowRotation, verbose)
     mem = int(os.popen('/bin/ps -o vsz %d' % os.getpid()).readlines()[-1])
     print "(Memory) After solveMosaic_CCD : ", mem
     print datetime.datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-    writeNewWcs(butler, coeffSet, ccdSet, fscale, frameIdsExist, ccdIds)
-    writeFcr(butler, coeffSet, ccdSet, fscale, frameIdsExist, ccdIds, ffp)
+    writeNewWcs(butler, coeffSet, ccdSet, fexp, fchip)
+    writeFcr(butler, coeffSet, ccdSet, fexp, fchip, ffp)
 
     if internal:
-        outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fscale, ffp, outputDir=outputDir)
+        outputDiag(matchVec, sourceVec, coeffSet, ccdSet, fexp, fchip, ffp, outputDir=outputDir)
     else:
-        outputDiag(matchVec, None, coeffSet, ccdSet, fscale, ffp, outputDir=outputDir)
+        outputDiag(matchVec, None, coeffSet, ccdSet, fexp, fchip, ffp, outputDir=outputDir)
 
     #writeDetJImg(butler, coeffSet, ccdSet, frameIds, ccdIds)
     #writeDCorImg(butler, coeffSet, ccdSet, frameIds, ccdIds, ffp)
 
-    return frameIdsExist
+    return wcsDic.keys()

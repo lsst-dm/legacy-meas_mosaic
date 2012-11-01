@@ -160,8 +160,10 @@ namespace lsst {
 		int id;
 		int istar;
 		int jstar;	/* index for fit */
-		int iexp;
-		int ichip;
+		int iexp;	/* exposure id or visit number */
+		int ichip;	/* ccdId */
+		int jexp;	/* sequential index for exposure used for matrix*/
+		int jchip;	/* sequential index for ccd used for matrix*/
 		bool good;
 
 		double mag;
@@ -250,14 +252,14 @@ namespace lsst {
 		int getIndex(int i, int j);
 	    };
 
-	    typedef std::vector<lsst::afw::cameraGeom::Ccd::Ptr> CcdSet;
-	    typedef std::vector<Coeff::Ptr> CoeffSet;
+	    typedef std::map<int, lsst::afw::cameraGeom::Ccd::Ptr> CcdSet;
+	    typedef std::map<int, Coeff::Ptr> CoeffSet;
 	    typedef std::vector<Obs::Ptr> ObsVec;
 
 	    KDTree::Ptr kdtreeMat(SourceMatchGroup &matchList);
 	    KDTree::Ptr kdtreeSource(SourceGroup const &sourceSet,
 				     KDTree::Ptr rootMat,
-				     int nchip,
+				     CcdSet &ccdSet,
 				     lsst::afw::geom::Angle d_lim, unsigned int nbrightest);
 
 	    ObsVec obsVecFromSourceGroup(SourceGroup const &all,
@@ -270,7 +272,8 @@ namespace lsst {
 					  WcsDic &wcsDic,
 					  CcdSet &ccdSet,
 					  FluxFitParams::Ptr &ffp,
-					  std::vector<double> &fscale,
+					  std::map<int, float> &fexp,
+					  std::map<int, float> &fchip,
 					  bool solveCcd = true,
 					  bool allowRotation = true,
 					  bool verbose = false);
@@ -283,7 +286,8 @@ namespace lsst {
 				     WcsDic &wcsDic,
 				     CcdSet &ccdSet,
 				     FluxFitParams::Ptr &ffp,
-				     std::vector<double> &fscale,
+				     std::map<int, float> &fexp,
+				     std::map<int, float> &fchip,
 				     bool solveCcd = true,
 				     bool allowRotation = true,
 				     bool verbose = false);
