@@ -1704,7 +1704,7 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 	}
 
 	for (int i = 0; i < nSobs; i++) {
-	    if (!s[i]->good) continue;
+	    if (!s[i]->good || s[i]->jstar == -1) continue;
             ++numStarGood;
 	    double Ax = s[i]->xi;
 	    double Ay = s[i]->eta;
@@ -1844,7 +1844,7 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 	}
 
 	for (int i = 0; i < nSobs; i++) {
-	    if (!s[i]->good) continue;
+	    if (!s[i]->good || s[i]->jstar == -1) continue;
             ++numStarGood;
 	    double Ax = s[i]->xi;
 	    double Ay = s[i]->eta;
