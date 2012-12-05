@@ -62,6 +62,10 @@ class MosaicConfig(pexConfig.Config):
         doc="Output directory to write diagnostics plots",
         dtype=str,
         default=".")
+    outputDiag = pexConfig.Field(
+        doc="Output diagnostics plots",
+        dtype=bool,
+        default=False)
 
 class MosaicTask(pipeBase.Task):
 
@@ -673,6 +677,7 @@ class MosaicTask(pipeBase.Task):
         plt.plot([15,25], [0,0], 'k--')
         plt.xlim(15, 25)
         plt.ylim(-0.25, 0.25)
+        plt.ylabel(r'$\Delta mag$ (mag)')
 
         bins = numpy.arange(-0.25, 0.25, 0.005) + 0.0025
 
@@ -692,8 +697,6 @@ class MosaicTask(pipeBase.Task):
         plt.xticks(rotation=270)
         plt.yticks(rotation=270)
         plt.ylim(-0.25, 0.25)
-
-        plt.xlabel(r'$\Delta mag$ (mag)')
 
         plt.savefig(os.path.join(self.outputDir, "MdM.png"), format='png')
 
@@ -974,11 +977,133 @@ class MosaicTask(pipeBase.Task):
         self.writeNewWcs()
         self.writeFcr()
 
-        self.outputDiag()
+        if self.config.outputDiag:
+            self.outputDiag()
 
         return wcsDic.keys()
 
     def run(self, camera, butler, dataRefList, debug, verbose=False):
+
+        frameIds = list()
+        ccdIds = list()
+        filters = list()
+        for dataRef in dataRefList:
+            if not dataRef.dataId['visit'] in frameIds:
+                frameIds.append(dataRef.dataId['visit'])
+            if not dataRef.dataId['ccd'] in ccdIds:
+                ccdIds.append(dataRef.dataId['ccd'])
+            if not dataRef.dataId['filter'] in filters:
+                filters.append(dataRef.dataId['filter'])
+
+        if len(filters) != 1:
+            self.log.fatal("There are %d filters in input frames" % len(filters))
+            return None
+
+        if camera == 'suprimecam':
+            from lsst.obs.suprimecam.colorterms import colortermsData
+            Colorterm.setColorterms(colortermsData)
+            Colorterm.setActiveDevice("Hamamatsu")
+            ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
+        elif camera == 'suprimecam-mit':
+            from lsst.obs.suprimecam.colorterms import colortermsData
+            Colorterm.setColorterms(colortermsData)
+            Colorterm.setActiveDevice("MIT")
+            ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
+        else:
+            ct = None
+
+        return self.mosaic(butler, frameIds, ccdIds, ct, debug, verbose)
+
+    def getAllForCcdNew(self, butler, astrom, frame, ccd, ct=None):
+
+        data = {'visit': frame, 'ccd': ccd}
+
+        try:
+            if not butler.datasetExists('src', data):
+                raise RuntimeError("no data for src %s" % (data))
+            if not butler.datasetExists('calexp_md', data):
+                raise RuntimeError("no data for calexp_md %s" % (data))
+
+            wcs_md = butler.get('wcs_md', data)
+            wcs = afwImage.makeWcs(wcs_md)
+
+            fcr_md = butler.get('fcr_md', data)
+            ffp = measMosaic.FluxFitParams(fcr_md)
+            fluxmag0 = fcr_md.get('FLUXMAG0')
+
+            sources = butler.get('src', data)
+            if False:
+                matches = measAstrom.readMatches(butler, data)
+            else:
+                icSrces = butler.get('icSrc', data)
+                packedMatches = butler.get('icMatch', data)
+                matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
+                if ct != None:
+                    if matches[0].first != None:
+                        refSchema = matches[0].first.schema
+                    else:
+                        refSchema = matches[1].first.schema
+                    key_p = refSchema.find(ct.primary).key
+                    key_s = refSchema.find(ct.secondary).key
+                    key_f = refSchema.find("flux").key
+                    for m in matches:
+                        if m.first != None:
+                            refFlux1 = m.first.get(key_p)
+                            refFlux2 = m.first.get(key_s)
+                            refMag1 = -2.5*math.log10(refFlux1)
+                            refMag2 = -2.5*math.log10(refFlux2)
+                            refMag = ct.transformMags(ct.primary, refMag1, refMag2)
+                            refFlux = math.pow(10.0, -0.4*refMag)
+                            if refFlux == refFlux:
+                                m.first.set(key_f, refFlux)
+                            else:
+                                m.first = None
+
+            sources = self.selectStars(sources)
+            selMatches = self.selectStars(matches)
+            if len(selMatches) < 10:
+                matches = self.selectStars(matches, True)
+            else:
+                matches = selMatches
+        except Exception, e:
+            print "Failed to read: %s" % (e)
+            return None, None, None
+    
+        return sources, matches, wcs, ffp, fluxmag0
+
+    def check(self, butler, frameIds, ccdIds, ct=None, debug=False, verbose=False):
+
+        self.log.info(str(self.config))
+
+        astrom = measAstrom.Astrometry(measAstrom.MeasAstromConfig())
+        for frameId in frameIds:
+            for ccdId in ccdIds:
+                sources, matches, wcs, ffp, fluxmag0 = self.getAllForCcdNew(butler, astrom, frameId, ccdId, ct)
+                refSchema = matches[0].first.schema
+                key_p = refSchema.find(ct.primary).key
+                key_s = refSchema.find(ct.secondary).key
+                key_f = refSchema.find("flux").key
+                if matches != None:
+                    for m in matches:
+                        cat = m.first
+                        src = m.second
+                        if cat != None and src != None:
+                            src_sky = wcs.pixelToSky(src.getX(), src.getY())
+                            src.setRa(src_sky[0])
+                            src.setDec(src_sky[1])
+                            mag_cat = -2.5*math.log10(cat.get(key_f))
+                            mag_p = -2.5*math.log10(cat.get(key_p))
+                            mag_s = -2.5*math.log10(cat.get(key_s))
+                            mag_src = -2.5*math.log10(src.getPsfFlux()/fluxmag0)
+                            print frameId, ccdId, mag_cat, \
+                                (src.getRa()-cat.getRa()).asArcseconds(), \
+                                (src.getDec()-cat.getDec()).asArcseconds(), \
+                                mag_src-mag_cat+ffp.eval(src.getX(), src.getY()), \
+                                mag_p, mag_s
+
+        return None
+
+    def run_check(self, camera, butler, dataRefList, debug, verbose=False):
 
         frameIds = list()
         ccdIds = list()
@@ -1008,4 +1133,4 @@ class MosaicTask(pipeBase.Task):
         else:
             ct = None
 
-        return self.mosaic(butler, frameIds, ccdIds, ct, debug, verbose)
+        return self.check(butler, frameIds, ccdIds, ct, debug, verbose)

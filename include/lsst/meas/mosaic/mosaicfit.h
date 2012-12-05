@@ -22,7 +22,7 @@ namespace lsst {
                 typedef int ExpType;
                 explicit Source(lsst::afw::table::SourceRecord const& record) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
-                    _pixels(record.getX(), record.getY()), _flux(record.getPsfFlux()),
+                    _pixels(record.getX(), record.getY()), _flux(record.getPsfFlux()), _err(record.getPsfFluxErr()),
                     _astromBad(record.getCentroidFlag() | record.getPsfFluxFlag()) {}
                 Source(lsst::afw::table::SimpleRecord const& record, lsst::afw::image::Wcs const& wcs) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
@@ -45,6 +45,7 @@ namespace lsst {
                 double getX() const { return getPixels().getX(); }
                 double getY() const { return getPixels().getY(); }
                 double getFlux() const { return _flux; }
+                double getFluxErr() const { return _err; }
                 bool getAstromBad() const { return _astromBad; }
 
                 void setChip(ChipType chip) { _chip = chip; }
@@ -57,6 +58,7 @@ namespace lsst {
                 lsst::afw::coord::Coord _sky;     // Sky coordinates
                 lsst::afw::geom::Point2D _pixels; // Pixel coordinates
                 double _flux;                     // Flux
+                double _err;			  // Flux Err
                 bool _astromBad;                  // Astrometry bad?
             };
 
@@ -169,6 +171,7 @@ namespace lsst {
 		double mag;
 		double mag0;
 		double mag_cat;
+		double err;
 
 		Obs(int id, double ra, double dec, double x, double y, int ichip, int iexp);
 		Obs(int id, double ra, double dec, int ichip, int iexp);

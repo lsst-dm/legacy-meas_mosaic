@@ -1919,12 +1919,12 @@ double *fluxFit_rel(std::vector<Obs::Ptr> &m,
 	num[i] = 0;
     }
     for (int i = 0; i < nMobs; i++) {
-	if (m[i]->good && m[i]->mag != -9999) {
+	if (m[i]->good && m[i]->mag != -9999 && m[i]->err != -9999) {
 	    num[m[i]->istar] += 1;
 	}
     }
     for (int i = 0; i < nSobs; i++) {
-	if (s[i]->good && s[i]->mag != -9999) {
+	if (s[i]->good && s[i]->mag != -9999 && s[i]->err != -9999) {
 	    num[nmatch+s[i]->istar] += 1;
 	}
     }
@@ -1977,8 +1977,9 @@ double *fluxFit_rel(std::vector<Obs::Ptr> &m,
 	b_data[i] = 0.0;
     }
 
+    double is2 = 1.0;
     for (int i = 0; i < nMobs; i++) {
-	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999) continue;
+	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->err == -9999) continue;
 
 	if (p->chebyshev) {
 	   for (int k = 0; k < ncoeff; k++) {
@@ -1991,47 +1992,49 @@ double *fluxFit_rel(std::vector<Obs::Ptr> &m,
 	      pv[k] = pow(m[i]->v/v_max, yorder[k]);
 	   }
 	}
+ 
+	is2 = 1.0 / pow(m[i]->err, 2);
 
-	a_data[m[i]->jexp*ndim+m[i]->jexp] -= 1;
-	a_data[m[i]->jexp*ndim+(nexp+m[i]->jchip)] -= 1;
+	a_data[m[i]->jexp*ndim+m[i]->jexp] -= is2;
+	a_data[m[i]->jexp*ndim+(nexp+m[i]->jchip)] -= is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   a_data[m[i]->jexp*ndim+(nexp+nchip+k)] -= pu[k] * pv[k];
+	   a_data[m[i]->jexp*ndim+(nexp+nchip+k)] -= pu[k] * pv[k] * is2;
 	}
-	a_data[m[i]->jexp*ndim+(nexp+nchip+ncoeff+m[i]->jstar)] += 1;
+	a_data[m[i]->jexp*ndim+(nexp+nchip+ncoeff+m[i]->jstar)] += is2;
 
-	a_data[(nexp+m[i]->jchip)*ndim+m[i]->jexp] -= 1;
-	a_data[(nexp+m[i]->jchip)*ndim+(nexp+m[i]->jchip)] -= 1;
+	a_data[(nexp+m[i]->jchip)*ndim+m[i]->jexp] -= is2;
+	a_data[(nexp+m[i]->jchip)*ndim+(nexp+m[i]->jchip)] -= is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   a_data[(nexp+m[i]->jchip)*ndim+(nexp+nchip+k)] -= pu[k] * pv[k];
+	   a_data[(nexp+m[i]->jchip)*ndim+(nexp+nchip+k)] -= pu[k] * pv[k] * is2;
 	}
-	a_data[(nexp+m[i]->jchip)*ndim+(nexp+nchip+ncoeff+m[i]->jstar)] += 1;
+	a_data[(nexp+m[i]->jchip)*ndim+(nexp+nchip+ncoeff+m[i]->jstar)] += is2;
 
 	for (int j = 0; j < ncoeff; j++) {
-	   a_data[(nexp+nchip+j)*ndim+m[i]->jexp] -= pu[j] * pv[j];
-	   a_data[(nexp+nchip+j)*ndim+(nexp+m[i]->jchip)] -= pu[j] * pv[j];
+	   a_data[(nexp+nchip+j)*ndim+m[i]->jexp] -= pu[j] * pv[j] * is2;
+	   a_data[(nexp+nchip+j)*ndim+(nexp+m[i]->jchip)] -= pu[j] * pv[j] * is2;
 	   for (int k = 0; k < ncoeff; k++) {
 	      a_data[(nexp+nchip+j)*ndim+(nexp+nchip+k)] -= pu[j] * pv[j] * 
-		                                            pu[k] * pv[k];
+		                                            pu[k] * pv[k] * is2;
 	   }
-	   a_data[(nexp+nchip+j)*ndim+(nexp+nchip+ncoeff+m[i]->jstar)] += pu[j] * pv[j];
+	   a_data[(nexp+nchip+j)*ndim+(nexp+nchip+ncoeff+m[i]->jstar)] += pu[j] * pv[j] * is2;
 	}
 
-	a_data[(nexp+nchip+ncoeff+m[i]->jstar)*ndim+m[i]->jexp] += 1;
-	a_data[(nexp+nchip+ncoeff+m[i]->jstar)*ndim+(nexp+m[i]->jchip)] += 1;
+	a_data[(nexp+nchip+ncoeff+m[i]->jstar)*ndim+m[i]->jexp] += is2;
+	a_data[(nexp+nchip+ncoeff+m[i]->jstar)*ndim+(nexp+m[i]->jchip)] += is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   a_data[(nexp+nchip+ncoeff+m[i]->jstar)*ndim+(nexp+nchip+k)] += pu[k] * pv[k];
+	   a_data[(nexp+nchip+ncoeff+m[i]->jstar)*ndim+(nexp+nchip+k)] += pu[k] * pv[k] * is2;
 	}
-	a_data[(nexp+nchip+ncoeff+m[i]->jstar)*ndim+(nexp+nchip+ncoeff+m[i]->jstar)] -= 1;
+	a_data[(nexp+nchip+ncoeff+m[i]->jstar)*ndim+(nexp+nchip+ncoeff+m[i]->jstar)] -= is2;
 
-	b_data[m[i]->jexp] += m[i]->mag;
-	b_data[nexp+m[i]->jchip] += m[i]->mag;
+	b_data[m[i]->jexp] += m[i]->mag * is2;
+	b_data[nexp+m[i]->jchip] += m[i]->mag * is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   b_data[nexp+nchip+k] += m[i]->mag * pu[k] * pv[k];
+	   b_data[nexp+nchip+k] += m[i]->mag * pu[k] * pv[k] * is2;
 	}
-	b_data[nexp+nchip+ncoeff+m[i]->jstar] -= m[i]->mag;
+	b_data[nexp+nchip+ncoeff+m[i]->jstar] -= m[i]->mag * is2;
     }
     for (int i = 0; i < nSobs; i++) {
-	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999 || s[i]->err == -9999) continue;
 
 	if (p->chebyshev) {
 	   for (int k = 0; k < ncoeff; k++) {
@@ -2045,43 +2048,45 @@ double *fluxFit_rel(std::vector<Obs::Ptr> &m,
 	   }
 	}
 
-	a_data[s[i]->jexp*ndim+s[i]->jexp] -= 1;
-	a_data[s[i]->jexp*ndim+(nexp+s[i]->jchip)] -= 1;
-	for (int k = 0; k < ncoeff; k++) {
-	   a_data[s[i]->jexp*ndim+(nexp+nchip+k)] -= pu[k] * pv[k];
-	}
-	a_data[s[i]->jexp*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += 1;
+	is2 = 1.0 / pow(s[i]->err, 2);
 
-	a_data[(nexp+s[i]->jchip)*ndim+s[i]->jexp] -= 1;
-	a_data[(nexp+s[i]->jchip)*ndim+(nexp+s[i]->jchip)] -= 1;
+	a_data[s[i]->jexp*ndim+s[i]->jexp] -= is2;
+	a_data[s[i]->jexp*ndim+(nexp+s[i]->jchip)] -= is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   a_data[(nexp+s[i]->jchip)*ndim+(nexp+nchip+k)] -= pu[k] * pv[k];
+	   a_data[s[i]->jexp*ndim+(nexp+nchip+k)] -= pu[k] * pv[k] * is2;
 	}
-	a_data[(nexp+s[i]->jchip)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += 1;
+	a_data[s[i]->jexp*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += is2;
+
+	a_data[(nexp+s[i]->jchip)*ndim+s[i]->jexp] -= is2;
+	a_data[(nexp+s[i]->jchip)*ndim+(nexp+s[i]->jchip)] -= is2;
+	for (int k = 0; k < ncoeff; k++) {
+	   a_data[(nexp+s[i]->jchip)*ndim+(nexp+nchip+k)] -= pu[k] * pv[k] * is2;
+	}
+	a_data[(nexp+s[i]->jchip)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += is2;
 
 	for (int j = 0; j < ncoeff; j++) {
-	   a_data[(nexp+nchip+j)*ndim+s[i]->jexp] -= pu[j] * pv[j];
-	   a_data[(nexp+nchip+j)*ndim+(nexp+s[i]->jchip)] -= pu[j] * pv[j];
+	   a_data[(nexp+nchip+j)*ndim+s[i]->jexp] -= pu[j] * pv[j] * is2;
+	   a_data[(nexp+nchip+j)*ndim+(nexp+s[i]->jchip)] -= pu[j] * pv[j] * is2;
 	   for (int k = 0; k < ncoeff; k++) {
 	      a_data[(nexp+nchip+j)*ndim+(nexp+nchip+k)] -= pu[j] * pv[j] * 
-		                                            pu[k] * pv[k];
+		                                            pu[k] * pv[k] * is2;
 	   }
-	   a_data[(nexp+nchip+j)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += pu[j] * pv[j];
+	   a_data[(nexp+nchip+j)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += pu[j] * pv[j] * is2;
 	}
 
-	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+s[i]->jexp] += 1;
-	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+s[i]->jchip)] += 1;
+	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+s[i]->jexp] += is2;
+	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+s[i]->jchip)] += is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+nchip+k)] += pu[k] * pv[k];
+	   a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+nchip+k)] += pu[k] * pv[k] * is2;
 	}
-	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] -= 1;
+	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] -= is2;
 
-	b_data[s[i]->jexp] += s[i]->mag;
-	b_data[nexp+s[i]->jchip] += s[i]->mag;
+	b_data[s[i]->jexp] += s[i]->mag * is2;
+	b_data[nexp+s[i]->jchip] += s[i]->mag * is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   b_data[nexp+nchip+k] += s[i]->mag * pu[k] * pv[k];
+	   b_data[nexp+nchip+k] += s[i]->mag * pu[k] * pv[k] * is2;
 	}
-	b_data[nexp+nchip+ncoeff+s[i]->jstar] -= s[i]->mag;
+	b_data[nexp+nchip+ncoeff+s[i]->jstar] -= s[i]->mag * is2;
     }
 
     a_data[nexp+nchip+ncoeff+nstar] = 1;
@@ -2105,7 +2110,7 @@ double *fluxFit_rel(std::vector<Obs::Ptr> &m,
     double dmag = 0.0;
     int n = 0;
     for (int i = 0; i < nMobs; i++) {
-	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 ||
+	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->err == -9999 ||
 	    m[i]->mag_cat == -9999) continue;
 	dmag += (m[i]->mag_cat - solution[nexp+nchip+ncoeff+m[i]->jstar]);
 	n++;
@@ -2151,7 +2156,7 @@ double *fluxFit_abs(std::vector<Obs::Ptr> &m,
 	num[i] = 0;
     }
     for (int i = 0; i < nSobs; i++) {
-	if (s[i]->good && s[i]->mag != -9999) {
+	if (s[i]->good && s[i]->mag != -9999 && s[i]->err != -9999) {
 	    num[s[i]->istar] += 1;
 	}
     }
@@ -2196,8 +2201,10 @@ double *fluxFit_abs(std::vector<Obs::Ptr> &m,
 	b_data[i] = 0.0;
     }
 
+    double is2 = 1.0;
     for (int i = 0; i < nMobs; i++) {
-	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->mag0 == -9999) continue;
+	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 ||
+	    m[i]->err == -9999 || m[i]->mag0 == -9999) continue;
 
 	if (p->chebyshev) {
 	   for (int k = 0; k < ncoeff; k++) {
@@ -2211,35 +2218,37 @@ double *fluxFit_abs(std::vector<Obs::Ptr> &m,
 	   }
 	}
 
-	a_data[m[i]->jexp*ndim+m[i]->jexp] -= 1;
-	a_data[m[i]->jexp*ndim+(nexp+m[i]->jchip)] -= 1;
+	is2 = 1.0 / pow(m[i]->err, 2);
+
+	a_data[m[i]->jexp*ndim+m[i]->jexp] -= is2;
+	a_data[m[i]->jexp*ndim+(nexp+m[i]->jchip)] -= is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   a_data[m[i]->jexp*ndim+(nexp+nchip+k)] -= pu[k] * pv[k];
+	   a_data[m[i]->jexp*ndim+(nexp+nchip+k)] -= pu[k] * pv[k] * is2;
 	}
 
-	a_data[(nexp+m[i]->jchip)*ndim+m[i]->jexp] -= 1;
-	a_data[(nexp+m[i]->jchip)*ndim+(nexp+m[i]->jchip)] -= 1;
+	a_data[(nexp+m[i]->jchip)*ndim+m[i]->jexp] -= is2;
+	a_data[(nexp+m[i]->jchip)*ndim+(nexp+m[i]->jchip)] -= is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   a_data[(nexp+m[i]->jchip)*ndim+(nexp+nchip+k)] -= pu[k] * pv[k];
+	   a_data[(nexp+m[i]->jchip)*ndim+(nexp+nchip+k)] -= pu[k] * pv[k] * is2;
 	}
 
 	for (int j = 0; j < ncoeff; j++) {
-	   a_data[(nexp+nchip+j)*ndim+m[i]->jexp] -= pu[j] * pv[j];
-	   a_data[(nexp+nchip+j)*ndim+(nexp+m[i]->jchip)] -= pu[j] * pv[j];
+	   a_data[(nexp+nchip+j)*ndim+m[i]->jexp] -= pu[j] * pv[j] * is2;
+	   a_data[(nexp+nchip+j)*ndim+(nexp+m[i]->jchip)] -= pu[j] * pv[j] * is2;
 	   for (int k = 0; k < ncoeff; k++) {
 	      a_data[(nexp+nchip+j)*ndim+(nexp+nchip+k)] -= pu[j] * pv[j] * 
-		                                            pu[k] * pv[k];
+		                                            pu[k] * pv[k] * is2;
 	   }
 	}
 
-	b_data[m[i]->jexp] += (m[i]->mag - m[i]->mag_cat);
-	b_data[nexp+m[i]->jchip] += (m[i]->mag - m[i]->mag_cat);
+	b_data[m[i]->jexp] += (m[i]->mag - m[i]->mag_cat) * is2;
+	b_data[nexp+m[i]->jchip] += (m[i]->mag - m[i]->mag_cat) * is2;
 	for (int k = 0; k < ncoeff; k++) {
-	    b_data[nexp+nchip+k] += (m[i]->mag - m[i]->mag_cat) * pu[k] * pv[k];
+	    b_data[nexp+nchip+k] += (m[i]->mag - m[i]->mag_cat) * pu[k] * pv[k] * is2;
 	}
     }
     for (int i = 0; i < nSobs; i++) {
-	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999 || s[i]->err == -9999) continue;
 
 	if (p->chebyshev) {
 	   for (int k = 0; k < ncoeff; k++) {
@@ -2253,43 +2262,45 @@ double *fluxFit_abs(std::vector<Obs::Ptr> &m,
 	   }
 	}
 
-	a_data[s[i]->jexp*ndim+s[i]->jexp] -= 1;
-	a_data[s[i]->jexp*ndim+(nexp+s[i]->jchip)] -= 1;
-	for (int k = 0; k < ncoeff; k++) {
-	   a_data[s[i]->jexp*ndim+(nexp+nchip+k)] -= pu[k] * pv[k];
-	}
-	a_data[s[i]->jexp*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += 1;
+	is2 = 1.0 / pow(s[i]->err, 2);
 
-	a_data[(nexp+s[i]->jchip)*ndim+s[i]->jexp] -= 1;
-	a_data[(nexp+s[i]->jchip)*ndim+(nexp+s[i]->jchip)] -= 1;
+	a_data[s[i]->jexp*ndim+s[i]->jexp] -= is2;
+	a_data[s[i]->jexp*ndim+(nexp+s[i]->jchip)] -= is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   a_data[(nexp+s[i]->jchip)*ndim+(nexp+nchip+k)] -= pu[k] * pv[k];
+	   a_data[s[i]->jexp*ndim+(nexp+nchip+k)] -= pu[k] * pv[k] * is2;
 	}
-	a_data[(nexp+s[i]->jchip)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += 1;
+	a_data[s[i]->jexp*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += is2;
+
+	a_data[(nexp+s[i]->jchip)*ndim+s[i]->jexp] -= is2;
+	a_data[(nexp+s[i]->jchip)*ndim+(nexp+s[i]->jchip)] -= is2;
+	for (int k = 0; k < ncoeff; k++) {
+	   a_data[(nexp+s[i]->jchip)*ndim+(nexp+nchip+k)] -= pu[k] * pv[k] * is2;
+	}
+	a_data[(nexp+s[i]->jchip)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += is2;
 
 	for (int j = 0; j < ncoeff; j++) {
-	   a_data[(nexp+nchip+j)*ndim+s[i]->jexp] -= pu[j] * pv[j];
-	   a_data[(nexp+nchip+j)*ndim+(nexp+s[i]->jchip)] -= pu[j] * pv[j];
+	   a_data[(nexp+nchip+j)*ndim+s[i]->jexp] -= pu[j] * pv[j] * is2;
+	   a_data[(nexp+nchip+j)*ndim+(nexp+s[i]->jchip)] -= pu[j] * pv[j] * is2;
 	   for (int k = 0; k < ncoeff; k++) {
 	      a_data[(nexp+nchip+j)*ndim+(nexp+nchip+k)] -= pu[j] * pv[j] * 
-		                                            pu[k] * pv[k];
+		                                            pu[k] * pv[k] * is2;
 	   }
-	   a_data[(nexp+nchip+j)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += pu[j] * pv[j];
+	   a_data[(nexp+nchip+j)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] += pu[j] * pv[j] * is2;
 	}
 
-	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+s[i]->jexp] += 1;
-	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+s[i]->jchip)] += 1;
+	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+s[i]->jexp] += is2;
+	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+s[i]->jchip)] += is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+nchip+k)] += pu[k] * pv[k];
+	   a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+nchip+k)] += pu[k] * pv[k] * is2;
 	}
-	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] -= 1;
+	a_data[(nexp+nchip+ncoeff+s[i]->jstar)*ndim+(nexp+nchip+ncoeff+s[i]->jstar)] -= is2;
 
-	b_data[s[i]->jexp] += s[i]->mag;
-	b_data[nexp+s[i]->jchip] += s[i]->mag;
+	b_data[s[i]->jexp] += s[i]->mag * is2;
+	b_data[nexp+s[i]->jchip] += s[i]->mag * is2;
 	for (int k = 0; k < ncoeff; k++) {
-	   b_data[nexp+nchip+k] += s[i]->mag * pu[k] * pv[k];
+	   b_data[nexp+nchip+k] += s[i]->mag * pu[k] * pv[k] * is2;
 	}
-	b_data[nexp+nchip+ncoeff+s[i]->jstar] -= s[i]->mag;
+	b_data[nexp+nchip+ncoeff+s[i]->jstar] -= s[i]->mag * is2;
     }
 
     for (int i = 0; i < nchip; i++) {
@@ -2325,7 +2336,7 @@ double calcChi2_rel(std::vector<Obs::Ptr> &m,
 		    int nchip,
 		    double *fsol,
 		    FluxFitParams::Ptr p,
-		    bool norm=false)
+		    bool mag=false)
 {
     int nMobs = m.size();
     int nSobs = s.size();
@@ -2333,26 +2344,29 @@ double calcChi2_rel(std::vector<Obs::Ptr> &m,
     int ncoeff = p->ncoeff - 3;
 
     double chi2 = 0.0;
+    double mag2 = 0.0;
     int num = 0;
     for (int i = 0; i < nMobs; i++) {
-	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999) continue;
+	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->err == -9999) continue;
 	double val = m[i]->mag + fsol[m[i]->jexp] + fsol[nexp+m[i]->jchip];
 	val += p->eval(m[i]->u, m[i]->v);
-	chi2 += pow(val - fsol[nexp+nchip+ncoeff+m[i]->jstar], 2.0);
+	chi2 += pow((val - fsol[nexp+nchip+ncoeff+m[i]->jstar])/m[i]->err, 2.0);
+	mag2 += pow((val - fsol[nexp+nchip+ncoeff+m[i]->jstar]), 2.0);
 	num++;
     }
     for (int i = 0; i < nSobs; i++) {
-	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999 || s[i]->err == -9999) continue;
 	double val = s[i]->mag + fsol[s[i]->jexp] + fsol[nexp+s[i]->jchip];
 	val += p->eval(s[i]->u, s[i]->v);
-	chi2 += pow(val - fsol[nexp+nchip+ncoeff+s[i]->jstar], 2.0);
+	chi2 += pow((val - fsol[nexp+nchip+ncoeff+s[i]->jstar])/s[i]->err, 2.0);
+	mag2 += pow((val - fsol[nexp+nchip+ncoeff+s[i]->jstar]), 2.0);
 	num++;
     }
 
-    if (norm)
-	return chi2 / num;
+    if (mag)
+	return mag2 / num;
     else
-	return chi2;
+	return chi2 / num;
 }
 
 double calcChi2_abs(std::vector<Obs::Ptr> &m, 
@@ -2361,7 +2375,7 @@ double calcChi2_abs(std::vector<Obs::Ptr> &m,
 		    int nchip,
 		    double *fsol,
 		    FluxFitParams::Ptr p,
-		    bool norm=false)
+		    bool mag=false)
 {
     int nMobs = m.size();
     int nSobs = s.size();
@@ -2369,26 +2383,30 @@ double calcChi2_abs(std::vector<Obs::Ptr> &m,
     int ncoeff = p->ncoeff - 3;
 
     double chi2 = 0.0;
+    double mag2 = 0.0;
     int num = 0;
     for (int i = 0; i < nMobs; i++) {
-	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->mag0 == -9999) continue;
+	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 ||
+	    m[i]->err == -9999 || m[i]->mag0 == -9999) continue;
 	double val = m[i]->mag + fsol[m[i]->jexp] + fsol[nexp+m[i]->jchip];
 	val += p->eval(m[i]->u, m[i]->v);
-	chi2 += pow(val - m[i]->mag0, 2.0);
+	chi2 += pow((val - m[i]->mag0)/m[i]->err, 2.0);
+	mag2 += pow((val - m[i]->mag0), 2.0);
 	num++;
     }
     for (int i = 0; i < nSobs; i++) {
-	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999 || s[i]->err == -9999) continue;
 	double val = s[i]->mag + fsol[s[i]->jexp] + fsol[nexp+s[i]->jchip];
 	val += p->eval(s[i]->u, s[i]->v);
-	chi2 += pow(val - fsol[nexp+nchip+ncoeff+s[i]->jstar], 2.0);
+	chi2 += pow((val - fsol[nexp+nchip+ncoeff+s[i]->jstar])/s[i]->err, 2.0);
+	mag2 += pow((val - fsol[nexp+nchip+ncoeff+s[i]->jstar]), 2.0);
 	num++;
     }
 
-    if (norm)
-	return chi2 / num;
+    if (mag)
+	return mag2 / num;
     else
-	return chi2;
+	return chi2 / num;
 }
 
 void flagObj_rel(std::vector<Obs::Ptr> &m,
@@ -2406,20 +2424,20 @@ void flagObj_rel(std::vector<Obs::Ptr> &m,
 
     int nreject = 0;
     for (int i = 0; i < nMobs; i++) {
-	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999) continue;
+	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->err == -9999) continue;
 	double val = m[i]->mag + fsol[m[i]->jexp] + fsol[nexp+m[i]->jchip];
 	val += p->eval(m[i]->u, m[i]->v);
-	double r2 = pow(val - fsol[nexp+nchip+ncoeff+m[i]->jstar], 2.0);
+	double r2 = pow((val - fsol[nexp+nchip+ncoeff+m[i]->jstar])/m[i]->err, 2.0);
 	if (r2 > e2) {
 	    m[i]->good = false;
 	    nreject++;
 	}
     }
     for (int i = 0; i < nSobs; i++) {
-	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999 || s[i]->err == -9999) continue;
 	double val = s[i]->mag + fsol[s[i]->jexp] + fsol[nexp+s[i]->jchip];
 	val += p->eval(s[i]->u, s[i]->v);
-	double r2 = pow(val - fsol[nexp+nchip+ncoeff+s[i]->jstar], 2.0);
+	double r2 = pow((val - fsol[nexp+nchip+ncoeff+s[i]->jstar])/s[i]->err, 2.0);
 	if (r2 > e2) {
 	    s[i]->good = false;
 	    nreject++;
@@ -2444,20 +2462,21 @@ void flagObj_abs(std::vector<Obs::Ptr> &m,
 
     int nreject = 0;
     for (int i = 0; i < nMobs; i++) {
-	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->mag0 == -9999) continue;
+	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 ||
+	    m[i]->err == -9999 || m[i]->mag0 == -9999) continue;
 	double val = m[i]->mag + fsol[m[i]->jexp] + fsol[nexp+m[i]->jchip];
 	val += p->eval(m[i]->u, m[i]->v);
-	double r2 = pow(val - m[i]->mag0, 2.0);
+	double r2 = pow((val - m[i]->mag0)/m[i]->err, 2.0);
 	if (r2 > e2) {
 	    m[i]->good = false;
 	    nreject++;
 	}
     }
     for (int i = 0; i < nSobs; i++) {
-	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999) continue;
+	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999 || s[i]->err == -9999) continue;
 	double val = s[i]->mag + fsol[s[i]->jexp] + fsol[nexp+s[i]->jchip];
 	val += p->eval(s[i]->u, s[i]->v);
-	double r2 = pow(val - fsol[nexp+nchip+ncoeff+s[i]->jstar], 2.0);
+	double r2 = pow((val - fsol[nexp+nchip+ncoeff+s[i]->jstar])/s[i]->err, 2.0);
 	if (r2 > e2) {
 	    s[i]->good = false;
 	    nreject++;
@@ -2640,10 +2659,12 @@ lsst::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	    if (ss[0]->getAstromBad() || ss[j]->getAstromBad()) {
 		o->good = false;
 	    }
-	    if (ss[j]->getFlux() > 0.0) {
+	    if (ss[j]->getFlux() > 0.0 && ss[j]->getFluxErr() > 0.0) {
 		o->mag = -2.5*log10(ss[j]->getFlux());
+		o->err = 2.5/M_LN10*ss[j]->getFluxErr()/ss[j]->getFlux();
 	    } else {
 		o->mag = -9999;
+		o->err = -9999;
 	    }
 	    obsVec.push_back(o);
 	}
@@ -2669,23 +2690,23 @@ void fluxFitRelative(ObsVec& matchVec,
     double chi2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
     double e2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
-    printf("e2f: %f (mag)\n", sqrt(e2f));
-    flagObj_rel(matchVec, sourceVec, nexp, nchip, fsol, 9.0*e2f, ffp);
+    printf("err: %f (mag)\n", sqrt(e2f));
+    flagObj_rel(matchVec, sourceVec, nexp, nchip, fsol, 9.0, ffp);
     delete [] fsol;
 
     fsol = fluxFit_rel(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffp);
     chi2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
     e2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
-    printf("e2f: %f (mag)\n", sqrt(e2f));
-    flagObj_rel(matchVec, sourceVec, nexp, nchip, fsol, 9.0*e2f, ffp);
+    printf("err: %f (mag)\n", sqrt(e2f));
+    flagObj_rel(matchVec, sourceVec, nexp, nchip, fsol, 9.0, ffp);
     delete [] fsol;
 
     fsol = fluxFit_rel(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffp);
     chi2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
     e2f = calcChi2_rel(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
-    printf("e2f: %f (mag)\n", sqrt(e2f));
+    printf("err: %f (mag)\n", sqrt(e2f));
 
     int i = 0;
     for (WcsDic::iterator it = wcsDic.begin();
@@ -2719,7 +2740,7 @@ void fluxFitAbsolute(ObsVec& matchVec,
     double chi2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
     double e2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
-    printf("e2f: %f (mag)\n", sqrt(e2f));
+    printf("err: %f (mag)\n", sqrt(e2f));
     flagObj_abs(matchVec, sourceVec, nexp, nchip, fsol, 9.0*e2f, ffp);
     delete [] fsol;
 
@@ -2727,7 +2748,7 @@ void fluxFitAbsolute(ObsVec& matchVec,
     chi2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
     e2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
-    printf("e2f: %f (mag)\n", sqrt(e2f));
+    printf("err: %f (mag)\n", sqrt(e2f));
     flagObj_abs(matchVec, sourceVec, nexp, nchip, fsol, 9.0*e2f, ffp);
     delete [] fsol;
 
@@ -2735,7 +2756,7 @@ void fluxFitAbsolute(ObsVec& matchVec,
     chi2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp);
     printf("chi2f: %e\n", chi2f);
     e2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
-    printf("e2f: %f (mag)\n", sqrt(e2f));
+    printf("err: %f (mag)\n", sqrt(e2f));
 
     int i = 0;
     for (WcsDic::iterator it = wcsDic.begin();
