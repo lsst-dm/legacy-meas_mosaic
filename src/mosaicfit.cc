@@ -2107,15 +2107,42 @@ double *fluxFit_rel(std::vector<Obs::Ptr> &m,
     delete [] a_data;
     delete [] b_data;
 
-    double dmag = 0.0;
-    int n = 0;
+    std::vector<double> v;
+    std::vector<double> e;
     for (int i = 0; i < nMobs; i++) {
 	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->err == -9999 ||
 	    m[i]->mag_cat == -9999) continue;
-	dmag += (m[i]->mag_cat - solution[nexp+nchip+ncoeff+m[i]->jstar]);
-	n++;
+	v.push_back(m[i]->mag_cat - solution[nexp+nchip+ncoeff+m[i]->jstar]);
+	e.push_back(m[i]->err_cat);
     }
-    dmag /= n;
+
+    double S = 0.;
+    double Sx = 0.;
+    double Sxx = 0.;
+    for (int i = 0; i < v.size(); i++) {
+	S += 1./(e[i]*e[i]);
+	Sx += v[i]/(e[i]*e[i]);
+	Sxx += v[i]*v[i]/(e[i]*e[i]);
+    }
+    double avg = Sx / S;
+    double std = sqrt((Sxx-Sx*Sx/S)/S);
+    std::cout << avg << " " << std << std::endl;
+
+    for (int k = 0; k < 2; k++) {
+	S = Sx = Sxx = 0.;
+	for (int i = 0; i < v.size(); i++) {
+	    if (fabs(v[i]-avg)/e[i] < 3.0) {
+		S += 1./(e[i]*e[i]);
+		Sx += v[i]/(e[i]*e[i]);
+		Sxx += v[i]*v[i]/(e[i]*e[i]);
+	    }
+	}
+	avg = Sx / S;
+	std = sqrt((Sxx-Sx*Sx/S)/S);
+	std::cout << avg << " " << std << std::endl;
+    }
+
+    double dmag = avg;
 
     for (int i = 0; i < nexp; i++) {
 	solution[i] += dmag;
@@ -2204,7 +2231,7 @@ double *fluxFit_abs(std::vector<Obs::Ptr> &m,
     double is2 = 1.0;
     for (int i = 0; i < nMobs; i++) {
 	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 ||
-	    m[i]->err == -9999 || m[i]->mag0 == -9999) continue;
+	    m[i]->err == -9999 || m[i]->mag_cat == -9999) continue;
 
 	if (p->chebyshev) {
 	   for (int k = 0; k < ncoeff; k++) {
@@ -2218,7 +2245,7 @@ double *fluxFit_abs(std::vector<Obs::Ptr> &m,
 	   }
 	}
 
-	is2 = 1.0 / pow(m[i]->err, 2);
+	is2 = 1.0 / (pow(m[i]->err, 2) + pow(m[i]->err_cat, 2));
 
 	a_data[m[i]->jexp*ndim+m[i]->jexp] -= is2;
 	a_data[m[i]->jexp*ndim+(nexp+m[i]->jchip)] -= is2;
@@ -2387,11 +2414,11 @@ double calcChi2_abs(std::vector<Obs::Ptr> &m,
     int num = 0;
     for (int i = 0; i < nMobs; i++) {
 	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 ||
-	    m[i]->err == -9999 || m[i]->mag0 == -9999) continue;
+	    m[i]->err == -9999 || m[i]->mag_cat == -9999) continue;
 	double val = m[i]->mag + fsol[m[i]->jexp] + fsol[nexp+m[i]->jchip];
 	val += p->eval(m[i]->u, m[i]->v);
-	chi2 += pow((val - m[i]->mag0)/m[i]->err, 2.0);
-	mag2 += pow((val - m[i]->mag0), 2.0);
+	chi2 += pow(val - m[i]->mag_cat, 2.0) / (pow(m[i]->err, 2.0) + pow(m[i]->err_cat, 2.0));
+	mag2 += pow(val - m[i]->mag_cat, 2.0);
 	num++;
     }
     for (int i = 0; i < nSobs; i++) {
@@ -2463,10 +2490,10 @@ void flagObj_abs(std::vector<Obs::Ptr> &m,
     int nreject = 0;
     for (int i = 0; i < nMobs; i++) {
 	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 ||
-	    m[i]->err == -9999 || m[i]->mag0 == -9999) continue;
+	    m[i]->err == -9999 || m[i]->mag_cat == -9999) continue;
 	double val = m[i]->mag + fsol[m[i]->jexp] + fsol[nexp+m[i]->jchip];
 	val += p->eval(m[i]->u, m[i]->v);
-	double r2 = pow((val - m[i]->mag0)/m[i]->err, 2.0);
+	double r2 = pow(val - m[i]->mag_cat, 2.0) / (pow(m[i]->err, 2.0) + pow(m[i]->err_cat, 2.0));
 	if (r2 > e2) {
 	    m[i]->good = false;
 	    nreject++;
@@ -2620,10 +2647,13 @@ lsst::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	double ra  = ss[0]->getRa().asRadians();
 	double dec = ss[0]->getDec().asRadians();
 	double mag_cat;
-	if (ss[0]->getFlux() > 0.0) {
+	double err_cat;
+	if (ss[0]->getFlux() > 0.0 && ss[0]->getFluxErr() > 0.0) {
 	    mag_cat = -2.5*log10(ss[0]->getFlux());
+	    err_cat = 2.5/M_LN10*ss[0]->getFluxErr()/ss[0]->getFlux();
 	} else {
 	    mag_cat = -9999;
+	    err_cat = -9999;
 	}
 	//std::cout << ra << " " << dec << std::endl;
 	//std::cout << mag0 << std::endl;
@@ -2650,6 +2680,7 @@ lsst::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	    o->jchip = jchip;
 
 	    o->mag_cat = mag_cat;
+	    o->err_cat = err_cat;
 	    o->mag0 = mag_cat;
 	    lsst::afw::geom::PointD crval
 		= wcsDic[iexp]->getSkyOrigin()->getPosition(lsst::afw::geom::radians);
@@ -2741,7 +2772,7 @@ void fluxFitAbsolute(ObsVec& matchVec,
     printf("chi2f: %e\n", chi2f);
     double e2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
     printf("err: %f (mag)\n", sqrt(e2f));
-    flagObj_abs(matchVec, sourceVec, nexp, nchip, fsol, 9.0*e2f, ffp);
+    flagObj_abs(matchVec, sourceVec, nexp, nchip, fsol, 9.0, ffp);
     delete [] fsol;
 
     fsol = fluxFit_abs(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffp);
@@ -2749,7 +2780,7 @@ void fluxFitAbsolute(ObsVec& matchVec,
     printf("chi2f: %e\n", chi2f);
     e2f = calcChi2_abs(matchVec, sourceVec, nexp, nchip, fsol, ffp, true);
     printf("err: %f (mag)\n", sqrt(e2f));
-    flagObj_abs(matchVec, sourceVec, nexp, nchip, fsol, 9.0*e2f, ffp);
+    flagObj_abs(matchVec, sourceVec, nexp, nchip, fsol, 9.0, ffp);
     delete [] fsol;
 
     fsol = fluxFit_abs(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffp);

@@ -28,6 +28,7 @@ namespace lsst {
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
                     _pixels(wcs.skyToPixel(_sky)),
                     _flux(record.get(record.getSchema().find<double>("flux").key)),
+                    _err(record.get(record.getSchema().find<double>("flux.err").key)),
                     _astromBad(!lsst::utils::isfinite(_flux)) {}
                 Source(lsst::afw::coord::Coord coord, double flux=std::numeric_limits<double>::quiet_NaN()) :
                     _id(-1), _chip(UNSET), _exp(UNSET), _sky(coord),
@@ -170,8 +171,9 @@ namespace lsst {
 
 		double mag;
 		double mag0;
-		double mag_cat;
 		double err;
+		double mag_cat;
+		double err_cat;
 
 		Obs(int id, double ra, double dec, double x, double y, int ichip, int iexp);
 		Obs(int id, double ra, double dec, int ichip, int iexp);
