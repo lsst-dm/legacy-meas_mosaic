@@ -474,7 +474,7 @@ class MosaicTask(pipeBase.Task):
         avg = a.mean()
         std = a.std()
         for i in range(n):
-            b = a[numpy.fabs(a-avg) < 3.0*std]
+            b = a[numpy.fabs(a-avg) < 2.1*std]
             avg = b.mean()
             std = b.std()
 
@@ -590,15 +590,19 @@ class MosaicTask(pipeBase.Task):
 
     def plotMdM(self):
         _dmag_m = []
+        _dmag_cat_m = []
         _dmag_s = []
         _dmag_a = []
         _dmag_bad = []
+        _dmag_cat_bad = []
         _mag0_m = []
+        _mag_cat_m = []
         _mag0_s = []
         _mag0_bad = []
+        _mag_cat_bad = []
         f = open(os.path.join(self.outputDir, 'dmag.dat'), 'wt')
         for m in self.matchVec:
-            if (m.good == True and m.mag != -9999 and m.jstar != -1 and m.mag0 != -9999):
+            if (m.good == True and m.mag != -9999 and m.jstar != -1 and m.mag0 != -9999 and m.mag_cat != -9999):
                 mag = m.mag
                 mag0 = m.mag0
                 mag_cat = m.mag_cat
@@ -610,6 +614,8 @@ class MosaicTask(pipeBase.Task):
                 _dmag_m.append(diff)
                 _dmag_a.append(diff)
                 _mag0_m.append(mag0)
+                _dmag_cat_m.append(mag_cor - mag_cat)
+                _mag_cat_m.append(mag_cat)
                 f.write("m %f %f %f %f %f 1\n" % (mag_cor, mag0, mag_cat,
                                                   m.u, m.v))
             else:
@@ -623,6 +629,8 @@ class MosaicTask(pipeBase.Task):
                 diff = mag_cor - mag0
                 _dmag_bad.append(diff)
                 _mag0_bad.append(mag0)
+                _dmag_cat_bad.append(mag_cor - mag_cat)
+                _mag_cat_bad.append(mag_cat)
                 f.write("m %f %f %f %f %f 0\n" % (mag_cor, mag0, mag_cat,
                                                   m.u, m.v))
         if self.sourceVec != None:
@@ -655,22 +663,28 @@ class MosaicTask(pipeBase.Task):
         f.close()
 
         d_mag_m = numpy.array(_dmag_m)
+        d_mag_cat_m = numpy.array(_dmag_cat_m)
         d_mag_s = numpy.array(_dmag_s)
         d_mag_a = numpy.array(_dmag_a)
         d_mag_bad = numpy.array(_dmag_bad)
+        d_mag_cat_bad = numpy.array(_dmag_cat_bad)
         mag0_m = numpy.array(_mag0_m)
+        mag_cat_m = numpy.array(_mag_cat_m)
         mag0_s = numpy.array(_mag0_s)
         mag0_bad = numpy.array(_mag0_bad)
+        mag_cat_bad = numpy.array(_mag_cat_bad)
 
         mag_std_m, mag_mean_m, mag_n_m  = self.clippedStd(d_mag_m, 3)
         mag_std_s, mag_mean_s, mag_n_s  = self.clippedStd(d_mag_s, 3)
         mag_std_a, mag_mean_a, mag_n_a  = self.clippedStd(d_mag_a, 3)
+        mag_cat_std_m, mag_cat_mean_m, mag_cat_n_m  = self.clippedStd(d_mag_cat_m, 3)
 
         plt.clf()
         plt.rc('text', usetex=True)
 
         plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
         plt.plot(mag0_bad, d_mag_bad, 'k,', markeredgewidth=0)
+        plt.plot(mag_cat_m, d_mag_cat_m, 'c,', markeredgewidth=0)
         if self.sourceVec != None:
             plt.plot(mag0_s, d_mag_s, 'r,', markeredgewidth=0)
         plt.plot(mag0_m, d_mag_m, 'g,', markeredgewidth=0)
@@ -680,20 +694,25 @@ class MosaicTask(pipeBase.Task):
         plt.ylabel(r'$\Delta mag$ (mag)')
 
         bins = numpy.arange(-0.25, 0.25, 0.005) + 0.0025
+        bins2 = numpy.arange(-0.25, 0.25, 0.05) + 0.025
 
         ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
         plt.hist(d_mag_a, bins=bins, normed=False, orientation='horizontal', histtype='step')
         plt.hist(d_mag_m, bins=bins, normed=False, orientation='horizontal', histtype='step')
         if self.sourceVec != None:
             plt.hist(d_mag_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
+        plt.hist(d_mag_cat_m, bins=bins2, normed=False, orientation='horizontal', histtype='step')
         plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (mag_std_a), rotation=270, transform=ax.transAxes, color='blue')
         plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (mag_std_m), rotation=270, transform=ax.transAxes, color='green')
+        plt.text(0.7, 0.90, r"$\sigma=$%5.3f" % (mag_cat_std_m), rotation=270, transform=ax.transAxes, color='cyan')
         y = mlab.normpdf(bins, mag_mean_m, mag_std_m)
         plt.plot(y*mag_n_m*0.005, bins, 'g:')
         if self.sourceVec != None:
             plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes, color='red')
             y = mlab.normpdf(bins, mag_mean_s, mag_std_s)
             plt.plot(y*mag_n_s*0.005, bins, 'r:')
+        y = mlab.normpdf(bins, mag_cat_mean_m, mag_cat_std_m)
+        plt.plot(y*mag_cat_n_m*0.05, bins, 'c:')
         plt.xticks(rotation=270)
         plt.yticks(rotation=270)
         plt.ylim(-0.25, 0.25)
@@ -987,6 +1006,7 @@ class MosaicTask(pipeBase.Task):
         frameIds = list()
         ccdIds = list()
         filters = list()
+        fields = list()
         for dataRef in dataRefList:
             if not dataRef.dataId['visit'] in frameIds:
                 frameIds.append(dataRef.dataId['visit'])
@@ -994,6 +1014,8 @@ class MosaicTask(pipeBase.Task):
                 ccdIds.append(dataRef.dataId['ccd'])
             if not dataRef.dataId['filter'] in filters:
                 filters.append(dataRef.dataId['filter'])
+            if not dataRef.dataId['field'] in fields:
+                fields.append(dataRef.dataId['field'])
 
         if len(filters) != 1:
             self.log.fatal("There are %d filters in input frames" % len(filters))

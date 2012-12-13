@@ -1609,6 +1609,7 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 	a_data = new double[size*size];
     } catch (std::bad_alloc) {
 	std::cerr << "Memory allocation error: for a_data" << std::endl;
+	fprintf(stderr, "You need %5.1f GB memory\n", size*size*sizeof(double)/double(1024*1024*1024));
 	abort();
     }
     try {
