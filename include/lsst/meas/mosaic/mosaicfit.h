@@ -22,8 +22,9 @@ namespace lsst {
                 typedef int ExpType;
                 explicit Source(lsst::afw::table::SourceRecord const& record) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
-                    _pixels(record.getX(), record.getY()), _flux(record.getPsfFlux()), _err(record.getPsfFluxErr()),
-                    _astromBad(record.getCentroidFlag() | record.getPsfFluxFlag()) {}
+                    _pixels(record.getX(), record.getY()), _flux(record.getApFlux()), _err(record.getApFluxErr()),
+		    _xerr(sqrt(record.getCentroidErr()(0,0))), _yerr(sqrt(record.getCentroidErr()(1,1))),
+                    _astromBad(record.getCentroidFlag() | record.getApFluxFlag()) {}
                 Source(lsst::afw::table::SimpleRecord const& record, lsst::afw::image::Wcs const& wcs) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
                     _pixels(wcs.skyToPixel(_sky)),
@@ -45,6 +46,8 @@ namespace lsst {
                 lsst::afw::geom::Point2D getPixels() const { return _pixels; }
                 double getX() const { return getPixels().getX(); }
                 double getY() const { return getPixels().getY(); }
+		double getXErr() const { return _xerr; }
+		double getYErr() const { return _yerr; }
                 double getFlux() const { return _flux; }
                 double getFluxErr() const { return _err; }
                 bool getAstromBad() const { return _astromBad; }
@@ -60,6 +63,8 @@ namespace lsst {
                 lsst::afw::geom::Point2D _pixels; // Pixel coordinates
                 double _flux;                     // Flux
                 double _err;			  // Flux Err
+		double _xerr;			  // x coordinate error
+		double _yerr;			  // y coordinate error
                 bool _astromBad;                  // Astrometry bad?
             };
 
@@ -168,6 +173,9 @@ namespace lsst {
 		int jexp;	/* sequential index for exposure used for matrix*/
 		int jchip;	/* sequential index for ccd used for matrix*/
 		bool good;
+
+		double xerr;
+		double yerr;
 
 		double mag;
 		double mag0;
@@ -281,7 +289,8 @@ namespace lsst {
 					  std::map<int, float> &fchip,
 					  bool solveCcd = true,
 					  bool allowRotation = true,
-					  bool verbose = false);
+					  bool verbose = false,
+					  double catRMS = 0.0);
 
 	    CoeffSet solveMosaic_CCD(int order,
 				     int nmatch,
@@ -295,7 +304,8 @@ namespace lsst {
 				     std::map<int, float> &fchip,
 				     bool solveCcd = true,
 				     bool allowRotation = true,
-				     bool verbose = false);
+				     bool verbose = false,
+				     double catRMS = 0.0);
 
 	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff,
 				    lsst::afw::cameraGeom::Ccd::Ptr& ccd);
