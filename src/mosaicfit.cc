@@ -2,6 +2,7 @@
 #include <strings.h>
 #include "fitsio.h"
 
+#include "lsst/utils/ieee.h"
 #include "lsst/meas/mosaic/mosaicfit.h"
 #include "lsst/afw/coord/Coord.h"
 #include "lsst/afw/table/Match.h"
@@ -2755,7 +2756,7 @@ lsst::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	    o->setUV(ccdSet[ichip]);
 	    o->xerr = ss[j]->getXErr();
 	    o->yerr = ss[j]->getYErr();
-	    if (isnan(o->xerr) || isnan(o->yerr))
+	    if (lsst::utils::isnan(o->xerr) || lsst::utils::isnan(o->yerr))
 		o->good = false;
 	    //printf("%d %e %e\n", o->good, o->xerr, o->yerr);
 	    o->istar = i;
