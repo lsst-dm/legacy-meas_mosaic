@@ -2,13 +2,13 @@ import argparse, os, getpass
 import re
 import itertools
 import lsst.daf.persistence as dafPersist
-from hsc.pipe.base import SubaruArgumentParser
+import lsst.pipe.base as pipeBase
 import hsc.pipe.base.camera             as hscCamera
 
-class MosaicArgumentParser(SubaruArgumentParser):
+class MosaicArgumentParser(pipeBase.ArgumentParser):
 
     def __init__(self, *args, **kwargs):
-        SubaruArgumentParser.__init__(self, *args, **kwargs)
+        pipeBase.ArgumentParser.__init__(self, *args, **kwargs)
         self.add_argument("--mosaicid", nargs="*", action=MosaicIdValueAction,
             help="data ID, e.g. --id field=COSMOS filter=W-S-Z+ dateObs=2002-01-18^2002-01-21", metavar="KEY=VALUE1[^VALUE2[^VALUE3...]")
 
