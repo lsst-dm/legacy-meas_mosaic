@@ -94,6 +94,10 @@ class MosaicConfig(pexConfig.Config):
         doc="Output diagnostics plots",
         dtype=bool,
         default=False)
+    outputSnapshots = pexConfig.Field(
+        doc="Output FITS tables of ObsVecs during iteration",
+        dtype=bool,
+        default=False)
 
 class MosaicTask(pipeBase.CmdLineTask):
 
@@ -942,6 +946,10 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         self.log.info(str(self.config))
 
+        if ((self.config.outputDiag or self.config.outputSnapshots)
+            and not os.path.isdir(self.config.outputDir)):
+            os.mkdir(self.config.outputDir)
+
         ccdSet = self.readCcd(butler.mapper.camera, ccdIds)
 
         if debug:
@@ -1009,11 +1017,13 @@ class MosaicTask(pipeBase.CmdLineTask):
             coeffSet = measMosaic.solveMosaic_CCD(order, nmatch, nsource,
                                                   matchVec, sourceVec,
                                                   wcsDic, ccdSet, ffp, fexp, fchip,
-                                                  solveCcd, allowRotation, verbose, catRMS)
+                                                  solveCcd, allowRotation, verbose, catRMS,
+                                                  self.config.outputSnapshots, self.config.outputDir)
         else:
             coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
                                                        wcsDic, ccdSet, ffp, fexp, fchip,
-                                                       solveCcd, allowRotation, verbose, catRMS)
+                                                       solveCcd, allowRotation, verbose, catRMS,
+                                                  self.config.outputSnapshots, self.config.outputDir)
 
         self.butler = butler
         self.outputDir = self.config.outputDir

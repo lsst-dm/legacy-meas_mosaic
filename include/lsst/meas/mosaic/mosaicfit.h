@@ -290,7 +290,9 @@ namespace lsst {
 					  bool solveCcd = true,
 					  bool allowRotation = true,
 					  bool verbose = false,
-					  double catRMS = 0.0);
+					  double catRMS = 0.0,
+                                          bool writeSnapshots = false,
+                                          std::string const & snapshotDir = ".");
 
 	    CoeffSet solveMosaic_CCD(int order,
 				     int nmatch,
@@ -305,7 +307,9 @@ namespace lsst {
 				     bool solveCcd = true,
 				     bool allowRotation = true,
 				     bool verbose = false,
-				     double catRMS = 0.0);
+				     double catRMS = 0.0,
+                                     bool writeSnapshots = false,
+                                     std::string const & snapshotDir = ".");
 
 	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff,
 				    lsst::afw::cameraGeom::Ccd::Ptr& ccd);

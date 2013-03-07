@@ -4,10 +4,12 @@
 
 #include "lsst/utils/ieee.h"
 #include "lsst/meas/mosaic/mosaicfit.h"
+#include "lsst/meas/mosaic/snapshot.h"
 #include "lsst/afw/coord/Coord.h"
 #include "lsst/afw/table/Match.h"
 #include "boost/make_shared.hpp"
 #include "boost/format.hpp"
+#include "boost/filesystem/path.hpp"
 
 #define D2R (M_PI/180.)
 #define R2D (180./M_PI)
@@ -3198,8 +3200,13 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
 					 bool solveCcd,
 					 bool allowRotation,
 					 bool verbose,
-					 double catRMS)
+                     double catRMS,
+                     bool writeSnapshots,
+                     std::string const & snapshotDir
+)
 {
+    boost::filesystem::path snapshotPath(snapshotDir);
+
     Poly::Ptr p = Poly::Ptr(new Poly(order));
 
     int nMobs = matchVec.size();
@@ -3207,6 +3214,10 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
     int nexp = wcsDic.size();
     int nchip = ccdSet.size();
     int ncoeff = p->ncoeff;
+
+    if (writeSnapshots) {
+        writeObsVec((snapshotPath / "match-initial-0.fits").native(), matchVec);
+    }
 
     // Solve for polynomial coefficients and crvals
     // for each exposure separately
@@ -3221,6 +3232,10 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
 	double decc = coeffVec[matchVec[i]->iexp]->D;
 	matchVec[i]->setXiEta(rac, decc);
 	matchVec[i]->setFitVal(coeffVec[matchVec[i]->iexp], p);
+    }
+
+    if (writeSnapshots) {
+        writeObsVec((snapshotPath / "match-initial-1.fits").native(), matchVec);
     }
 
     double *coeff;
@@ -3265,6 +3280,10 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
 	    matchVec[i]->setUV(ccdSet[matchVec[i]->ichip], coeffVec[matchVec[i]->iexp]->x0, coeffVec[matchVec[i]->iexp]->y0);
 	    matchVec[i]->setFitVal(coeffVec[matchVec[i]->iexp], p);
 	}
+
+    if (writeSnapshots) {
+        writeObsVec((snapshotPath / (boost::format("match-iter-%d.fits") % k).str()).native(), matchVec);
+    }
 
 	delete [] coeff;
 
@@ -3336,8 +3355,13 @@ lsst::meas::mosaic::solveMosaic_CCD(int order,
 				    bool solveCcd,
 				    bool allowRotation,
 				    bool verbose,
-				    double catRMS)
+				    double catRMS,
+                    bool writeSnapshots,
+                    std::string const & snapshotDir
+)
 {
+    boost::filesystem::path snapshotPath(snapshotDir);
+
     Poly::Ptr p = Poly::Ptr(new Poly(order));
 
     int nMobs = matchVec.size();
@@ -3347,6 +3371,11 @@ lsst::meas::mosaic::solveMosaic_CCD(int order,
     int nchip = ccdSet.size();
     int ncoeff = p->ncoeff;
     int nstar = nsource;
+
+    if (writeSnapshots) {
+        writeObsVec((snapshotPath / "match-initial-0.fits").native(), matchVec);
+        writeObsVec((snapshotPath / "source-initial-0.fits").native(), sourceVec);
+    }
 
     // Solve for polynomial coefficients and crvals
     // for each exposure separately
@@ -3371,6 +3400,11 @@ lsst::meas::mosaic::solveMosaic_CCD(int order,
 	sourceVec[i]->setUV(ccdSet[sourceVec[i]->ichip],
 			    coeffVec[sourceVec[i]->iexp]->x0, coeffVec[sourceVec[i]->iexp]->y0);
 	sourceVec[i]->setFitVal(coeffVec[sourceVec[i]->iexp], p);
+    }
+
+    if (writeSnapshots) {
+        writeObsVec((snapshotPath / "match-initial-1.fits").native(), matchVec);
+        writeObsVec((snapshotPath / "source-initial-1.fits").native(), sourceVec);
     }
 
     printf("Before fitting calcChi2: %e %e\n",
@@ -3445,6 +3479,11 @@ lsst::meas::mosaic::solveMosaic_CCD(int order,
 		sourceVec[i]->setFitVal(coeffVec[sourceVec[i]->iexp], p);
 	    }
 	}
+
+    if (writeSnapshots) {
+        writeObsVec((snapshotPath / (boost::format("match-iter-%d.fits") % k).str()).native(), matchVec);
+        writeObsVec((snapshotPath / (boost::format("source-iter-%d.fits") % k).str()).native(), sourceVec);
+    }
 
 	delete [] coeff;
 
