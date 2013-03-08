@@ -118,8 +118,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         for ccd in ccds.values():
             pixelSize = ccd.getPixelSize()
             ccd.setCenter(ccd.getCenter()
-                          - cameraGeom.FpPoint(ccd.getAllPixels(True).getWidth()*0.5,
-                                               ccd.getAllPixels(True).getHeight()*0.5))
+                          - cameraGeom.FpPoint(ccd.getCenterPixel()))
         
         return ccds
         
