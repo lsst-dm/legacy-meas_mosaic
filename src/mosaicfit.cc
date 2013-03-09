@@ -308,8 +308,6 @@ Obs::Obs(int id_, double ra_, double dec_, int ichip_, int iexp_) :
 {}
 
 void Obs::setUV(lsst::afw::cameraGeom::Ccd::Ptr const &ccd, double x0, double y0) {
-    lsst::afw::geom::PointD  center = ccd->getCenter().getPixels(1.0);
-
     lsst::afw::cameraGeom::Orientation ori = ccd->getOrientation();
     double cosYaw = ori.getCosYaw();
     double sinYaw = ori.getSinYaw();
@@ -317,8 +315,11 @@ void Obs::setUV(lsst::afw::cameraGeom::Ccd::Ptr const &ccd, double x0, double y0
     this->u0 = this->x * cosYaw - this->y * sinYaw;
     this->v0 = this->x * sinYaw + this->y * cosYaw;
 
-    this->u  = this->u0 + center[0] + x0;
-    this->v  = this->v0 + center[1] + y0;
+    afw::geom::Point2D xy(this->x, this->y);
+    afw::geom::Point2D uv = ccd->getPositionFromPixel(xy).getPixels(ccd->getPixelSize());
+
+    this->u = uv.getX() + x0;
+    this->v = uv.getY() + y0;
 }
 
 void Obs::setXiEta(double ra_c, double dec_c) {
@@ -3253,26 +3254,24 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
 	if (allowRotation) {
 	    int i = 0;
 	    for (CcdSet::iterator it = ccdSet.begin(); it != ccdSet.end(); it++, i++) {
-		lsst::afw::geom::PointD center = it->second->getCenter().getPixels(1.0);
-		lsst::afw::geom::PointD offset =
-		    lsst::afw::geom::Point2D(center[0]+coeff[2*ncoeff*nexp+3*i],
-					     center[1]+coeff[2*ncoeff*nexp+3*i+1]);
-		it->second->setCenter(lsst::afw::cameraGeom::FpPoint(offset));
-		lsst::afw::cameraGeom::Orientation o = it->second->getOrientation();
-		lsst::afw::cameraGeom::Orientation o2(o.getNQuarter(),
-						      o.getPitch(),
-						      o.getRoll(),
-                              o.getYaw() + coeff[2*ncoeff*nexp+3*i+2] * lsst::afw::geom::radians);
-		it->second->setOrientation(o2);
+            afw::geom::Extent2D offset(coeff[2*ncoeff*nexp+3*i],
+                                      coeff[2*ncoeff*nexp+3*i+1]);
+            offset *= it->second->getPixelSize();
+            it->second->shiftCenter(afw::cameraGeom::FpExtent(offset));
+            afw::cameraGeom::Orientation o = it->second->getOrientation();
+            afw::cameraGeom::Orientation o2(o.getNQuarter(),
+                                            o.getPitch(),
+                                            o.getRoll(),
+                                            o.getYaw() + coeff[2*ncoeff*nexp+3*i+2] * afw::geom::radians);
+            it->second->setOrientation(o2);
 	    }
 	} else {
 	    int i = 0;
 	    for (CcdSet::iterator it = ccdSet.begin(); it != ccdSet.end(); it++, i++) {
-		lsst::afw::geom::PointD center = it->second->getCenter().getPixels(1.0);
-		lsst::afw::geom::PointD offset =
-		    lsst::afw::geom::Point2D(center[0]+coeff[2*ncoeff*nexp+2*i],
-					     center[1]+coeff[2*ncoeff*nexp+2*i+1]);
-		it->second->setCenter(lsst::afw::cameraGeom::FpPoint(offset));
+            afw::geom::Extent2D offset(coeff[2*ncoeff*nexp+2*i],
+                                      coeff[2*ncoeff*nexp+2*i+1]);
+            offset *= it->second->getPixelSize();
+            it->second->shiftCenter(afw::cameraGeom::FpExtent(offset));
 	    }
 	}
 
@@ -3429,26 +3428,24 @@ lsst::meas::mosaic::solveMosaic_CCD(int order,
 	if (allowRotation) {
 	    int i = 0;
 	    for (CcdSet::iterator it = ccdSet.begin(); it != ccdSet.end(); it++, i++) {
-		lsst::afw::geom::PointD center = it->second->getCenter().getPixels(1.0);
-		lsst::afw::geom::PointD offset =
-		    lsst::afw::geom::Point2D(center[0]+coeff[2*ncoeff*nexp+3*i],
-					     center[1]+coeff[2*ncoeff*nexp+3*i+1]);
-		it->second->setCenter(lsst::afw::cameraGeom::FpPoint(offset));
-		lsst::afw::cameraGeom::Orientation o = it->second->getOrientation();
-		lsst::afw::cameraGeom::Orientation o2(o.getNQuarter(),
-						      o.getPitch(),
-						      o.getRoll(),
-						      o.getYaw() + coeff[2*ncoeff*nexp+3*i+2] * lsst::afw::geom::radians);
-		it->second->setOrientation(o2);
+            afw::geom::Extent2D offset(coeff[2*ncoeff*nexp+3*i],
+                                      coeff[2*ncoeff*nexp+3*i+1]);
+            offset *= it->second->getPixelSize();
+            it->second->shiftCenter(afw::cameraGeom::FpExtent(offset));
+            afw::cameraGeom::Orientation o = it->second->getOrientation();
+            afw::cameraGeom::Orientation o2(o.getNQuarter(),
+                                            o.getPitch(),
+                                            o.getRoll(),
+                                            o.getYaw() + coeff[2*ncoeff*nexp+3*i+2] * afw::geom::radians);
+            it->second->setOrientation(o2);
 	    }
 	} else {
 	    int i = 0;
 	    for (CcdSet::iterator it = ccdSet.begin(); it != ccdSet.end(); it++, i++) {
-		lsst::afw::geom::PointD center = it->second->getCenter().getPixels(1.0);
-		lsst::afw::geom::PointD offset =
-		    lsst::afw::geom::Point2D(center[0]+coeff[2*ncoeff*nexp+2*i],
-					     center[1]+coeff[2*ncoeff*nexp+2*i+1]);
-		it->second->setCenter(lsst::afw::cameraGeom::FpPoint(offset));
+            afw::geom::Extent2D offset(coeff[2*ncoeff*nexp+2*i],
+                                      coeff[2*ncoeff*nexp+2*i+1]);
+            offset *= it->second->getPixelSize();
+            it->second->shiftCenter(afw::cameraGeom::FpExtent(offset));
 	    }
 	}
 
@@ -3617,7 +3614,7 @@ lsst::meas::mosaic::convertCoeff(Coeff::Ptr& coeff, lsst::afw::cameraGeom::Ccd::
 	}
     }
 
-    lsst::afw::geom::PointD off = ccd->getCenter().getPixels(1.0);
+    afw::geom::Extent2D off = ccd->getCenter().getPixels(ccd->getPixelSize()) - ccd->getCenterPixel();
     newC->x0 =  (off[0] + coeff->x0) * cosYaw + (off[1] + coeff->y0) * sinYaw;
     newC->y0 = -(off[0] + coeff->x0) * sinYaw + (off[1] + coeff->y0) * cosYaw;
 
@@ -3714,7 +3711,7 @@ lsst::meas::mosaic::convertFluxFitParams(Coeff::Ptr& coeff, lsst::afw::cameraGeo
 	}
     }
 
-    lsst::afw::geom::PointD off = ccd->getCenter().getPixels(1.0);
+    afw::geom::Extent2D off = ccd->getCenter().getPixels(ccd->getPixelSize()) - ccd->getCenterPixel();
     newP->x0 =  (off[0] + coeff->x0) * cosYaw + (off[1] + coeff->y0) * sinYaw;
     newP->y0 = -(off[0] + coeff->x0) * sinYaw + (off[1] + coeff->y0) * cosYaw;
 
@@ -3908,11 +3905,6 @@ lsst::meas::mosaic::getJImg(Coeff::Ptr& coeff,
 
     lsst::afw::image::Image<float>::Ptr img(new lsst::afw::image::Image<float>(width, height));
 
-    lsst::afw::geom::PointD  center = ccd->getCenter().getPixels(1.0);
-    lsst::afw::cameraGeom::Orientation ori = ccd->getOrientation();
-    double cosYaw = ori.getCosYaw();
-    double sinYaw = ori.getSinYaw();
-
     double *vals = new double[width];
 
     int interpLength = 100;
@@ -3927,12 +3919,14 @@ lsst::meas::mosaic::getJImg(Coeff::Ptr& coeff,
 		interval = xend - x + 1;
 	    }
 
-	    double u = x * cosYaw - y * sinYaw + center[0] + coeff->x0;
-	    double v = x * sinYaw + y * cosYaw + center[1] + coeff->y0;
-	    double val0 = coeff->detJ(u, v) * deg2pix * deg2pix;
-	    u = xend * cosYaw - y * sinYaw + center[0] + coeff->x0;
-	    v = xend * sinYaw + y * cosYaw + center[1] + coeff->y0;
-	    double val1 = coeff->detJ(u, v) * deg2pix * deg2pix;
+        afw::geom::Point2D uv 
+            = ccd->getPositionFromPixel(afw::geom::Point2D(x, y)).getPixels(ccd->getPixelSize())
+            + afw::geom::Extent2D(coeff->x0, coeff->y0);
+	    double val0 = coeff->detJ(uv.getX(), uv.getY()) * deg2pix * deg2pix;
+
+        uv = ccd->getPositionFromPixel(afw::geom::Point2D(xend, y)).getPixels(ccd->getPixelSize())
+            + afw::geom::Extent2D(coeff->x0, coeff->y0);
+	    double val1 = coeff->detJ(uv.getX(), uv.getY()) * deg2pix * deg2pix;
 
 	    for (int i = 0; i < interval; i++) {
 		vals[x+i] = val0 + (val1 - val0) / interval * i;
@@ -4022,11 +4016,6 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 
     lsst::afw::image::Image<float>::Ptr img(new lsst::afw::image::Image<float>(width, height));
 
-    lsst::afw::geom::PointD  center = ccd->getCenter().getPixels(1.0);
-    lsst::afw::cameraGeom::Orientation ori = ccd->getOrientation();
-    double cosYaw = ori.getCosYaw();
-    double sinYaw = ori.getSinYaw();
-
     double *vals = new double[width];
 
     int interpLength = 100;
@@ -4041,12 +4030,14 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 		interval = xend - x + 1;
 	    }
 
-	    double u = x * cosYaw - y * sinYaw + center[0] + coeff->x0;
-	    double v = x * sinYaw + y * cosYaw + center[1] + coeff->y0;
-	    double val0 = p->eval(u, v);
-	    u = xend * cosYaw - y * sinYaw + center[0] + coeff->x0;
-	    v = xend * sinYaw + y * cosYaw + center[1] + coeff->y0;
-	    double val1 = p->eval(u, v);
+        afw::geom::Point2D uv 
+            = ccd->getPositionFromPixel(afw::geom::Point2D(x, y)).getPixels(ccd->getPixelSize())
+            + afw::geom::Extent2D(coeff->x0, coeff->y0);
+	    double val0 = p->eval(uv.getX(), uv.getY());
+        uv = ccd->getPositionFromPixel(afw::geom::Point2D(xend, y)).getPixels(ccd->getPixelSize())
+            + afw::geom::Extent2D(coeff->x0, coeff->y0);
+	    double val1 = p->eval(uv.getX(), uv.getY());
+
 	    for (int i = 0; i < interval; i++) {
 		vals[x+i] = val0 + (val1 - val0) / interval * i;
 	    }
