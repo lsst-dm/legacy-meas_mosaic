@@ -371,20 +371,14 @@ class MosaicTask(pipeBase.CmdLineTask):
         for ccd in self.ccdSet.values():
             w = ccd.getAllPixels(True).getWidth()
             h = ccd.getAllPixels(True).getHeight()
-            x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + coeffx0
-            y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + coeffy0
-            t0 = ccd.getOrientation().getYaw()
-            x = numpy.array([x0,
-                             x0 + w * math.cos(t0),
-                             x0 + w * math.cos(t0) - h * math.sin(t0),
-                             x0 - h * math.sin(t0),
-                             x0])
-            y = numpy.array([y0,
-                             y0 + w * math.sin(t0),
-                             y0 + w * math.sin(t0) + h * math.cos(t0),
-                             y0 + h * math.cos(t0),
-                             y0])
-            plt.plot(x, y, 'k-')
+            us = list()
+            vs = list()
+            for x, y in zip([0, w, w, 0, 0], [0, 0, h, h, 0]):
+                xy = afwGeom.Point2D(x, y)
+                u, v = ccd.getPositionFromPixel(xy).getPixels(ccd.getPixelSize())
+                us.append(u)
+                vs.append(v)
+            plt.plot(us, vs, 'k-')
 
     def plotJCont(self, iexp):
         coeff = self.coeffSet[iexp]
@@ -479,7 +473,10 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.rc('text', usetex=True)
 
         q = plt.quiver(xm, ym, dxm, dym, units='inches', angles='xy', scale=1, color='green')
-        plt.quiverkey(q, 0, 4500, 0.1, "0.1 arcsec", coordinates='data', color='black')
+        if ym.max() > 5000:
+            plt.quiverkey(q, 0, 19000, 0.1, "0.1 arcsec", coordinates='data', color='black')
+        else:
+            plt.quiverkey(q, 0,  4500, 0.1, "0.1 arcsec", coordinates='data', color='black')
         plt.quiver(xs, ys, dxs, dys, units='inches', angles='xy', scale=1, color='red')
 
         self.plotCcd(self.coeffSet[iexp].x0, self.coeffSet[iexp].y0)
@@ -1056,6 +1053,11 @@ class MosaicTask(pipeBase.CmdLineTask):
             from lsst.obs.suprimecam.colorterms import colortermsData
             Colorterm.setColorterms(colortermsData)
             Colorterm.setActiveDevice("MIT")
+            ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
+        elif camera == 'hscSim':
+            from lsst.obs.hscSim.colorterms import colortermsData
+            Colorterm.setColorterms(colortermsData)
+            Colorterm.setActiveDevice("Hamamatsu")
             ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
         else:
             ct = None
