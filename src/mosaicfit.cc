@@ -789,15 +789,19 @@ KDTree::Ptr KDTree::findNearest(Source const& s) {
 	} else {
 	    leaf = this->right->findNearest(s);
 	}
-	if (this->left != NULL && this->right != NULL) {
-	    double d_leaf = leaf->distance(s);
-	    double d_this = this->distance(s);
-	    if (d_leaf > d_this) {
-		KDTree::Ptr leaf2 = this->right->findNearest(s);
-		double d_leaf2 = leaf2->distance(s);
-		if (d_leaf > d_leaf2) {
-		    leaf = leaf2;
-		}
+	double d_leaf = leaf->distance(s);
+	lsst::afw::coord::Coord c;
+	if (this->axis == 0) {
+	    c = lsst::afw::coord::Coord(val, this->location[1]);
+	} else {
+	    c = lsst::afw::coord::Coord(this->location[0], val);
+	}
+	double d_this = this->distance(Source(c));
+	if (d_leaf > d_this && this->right != NULL) {
+	    KDTree::Ptr leaf2 = this->right->findNearest(s);
+	    double d_leaf2 = leaf2->distance(s);
+	    if (d_leaf > d_leaf2) {
+		leaf = leaf2;
 	    }
 	}
     } else {
@@ -810,15 +814,19 @@ KDTree::Ptr KDTree::findNearest(Source const& s) {
 	} else {
 	    leaf = this->left->findNearest(s);
 	}
-	if (this->right != NULL && this->left != NULL) {
-	    double d_leaf = leaf->distance(s);
-	    double d_this = this->distance(s);
-	    if (d_leaf > d_this) {
-		KDTree::Ptr leaf2 = this->left->findNearest(s);
-		double d_leaf2 = leaf2->distance(s);
-		if (d_leaf > d_leaf2) {
-		    leaf = leaf2;
-		}
+	double d_leaf = leaf->distance(s);
+	lsst::afw::coord::Coord c;
+	if (this->axis == 0) {
+	    c = lsst::afw::coord::Coord(val, this->location[1]);
+	} else {
+	    c = lsst::afw::coord::Coord(this->location[0], val);
+	}
+	double d_this = this->distance(Source(c));
+	if (d_leaf > d_this && this->left != NULL) {
+	    KDTree::Ptr leaf2 = this->left->findNearest(s);
+	    double d_leaf2 = leaf2->distance(s);
+	    if (d_leaf > d_leaf2) {
+		leaf = leaf2;
 	    }
 	}
     }
