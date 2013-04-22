@@ -86,6 +86,10 @@ class MosaicConfig(pexConfig.Config):
         doc="Fit to catalog flux?",
         dtype=bool,
         default=False)
+    fluxFitSolveCcd = pexConfig.Field(
+        doc="Solve for per CCD flux scale?",
+        dtype=bool,
+        default=False)
     outputDir = pexConfig.Field(
         doc="Output directory to write diagnostics plots",
         dtype=str,
@@ -175,7 +179,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             return []
         if isinstance(sources, afwTable.SourceCatalog):
             extended = sources.columns["classification.extendedness"]
-            saturated = sources.columns["flags.pixel.saturated.center"]
+            saturated = sources.columns["flags.pixel.saturated.any"]
             try:
                 nchild = sources.columns["deblend.nchild"]
             except:
@@ -192,7 +196,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         schema = sourceList[0].schema
         extKey = schema.find("classification.extendedness").getKey()
-        satKey = schema.find("flags.pixel.saturated.center").getKey()
+        satKey = schema.find("flags.pixel.saturated.any").getKey()
 
         stars = []
         for includeSource, checkSource in zip(sources, sourceList):
@@ -974,6 +978,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         fluxFitOrder = self.config.fluxFitOrder
         chebyshev = self.config.chebyshev
         absolute = self.config.fluxFitAbsolute
+        solveCcdScale = self.config.fluxFitSolveCcd
         catRMS = self.config.catRMS
 
         if not internal:
@@ -997,13 +1002,13 @@ class MosaicTask(pipeBase.CmdLineTask):
             coeffSet = measMosaic.solveMosaic_CCD(order, nmatch, nsource,
                                                   matchVec, sourceVec,
                                                   wcsDic, ccdSet, ffp, fexp, fchip,
-                                                  solveCcd, allowRotation, verbose, catRMS,
+                                                  solveCcd, allowRotation, solveCcdScale, verbose, catRMS,
                                                   self.config.outputSnapshots, self.config.outputDir)
         else:
             coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
                                                        wcsDic, ccdSet, ffp, fexp, fchip,
-                                                       solveCcd, allowRotation, verbose, catRMS,
-                                                  self.config.outputSnapshots, self.config.outputDir)
+                                                       solveCcd, allowRotation, solveCcdScale, verbose, catRMS,
+                                                       self.config.outputSnapshots, self.config.outputDir)
 
         self.butler = butler
         self.outputDir = self.config.outputDir
