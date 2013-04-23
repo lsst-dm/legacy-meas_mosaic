@@ -421,7 +421,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         if (self.ccdSet.size() >= 100):
             x = numpy.arange(-18000., 18000., delta)
             y = numpy.arange(-18000., 18000., delta)
-            levels = numpy.linspace(0.81, 1.02, 36)
+#            levels = numpy.linspace(0.81, 1.02, 36)
+            levels = numpy.linspace(0.86, 1.14, 36)
         else:
             x = numpy.arange(-6000., 6000., delta)
             y = numpy.arange(-6000., 6000., delta)
@@ -1049,23 +1050,8 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.log.fatal("There are %d filters in input frames" % len(filters))
             return None
 
-        if camera == 'suprimecam':
-            from lsst.obs.suprimecam.colorterms import colortermsData
-            Colorterm.setColorterms(colortermsData)
-            Colorterm.setActiveDevice("Hamamatsu")
-            ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
-        elif camera == 'suprimecam-mit':
-            from lsst.obs.suprimecam.colorterms import colortermsData
-            Colorterm.setColorterms(colortermsData)
-            Colorterm.setActiveDevice("MIT")
-            ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
-        elif camera == 'hscSim':
-            from lsst.obs.hscSim.colorterms import colortermsData
-            Colorterm.setColorterms(colortermsData)
-            Colorterm.setActiveDevice("Hamamatsu")
-            ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
-        else:
-            ct = None
+        ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
+        self.log.info('color term: '+str(ct))
 
         return self.mosaic(butler, frameIds, ccdIds, ct, debug, verbose)
 
