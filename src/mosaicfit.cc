@@ -1949,7 +1949,10 @@ Eigen::VectorXd fluxFit_rel(std::vector<Obs::Ptr> &m,
 	}
     }
 
-    int ncoeff_offset = 1;	// Fit from 1st order only
+    int ncoeff_offset = 3;	// Fit from 2nd order only
+    // In some cases (small number of visits or small dithering),
+    // fitting from 1st order will degenerate and fails.
+    // Currently I'm fitting from 2nd order
     int ncoeff = p->ncoeff - ncoeff_offset;
     int *xorder = &p->xorder[ncoeff_offset];
     int *yorder = &p->yorder[ncoeff_offset];
