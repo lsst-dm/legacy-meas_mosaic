@@ -30,12 +30,17 @@ namespace lsst {
                     _pixels(wcs.skyToPixel(_sky)),
                     _flux(record.get(record.getSchema().find<double>("flux").key)),
                     _err(record.get(record.getSchema().find<double>("flux.err").key)),
+                    _xerr(std::numeric_limits<double>::quiet_NaN()),
+                    _yerr(std::numeric_limits<double>::quiet_NaN()),
                     _astromBad(!lsst::utils::isfinite(_flux)) {}
                 Source(lsst::afw::coord::Coord coord, double flux=std::numeric_limits<double>::quiet_NaN()) :
                     _id(-1), _chip(UNSET), _exp(UNSET), _sky(coord),
                     _pixels(lsst::afw::geom::Point2D(std::numeric_limits<double>::quiet_NaN(),
                                                      std::numeric_limits<double>::quiet_NaN())),
-                    _flux(flux), _astromBad(false) {}
+                    _flux(flux), _err(std::numeric_limits<double>::quiet_NaN()),
+                    _xerr(std::numeric_limits<double>::quiet_NaN()),
+                    _yerr(std::numeric_limits<double>::quiet_NaN()),
+                    _astromBad(false) {}
 
                 IdType getId() const { return _id; }
                 ChipType getChip() const { return _chip; }
