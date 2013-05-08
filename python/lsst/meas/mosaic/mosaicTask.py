@@ -102,6 +102,10 @@ class MosaicConfig(pexConfig.Config):
         doc="Output FITS tables of ObsVecs during iteration",
         dtype=bool,
         default=False)
+    minNumMatch = pexConfig.RangeField(
+        doc="Minimum number of matches in CCD to be used.",
+        dtype=int,
+        default=15, min=0)
 
 class MosaicTask(pipeBase.CmdLineTask):
 
@@ -225,11 +229,13 @@ class MosaicTask(pipeBase.CmdLineTask):
                 icSrces = butler.get('icSrc', data)
                 packedMatches = butler.get('icMatch', data)
                 matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
-                if ct != None:
-                    if matches[0].first != None:
-                        refSchema = matches[0].first.schema
-                    else:
-                        refSchema = matches[1].first.schema
+                mm = list()
+                for m in matches:
+                    if m.first != None:
+                        mm.append(m)
+                matches = mm
+                if ct != None and len(matches) != 0:
+                    refSchema = matches[0].first.schema
                     key_p = refSchema.find(ct.primary).key
                     key_s = refSchema.find(ct.secondary).key
                     key_f = refSchema.find("flux").key
@@ -270,18 +276,21 @@ class MosaicTask(pipeBase.CmdLineTask):
             for ccdId in ccdIds:
                 sources, matches, wcs = self.getAllForCcd(butler, astrom, frameId, ccdId, ct)
                 if sources != None:
-                    for s in sources:
-                        if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
-                            src = measMosaic.Source(s)
-                            src.setExp(frameId)
-                            src.setChip(ccdId)
-                            ss.append(src)
-                    for m in matches:
-                        if m.first != None and m.second != None:
-                            match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs), measMosaic.Source(m.second))
-                            match.second.setExp(frameId)
-                            match.second.setChip(ccdId)
-                            ml.append(match)
+                    if len(matches) > self.config.minNumMatch:
+                        for s in sources:
+                            if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
+                                src = measMosaic.Source(s)
+                                src.setExp(frameId)
+                                src.setChip(ccdId)
+                                ss.append(src)
+                        for m in matches:
+                            if m.first != None and m.second != None:
+                                match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs), measMosaic.Source(m.second))
+                                match.second.setExp(frameId)
+                                match.second.setChip(ccdId)
+                                ml.append(match)
+                    else:
+                        self.log.info('%8d %3d : %2d maches  Suspicious to wrong match. Ignore this CCD' % (frameId, ccdId, len(matches)))
             sourceSet.push_back(ss)
             matchList.push_back(ml)
 
@@ -478,7 +487,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.rc('text', usetex=True)
 
         q = plt.quiver(xm, ym, dxm, dym, units='inches', angles='xy', scale=1, color='green')
-        if ym.max() > 5000:
+        if len(ym) != 0 and ym.max() > 5000:
             plt.quiverkey(q, 0, 19000, 0.1, "0.1 arcsec", coordinates='data', color='black')
         else:
             plt.quiverkey(q, 0,  4500, 0.1, "0.1 arcsec", coordinates='data', color='black')

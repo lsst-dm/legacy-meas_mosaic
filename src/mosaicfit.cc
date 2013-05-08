@@ -1373,6 +1373,7 @@ solveLinApprox(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, int nchip, Poly::Pt
     } else {
 	size = 2 * ncoeff * nexp;
     }
+    std::cout << "size: " << size << std::endl;
 
     Eigen::MatrixXd a_data = Eigen::MatrixXd::Zero(size, size);
     Eigen::VectorXd b_data = Eigen::VectorXd::Zero(size);
@@ -3174,6 +3175,7 @@ initialFit(int nexp,
 	Eigen::VectorXd a = solveForCoeff(obsVec_sub, p);
 
 	double chi2 = calcChi(obsVec_sub, a, p);
+	printf("visit: %d\n", iexp);
 	printf("calcChi: %e\n", chi2);
 	double e2 = chi2 / obsVec_sub.size();
 	flagObj(obsVec_sub, a, p, 9.0*e2);
@@ -3215,7 +3217,7 @@ initialFit(int nexp,
 	chi2 = calcChi2(obsVec_sub, c, p);
 	printf("calcChi2: %e\n", chi2);
 
-	setCRVALtoDetJPeak(c);
+//	setCRVALtoDetJPeak(c);
 
 	for (size_t j = 0; j < obsVec_sub.size(); j++) {
 	    obsVec_sub[j]->setXiEta(c->A, c->D);
@@ -3358,7 +3360,6 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
 	if (writeSnapshots) {
 	    writeObsVec((snapshotPath / (boost::format("match-iter-%d.fits") % k).str()).native(), matchVec);
 	}
-
 
 	double chi2 = calcChi2(matchVec, coeffVec, p);
 	printf("calcChi2: %e\n", chi2);
