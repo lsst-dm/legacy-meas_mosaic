@@ -106,6 +106,7 @@ class MosaicConfig(pexConfig.Config):
         doc="Minimum number of matches in CCD to be used.",
         dtype=int,
         default=15, min=0)
+    astrom = pexConfig.ConfigField(dtype=MeasAstromConfig, doc="Configuration for readMatches")
 
 class MosaicTask(pipeBase.CmdLineTask):
 
@@ -224,7 +225,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
             sources = butler.get('src', data)
             if False:
-                matches = measAstrom.readMatches(butler, data)
+                matches = measAstrom.readMatches(butler, data, config=self.config.astrom)
             else:
                 icSrces = butler.get('icSrc', data)
                 packedMatches = butler.get('icMatch', data)
@@ -1083,7 +1084,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
             sources = butler.get('src', data)
             if False:
-                matches = measAstrom.readMatches(butler, data)
+                matches = measAstrom.readMatches(butler, data, config=self.config.astrom)
             else:
                 icSrces = butler.get('icSrc', data)
                 packedMatches = butler.get('icMatch', data)
@@ -1578,7 +1579,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
                     sources = butler.get('src', data)
                     if False:
-                        matches = measAstrom.readMatches(butler, data)
+                        matches = measAstrom.readMatches(butler, data, config=self.config.astrom)
                     else:
                         icSrces = butler.get('icSrc', data)
                         packedMatches = butler.get('icMatch', data)
