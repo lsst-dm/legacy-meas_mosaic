@@ -106,7 +106,7 @@ class MosaicConfig(pexConfig.Config):
         doc="Minimum number of matches in CCD to be used.",
         dtype=int,
         default=15, min=0)
-    astrom = pexConfig.ConfigField(dtype=MeasAstromConfig, doc="Configuration for readMatches")
+    astrom = pexConfig.ConfigField(dtype=measAstrom.MeasAstromConfig, doc="Configuration for readMatches")
 
 class MosaicTask(pipeBase.CmdLineTask):
 
@@ -270,7 +270,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         sourceSet = measMosaic.SourceGroup()
         matchList = measMosaic.SourceMatchGroup()
-        astrom = measAstrom.Astrometry(measAstrom.MeasAstromConfig())
+        astrom = measAstrom.Astrometry(self.config.astrom)
         for frameId in frameIds:
             ss = []
             ml = []
@@ -1126,7 +1126,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         self.log.info(str(self.config))
 
-        astrom = measAstrom.Astrometry(measAstrom.MeasAstromConfig())
+        astrom = measAstrom.Astrometry(self.config.astrom)
         for frameId in frameIds:
             for ccdId in ccdIds:
                 sources, matches, wcs, ffp, fluxmag0 = self.getAllForCcdNew(butler, astrom, frameId, ccdId, ct)
@@ -1543,7 +1543,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         wcsDic = dict()
         calibDic = dict()
         ffpDic = dict()
-        astrom = measAstrom.Astrometry(measAstrom.MeasAstromConfig())
+        astrom = measAstrom.Astrometry(self.config.astrom)
         for frameId in frameIds:
             data = {'visit': frameId, 'ccd': 0}
             if not butler.datasetExists('src', data):
