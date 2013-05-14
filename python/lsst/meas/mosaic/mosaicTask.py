@@ -14,6 +14,7 @@ import lsst.afw.cameraGeom.utils        as cameraGeomUtils
 import lsst.afw.geom                    as afwGeom
 import lsst.afw.image                   as afwImage
 import lsst.afw.table                   as afwTable
+import lsst.afw.coord                   as afwCoord
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
 import lsst.meas.mosaic.mosaicLib       as measMosaic
@@ -1036,9 +1037,66 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.writeFcr()
 
         if self.config.outputDiag:
+            self.writeCatalog(sourceVec, wcsDic, os.path.join(self.config.outputDir, "catalog.fits"))
             self.outputDiag()
 
         return wcsDic.keys()
+
+    def writeCatalog(self, sourceVec, wcsDic, name):
+        num = len(sourceVec)
+        ra = numpy.ndarray(num, dtype=numpy.float64)
+        dec = numpy.ndarray(num, dtype=numpy.float64)
+        mag = numpy.ndarray(num, dtype=numpy.float32)
+        err = numpy.zeros(num, dtype=numpy.float32)
+        numbers = numpy.zeros(num, dtype=numpy.int32)
+        numGood = 0
+        for s in sourceVec:
+            index = s.jstar;
+            if not s.good or index < 0:
+                continue
+
+            if numbers[index] == 0:
+                mag[index] = s.mag0
+                numGood += 1
+
+                # Deproject s.{xi,eta}_fit
+                crval = wcsDic[s.iexp].getSkyOrigin().getPosition(afwGeom.radians)
+                x = s.xi_fit
+                y = s.eta_fit
+                radius = math.hypot(x, y)
+                sinPhi, cosPhi = x/radius, y/radius
+                rho = math.sqrt(1.0 + radius**2)
+                sinTheta, cosTheta = 1.0/rho, radius/rho
+                sinD, cosD = math.sin(crval[1]), math.cos(crval[1])
+                dec[index] = math.asin(sinTheta*sinD - cosTheta*cosPhi*cosD)
+                sinAlpha = cosTheta*sinPhi
+                cosAlpha = cosTheta*cosPhi*sinD + sinTheta*cosD
+                ra[index] = math.atan2(sinAlpha, cosAlpha) + crval[0]
+            else:
+                assert mag[index] == numpy.float32(s.mag0), "Discrepancy between solved magnitudes"
+            err[index] += 1.0 / s.err**2;
+            numbers[index] += 1
+
+        err = numpy.sqrt(1.0/err)
+
+        schema = afwTable.SimpleTable.makeMinimalSchema()
+        magKey = schema.addField("mag", type="F", doc="Magnitude")
+        errKey = schema.addField("err", type="F", doc="Magnitude error")
+        numKey = schema.addField("num", type="I", doc="Number of observations")
+        catalog = afwTable.SimpleCatalog(schema)
+        catalog.reserve(numGood)
+        for i in range(num):
+            if numbers[i] == 0:
+                continue
+            r = catalog.addNew()
+            r.setId(i)
+            r.setCoord(afwCoord.Coord(ra[i]*afwGeom.radians, dec[i]*afwGeom.radians))
+            r.set(magKey, float(mag[i]))
+            r.set(errKey, float(err[i]))
+            r.set(numKey, int(numbers[i]))
+
+        catalog.writeFits(name)
+
 
     def run(self, camera, butler, dataRefList, debug, verbose=False):
 
