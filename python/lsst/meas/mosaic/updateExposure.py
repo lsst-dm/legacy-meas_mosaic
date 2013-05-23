@@ -1,8 +1,11 @@
+import numpy
+
 from .mosaicLib import getFCorImg, FluxFitParams
 from lsst.pipe.base import Struct
 import lsst.afw.image
 
-__all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog")
+__all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog",
+           "applyCalib")
 
 def applyMosaicResults(dataRef, exp=None):
     """Deprecated function to apply the results to an exposure
@@ -74,6 +77,28 @@ def applyMosaicResultsCatalog(dataRef, catalog):
             catalog[errKeys[name]][:] *= corr
 
     return Struct(catalog=catalog, mosaic=mosaic)
+
+
+def applyCalib(catalog, calib):
+    """Convert all fluxes in a catalog to magnitudes
+
+    The fluxes are converted in-place, so that the "flux.*" are now really
+    magnitudes.
+    """
+    fluxKeys, errKeys = getFluxKeys(catalog.schema)
+
+    calib.setThrowOnNegativeFlux(False)
+
+    for name, key in fluxKeys.items():
+        flux = catalog[key]
+        if name in errKeys:
+            fluxErr = catalog[errKeys[name]]
+            magArray = numpy.array([calib.getMagnitude(f, e) for f,e in zip(flux, fluxErr)])
+            mag = magArray[:,0]
+            fluxErr[:] = magArray[:,1]
+        else:
+            mag = numpy.array([calib.getMagnitude(f) for f in flux])
+        flux[:] = mag
 
 
 def getFluxKeys(schema):
