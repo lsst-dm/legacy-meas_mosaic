@@ -66,8 +66,10 @@ def applyMosaicResultsCatalog(dataRef, catalog):
         rec.updateCoord(mosaic.wcs)
 
     ffpArray = mosaic.fcor.getArray()
-    x = (catalog.getX() + 0.5).astype(int)
-    y = (catalog.getY() + 0.5).astype(int)
+    num = len(catalog)
+    zeros = numpy.zeros(num)
+    x = numpy.where(numpy.isnan(catalog.getX()), zeros, catalog.getX() + 0.5).astype(int)
+    y = numpy.where(numpy.isnan(catalog.getY()), zeros, catalog.getY() + 0.5).astype(int)
     corr = ffpArray[y, x]
 
     fluxKeys, errKeys = getFluxKeys(catalog.schema)
