@@ -1,23 +1,89 @@
 from .mosaicLib import getFCorImg, FluxFitParams
+from lsst.pipe.base import Struct
 import lsst.afw.image
 
-__all__ = ("applyMosaicResults",)
+__all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog")
 
-def applyMosaicResults(dataRef, calexp=None):
+def applyMosaicResults(dataRef, exp=None):
+    """Deprecated function to apply the results to an exposure
+
+    Deprecated, because the mosaic results can be applied to more than
+    one kind of target, so it's worth changing the name to be specific.
+    """
+    return applyMosaicResultsExposure(dataRef, exp).exposure
+
+def applyMosaicResultsExposure(dataRef, exp=None):
     """Update an Exposure with the Wcs, Calib, and flux scaling from meas_mosaic.
 
-    If None, the calexp will be loaded from the dataRef.
+    If None, the calexp will be loaded from the dataRef.  Otherwise it is
+    updated in-place.
     """
-    if calexp is None:
-        calexp = dataRef.get("calexp", immediate=True)
-    wcs_md = dataRef.get("wcs_md", immediate=True)
-    wcs = lsst.afw.image.makeWcs(wcs_md)
-    calib = lsst.afw.image.Calib(wcs_md)
-    calexp.setWcs(wcs)
-    calexp.setCalib(calib)
-    ffp_md = dataRef.get("fcr_md", immediate=True)
-    ffp = FluxFitParams(ffp_md)
-    mi = calexp.getMaskedImage()
-    fcor = getFCorImg(ffp, mi.getWidth(), mi.getHeight())
-    mi *= fcor
-    return calexp
+    if exp is None:
+        exp = dataRef.get("calexp", immediate=True)
+
+    mosaic = getMosaicResults(dataRef, exp.getDimensions())
+    exp.setWcs(mosaic.wcs)
+    exp.setCalib(mosaic.calib)
+    mi = exp.getMaskedImage()
+    mi *= mosaic.fcor
+    return Struct(exposure=exp, mosaic=mosaic)
+
+def getMosaicResults(dataRef, dims=None):
+    """Retrieve the results of meas_mosaic
+
+    If None, the dims will be determined from the calexp header.
+    """
+    wcsHeader = dataRef.get("wcs_md", immediate=True)
+    wcs = lsst.afw.image.makeWcs(wcsHeader)
+    calib = lsst.afw.image.Calib(wcsHeader)
+    ffpHeader = dataRef.get("fcr_md", immediate=True)
+    ffp = FluxFitParams(ffpHeader)
+
+    if dims is None:
+        calexpHeader = dataRef.get("calexp_md", immediate=True)
+        width, height = calexpHeader.get("NAXIS1"), calexpHeader.get("NAXIS2")
+    else:
+        width, height = dims
+    fcor = getFCorImg(ffp, width, height)
+
+    ### XXX Should we be applying the Jacobian correction ("jcor") as well, or is that folded in here?
+
+    return Struct(wcs=wcs, calib=calib, fcor=fcor)
+
+
+def applyMosaicResultsCatalog(dataRef, catalog):
+    """Apply the results of meas_mosaic to a source catalog
+
+    The coordinates and all fluxes are updated in-place with the
+    meas_mosaic solution.
+    """
+    mosaic = getMosaicResults(dataRef)
+
+    for rec in catalog:
+        rec.updateCoord(mosaic.wcs)
+
+    ffpArray = mosaic.fcor.getArray()
+    x = (catalog.getX() + 0.5).astype(int)
+    y = (catalog.getY() + 0.5).astype(int)
+    corr = ffpArray[y, x]
+
+    fluxKeys, errKeys = getFluxKeys(catalog.schema)
+    for name, key in fluxKeys.items():
+        catalog[key][:] *= corr
+        if name in errKeys:
+            catalog[errKeys[name]][:] *= corr
+
+    return Struct(catalog=catalog, mosaic=mosaic)
+
+
+def getFluxKeys(schema):
+    """Retrieve the flux and flux error keys from a schema
+
+    Both are returned as dicts indexed on the flux name (e.g., "flux.psf").
+    """
+    schemaKeys = dict((s.field.getName(), s.key) for s in schema)
+    fluxKeys = dict((name, key) for name, key in schemaKeys.items() if name.startswith("flux.") and
+                    name.count(".") == 1)
+    errKeys = dict((name, schemaKeys[name + ".err"]) for name in fluxKeys.keys() if
+                   name + ".err" in schemaKeys)
+    return fluxKeys, errKeys
