@@ -1,4 +1,4 @@
-from lsst.pipe.base import CmdLineTask
+from lsst.pipe.base import CmdLineTask, ArgumentParser
 from lsst.pex.config import Config, Field
 from .updateExposure import applyMosaicResultsCatalog, applyCalib
 
@@ -8,6 +8,12 @@ class CalibrateCatalogConfig(Config):
 class CalibrateCatalogTask(CmdLineTask):
     ConfigClass = CalibrateCatalogConfig
     _DefaultName = "calibrateCatalog"
+
+    @classmethod
+    def _makeArgumentParser(cls):
+        parser = ArgumentParser(name=cls._DefaultName)
+        parser.add_id_argument(name="--id", datasetType="src", help="data ID, e.g. --id visit=12345 ccd=1,2")
+        return parser
 
     def run(self, dataRef):
         catalog = dataRef.get("src", immediate=True)
