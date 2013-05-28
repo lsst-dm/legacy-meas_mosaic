@@ -2827,7 +2827,7 @@ lsst::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	//std::cout << ra << " " << dec << std::endl;
 	//std::cout << mag0 << std::endl;
 	for (size_t j = 1; j < ss.size(); j++) {
-	    int id    = ss[j]->getId();
+	    long id   = ss[j]->getId();
 	    int iexp  = ss[j]->getExp();
 	    int ichip = ss[j]->getChip();
 	    double x = ss[j]->getX();
@@ -2864,12 +2864,13 @@ lsst::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	    if (ss[0]->getAstromBad() || ss[j]->getAstromBad()) {
 		o->good = false;
 	    }
-	    if (ss[j]->getFlux() > 0.0 && ss[j]->getFluxErr() > 0.0) {
+	    if (ss[j]->getFlux() > 0.0 && ss[j]->getFluxErr() > 0.0 && ss[j]->getFlux() < 1.0E+10) {
 		o->mag = -2.5*log10(ss[j]->getFlux());
 		o->err = 2.5/M_LN10*ss[j]->getFluxErr()/ss[j]->getFlux();
 	    } else {
 		o->mag = -9999;
 		o->err = -9999;
+		o->good = false;
 	    }
 	    obsVec.push_back(o);
 	}

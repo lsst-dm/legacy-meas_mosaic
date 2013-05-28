@@ -170,7 +170,7 @@ namespace lsst {
 		double xi_fit, eta_fit;
 		double u_fit, v_fit;
 
-		int id;
+		long id;
 		int istar;
 		int jstar;	/* index for fit */
 		int iexp;	/* exposure id or visit number */
