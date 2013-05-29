@@ -7,29 +7,29 @@ import lsst.afw.image
 __all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog",
            "applyCalib")
 
-def applyMosaicResults(dataRef, exp=None):
+def applyMosaicResults(dataRef, calexp=None):
     """Deprecated function to apply the results to an exposure
 
     Deprecated, because the mosaic results can be applied to more than
     one kind of target, so it's worth changing the name to be specific.
     """
-    return applyMosaicResultsExposure(dataRef, exp).exposure
+    return applyMosaicResultsExposure(dataRef, calexp).exposure
 
-def applyMosaicResultsExposure(dataRef, exp=None):
+def applyMosaicResultsExposure(dataRef, calexp=None):
     """Update an Exposure with the Wcs, Calib, and flux scaling from meas_mosaic.
 
     If None, the calexp will be loaded from the dataRef.  Otherwise it is
     updated in-place.
     """
-    if exp is None:
-        exp = dataRef.get("calexp", immediate=True)
+    if calexp is None:
+        calexp = dataRef.get("calexp", immediate=True)
 
-    mosaic = getMosaicResults(dataRef, exp.getDimensions())
-    exp.setWcs(mosaic.wcs)
-    exp.setCalib(mosaic.calib)
-    mi = exp.getMaskedImage()
+    mosaic = getMosaicResults(dataRef, calexp.getDimensions())
+    calexp.setWcs(mosaic.wcs)
+    calexp.setCalib(mosaic.calib)
+    mi = calexp.getMaskedImage()
     mi *= mosaic.fcor
-    return Struct(exposure=exp, mosaic=mosaic)
+    return Struct(exposure=calexp, mosaic=mosaic)
 
 def getMosaicResults(dataRef, dims=None):
     """Retrieve the results of meas_mosaic
