@@ -49,8 +49,6 @@ def getMosaicResults(dataRef, dims=None):
         width, height = dims
     fcor = getFCorImg(ffp, width, height)
 
-    ### XXX Should we be applying the Jacobian correction ("jcor") as well, or is that folded in here?
-
     return Struct(wcs=wcs, calib=calib, fcor=fcor)
 
 
