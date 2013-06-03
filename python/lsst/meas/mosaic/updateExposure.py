@@ -2,7 +2,8 @@ import numpy
 
 from .mosaicLib import getFCorImg, FluxFitParams
 from lsst.pipe.base import Struct
-import lsst.afw.image
+import lsst.afw.table as afwTable
+import lsst.afw.image as afwImage
 
 __all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog",
            "applyCalib")
@@ -37,8 +38,8 @@ def getMosaicResults(dataRef, dims=None):
     If None, the dims will be determined from the calexp header.
     """
     wcsHeader = dataRef.get("wcs_md", immediate=True)
-    wcs = lsst.afw.image.makeWcs(wcsHeader)
-    calib = lsst.afw.image.Calib(wcsHeader)
+    wcs = afwImage.makeWcs(wcsHeader)
+    calib = afwImage.Calib(wcsHeader)
     ffpHeader = dataRef.get("fcr_md", immediate=True)
     ffp = FluxFitParams(ffpHeader)
 
@@ -52,7 +53,7 @@ def getMosaicResults(dataRef, dims=None):
     return Struct(wcs=wcs, calib=calib, fcor=fcor)
 
 
-def applyMosaicResultsCatalog(dataRef, catalog):
+def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     """Apply the results of meas_mosaic to a source catalog
 
     The coordinates and all fluxes are updated in-place with the
@@ -60,21 +61,37 @@ def applyMosaicResultsCatalog(dataRef, catalog):
     """
     mosaic = getMosaicResults(dataRef)
 
-    for rec in catalog:
-        rec.updateCoord(mosaic.wcs)
-
     ffpArray = mosaic.fcor.getArray()
     num = len(catalog)
     zeros = numpy.zeros(num)
-    x = numpy.where(numpy.isnan(catalog.getX()), zeros, catalog.getX() + 0.5).astype(int)
-    y = numpy.where(numpy.isnan(catalog.getY()), zeros, catalog.getY() + 0.5).astype(int)
+    x, y = catalog.getX(), catalog.getY()
+    x = numpy.where(numpy.isnan(x), zeros, x + 0.5).astype(int)
+    y = numpy.where(numpy.isnan(y), zeros, y + 0.5).astype(int)
     corr = ffpArray[y, x]
+
+    if addCorrection:
+        mapper = afwTable.SchemaMapper(catalog.schema)
+        for s in catalog.schema:
+            mapper.addMapping(s.key)
+        corrField = afwTable.Field[float]("mosaic.corr", "Magnitude correction from meas_mosaic")
+        corrKey = mapper.addOutputField(corrField)
+        outCatalog = type(catalog)(mapper.getOutputSchema())
+        for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
+            getattr(outCatalog, "define" + slot)(getattr(catalog, "get" + slot + "Definition")())
+
+        outCatalog.extend(catalog, mapper=mapper)
+
+        outCatalog[corrKey][:] = corr
+        catalog = outCatalog
 
     fluxKeys, errKeys = getFluxKeys(catalog.schema)
     for name, key in fluxKeys.items():
         catalog[key][:] *= corr
         if name in errKeys:
             catalog[errKeys[name]][:] *= corr
+
+    for rec in catalog:
+        rec.updateCoord(mosaic.wcs)
 
     return Struct(catalog=catalog, mosaic=mosaic)
 
