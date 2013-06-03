@@ -16,179 +16,133 @@ import lsst.meas.astrom.astrom          as measAstrom
 import lsst.afw.image                   as afwImage
 import lsst.afw.geom                    as afwGeom
 
+class CheckMosaicConfig(MosaicConfig):
+    maxMag = pexConfig.Field(
+        doc="Maximum magnitude for delta mag histogram",
+        dtype=float,
+        default=21.0)
+
 class CheckMosaicTask(MosaicTask):
 
     RunnerClass = MosaicRunner
     canMultiprocess = False
-    ConfigClass = MosaicConfig
+    ConfigClass = CheckMosaicConfig
     _DefaultName = "CheckMosaic"
 
     def _getConfigName(self):
         return None
 
 
-    def makeDiffPos(self, allMat, allSource, wcsDic):
+    def makeDiffPosFlux(self, allMat, allSource, wcsDic, calibDic, ffpDic):
         dx_m = list()
         dy_m = list()
         dx_s = list()
         dy_s = list()
+        m0_m = list()
+        dm_m  = list()
+        m0_s = list()
+        dm_s  = list()
         for ss in allMat:
             ra_cat = ss[0].getRa().asDegrees()
             dec_cat = ss[0].getDec().asDegrees()
+            mag_cat = -2.5*math.log10(ss[0].getFlux())
             for j in range(1,len(ss)):
-                iexp = ss[j].getExp()
-                ichip = ss[j].getChip()
-                x = ss[j].getX()
-                y = ss[j].getY()
-                sky = wcsDic[iexp][ichip].pixelToSky(x, y).getPosition()
-                ra = sky[0]
-                dec = sky[1]
-                dx_m.append((ra - ra_cat) * 3600)
-                dy_m.append((dec - dec_cat) * 3600)
+                if (ss[j].getFlux() > 0 and ss[j].getFlux() != float('inf')):
+                    iexp = ss[j].getExp()
+                    ichip = ss[j].getChip()
+                    x, y = ss[j].getX(), ss[j].getY()
+                    ra, dec = wcsDic[iexp][ichip].pixelToSky(x, y).getPosition()
+                    dx_m.append((ra - ra_cat) * 3600)
+                    dy_m.append((dec - dec_cat) * 3600)
+                    mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
+                    mcor = ffpDic[iexp][ichip].eval(x,y)
+                    m0_m.append(mag_cat)
+                    dm_m.append(mag+mcor-mag_cat)
             if len(ss) > 2:
                 n = 0
                 ra_cat = 0.0
                 dec_cat = 0.0
+                S  = 0.0
+                Sx = 0.0
                 ra_source = list()
                 dec_source = list()
+                mag_source = list()
                 for j in range(1,len(ss)):
-                    iexp = ss[j].getExp()
-                    ichip = ss[j].getChip()
-                    x = ss[j].getX()
-                    y = ss[j].getY()
-                    sky = wcsDic[iexp][ichip].pixelToSky(x, y).getPosition()
-                    ra = sky[0]
-                    dec = sky[1]
-                    ra_source.append(ra)
-                    dec_source.append(dec)
-                    n += 1
-                    ra_cat += ra
-                    dec_cat += dec
+                    if (ss[j].getFlux() > 0 and ss[j].getFlux() != float('inf')):
+                        iexp = ss[j].getExp()
+                        ichip = ss[j].getChip()
+                        x, y = ss[j].getX(), ss[j].getY()
+                        ra, dec = wcsDic[iexp][ichip].pixelToSky(x, y).getPosition()
+                        ra_source.append(ra)
+                        dec_source.append(dec)
+                        n += 1
+                        ra_cat += ra
+                        dec_cat += dec
+
+                        mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
+                        err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
+                        mcor = ffpDic[iexp][ichip].eval(x,y)
+                        mag_source.append(mag+mcor)
+                        Sx += (mag+mcor) / (err*err)
+                        S  += 1. / (err*err)
+                        
                 ra_cat /= n
                 dec_cat /= n
-                for ra, dec in zip(ra_source, dec_source):
+                mag_cat = Sx / S
+                for ra, dec, mag in zip(ra_source, dec_source, mag_source):
                     dx_s.append((ra - ra_cat) * 3600)
                     dy_s.append((dec - dec_cat) * 3600)
+                    m0_s.append(mag_cat)
+                    dm_s.append(mag - mag_cat)
+
         dx_m = numpy.array(dx_m)
         dy_m = numpy.array(dy_m)
+        m0_m = numpy.array(m0_m)
+        dm_m   = numpy.array(dm_m)
 
         for ss in allSource:
             n = 0
             ra_cat = 0.0
             dec_cat = 0.0
-            ra_source = list()
-            dec_source = list()
-            for j in range(1,len(ss)):
-                iexp = ss[j].getExp()
-                ichip = ss[j].getChip()
-                x = ss[j].getX()
-                y = ss[j].getY()
-                sky = wcsDic[iexp][ichip].pixelToSky(x, y).getPosition()
-                ra = sky[0]
-                dec = sky[1]
-                ra_source.append(ra)
-                dec_source.append(dec)
-                n += 1
-                ra_cat += ra
-                dec_cat += dec
-            ra_cat /= n
-            dec_cat /= n
-            for ra, dec in zip(ra_source, dec_source):
-                dx_s.append((ra - ra_cat) * 3600)
-                dy_s.append((dec - dec_cat) * 3600)
-        dx_s = numpy.array(dx_s)
-        dy_s = numpy.array(dy_s)
-
-        return dx_m, dy_m, dx_s, dy_s
-
-    def makeDiffFlux(self, allMat, allSource, calibDic, ffpDic):
-
-        mag0_m = list()
-        mag_m  = list()
-        mcor_m = list()
-        mag0_s = list()
-        mag_s  = list()
-        mcor_s = list()
-        for ss in allMat:
-            mag_cat = -2.5*math.log10(ss[0].getFlux())
-            for j in range(1,len(ss)):
-                iexp = ss[j].getExp()
-                ichip = ss[j].getChip()
-                if (ss[j].getFlux() > 0):
-                    mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
-                    x = ss[j].getX()
-                    y = ss[j].getY()
-                    mcor = ffpDic[iexp][ichip].eval(x,y)
-                    mag0_m.append(mag_cat)
-                    mag_m.append(mag)
-                    mcor_m.append(mcor)
-            if len(ss) > 2:
-                Sx = 0.0
-                S  = 0.0
-                mag_source = list()
-                mcor_source = list()
-                iexp_source = list()
-                ichip_source = list()
-                for j in range(1,len(ss)):
-                    iexp = ss[j].getExp()
-                    ichip = ss[j].getChip()
-                    mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
-                    err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
-                    x = ss[j].getX()
-                    y = ss[j].getY()
-                    mcor = ffpDic[iexp][ichip].eval(x,y)
-                    mag_source.append(mag)
-                    mcor_source.append(mcor)
-                    iexp_source.append(iexp)
-                    ichip_source.append(ichip)
-                    Sx += (mag+mcor) / (err*err)
-                    S  += 1. / (err*err)
-                mag_cat = Sx / S
-                for mag, mcor, iexp, ichip in zip(mag_source, mcor_source, iexp_source, ichip_source):
-                    mag0_s.append(mag_cat)
-                    mag_s.append(mag)
-                    mcor_s.append(mcor)
-        mag0_m = numpy.array(mag0_m)
-        mag_m  = numpy.array(mag_m)
-        mcor_m = numpy.array(mcor_m)
-        dm_m = mag_m + mcor_m - mag0_m
-
-        for ss in allSource:
             Sx = 0.0
             S  = 0.0
+            ra_source = list()
+            dec_source = list()
             mag_source = list()
-            mcor_source = list()
-            iexp_source = list()
-            ichip_source = list()
             for j in range(1,len(ss)):
-                iexp = ss[j].getExp()
-                ichip = ss[j].getChip()
-                if calibDic[iexp][ichip].getFluxMag0()[0] > 0:
+                if (ss[j].getFlux() > 0 and ss[j].getFlux() != float('inf')):
+                    iexp = ss[j].getExp()
+                    ichip = ss[j].getChip()
+                    x, y = ss[j].getX(), ss[j].getY()
+                    ra, dec = wcsDic[iexp][ichip].pixelToSky(x, y).getPosition()
+                    ra_source.append(ra)
+                    dec_source.append(dec)
+                    n += 1
+                    ra_cat += ra
+                    dec_cat += dec
+
                     mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
                     err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
-                    x = ss[j].getX()
-                    y = ss[j].getY()
                     mcor = ffpDic[iexp][ichip].eval(x,y)
-                    mag_source.append(mag)
-                    mcor_source.append(mcor)
-                    iexp_source.append(iexp)
-                    ichip_source.append(ichip)
+                    mag_source.append(mag+mcor)
                     Sx += (mag+mcor) / (err*err)
                     S  += 1. / (err*err)
-            if S > 0:
-                mag_cat = Sx / S
-            else:
-                mag_cat = 99999.
-            for mag, mcor, iexp, ichip in zip(mag_source, mcor_source, iexp_source, ichip_source):
-                mag0_s.append(mag_cat)
-                mag_s.append(mag)
-                mcor_s.append(mcor)
-        mag0_s = numpy.array(mag0_s)
-        mag_s  = numpy.array(mag_s)
-        mcor_s = numpy.array(mcor_s)
-        dm_s = mag_s + mcor_s - mag0_s
 
-        return mag0_m, dm_m, mag0_s, dm_s
+            ra_cat /= n
+            dec_cat /= n
+            mag_cat = Sx / S
+            for ra, dec, mag in zip(ra_source, dec_source, mag_source):
+                dx_s.append((ra - ra_cat) * 3600)
+                dy_s.append((dec - dec_cat) * 3600)
+                m0_s.append(mag_cat)
+                dm_s.append(mag - mag_cat)
+
+        dx_s = numpy.array(dx_s)
+        dy_s = numpy.array(dy_s)
+        m0_s = numpy.array(m0_s)
+        dm_s   = numpy.array(dm_s)
+
+        return dx_m, dy_m, dx_s, dy_s, m0_m, dm_m, m0_s, dm_s
 
     def makeFluxStat(self, allMat, allSource, calibDic, ffpDic):
 
@@ -314,8 +268,12 @@ class CheckMosaicTask(MosaicTask):
 
     def plotFlux(self, m0_m, dm_m, m0_s, dm_s):
 
+        m0Sub = m0_s[m0_s < self.config.maxMag]
+        dmSub = dm_s[m0_s < self.config.maxMag]
+        
         mag_std_m, mag_mean_m, mag_n_m = self.clippedStd(dm_m, 3)
         mag_std_s, mag_mean_s, mag_n_s = self.clippedStd(dm_s, 3)
+        mag_std_sub, mag_mean_sub, mag_n_sub = self.clippedStd(dmSub, 3)
 
         bins_m = numpy.arange(-0.25, 0.25, 0.05) + 0.025
         bins_s = numpy.arange(-0.25, 0.25, 0.005) + 0.0025
@@ -326,23 +284,29 @@ class CheckMosaicTask(MosaicTask):
         plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
         plt.plot(m0_m, dm_m, 'g,', markeredgecolor='green')
         plt.plot(m0_s, dm_s, 'r,', markeredgecolor='red')
+        plt.plot(m0Sub, dmSub, 'b,', markeredgecolor='blue')
         plt.plot([15,25], [0,0], 'k--')
         plt.xlim(15, 25)
         plt.ylim(-0.25, 0.25)
         plt.plot([15, 25], [-0.01, -0.01], 'k--')
         plt.plot([15, 25], [+0.01, +0.01], 'k--')
+        plt.plot([self.config.maxMag, self.config.maxMag], plt.ylim(), 'b:')
         plt.xlabel(r'$m_{cat}$ (mag)')
         plt.ylabel(r'$\Delta m$ (mag)')
 
         ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
         plt.hist(dm_s, bins=bins_s, normed=False, orientation='horizontal', histtype='step', color='red')
         plt.hist(dm_m, bins=bins_m, normed=False, orientation='horizontal', histtype='step', color='green')
+        plt.hist(dmSub, bins=bins_s, normed=False, orientation='horizontal', histtype='step', color='blue')
         plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (mag_std_m), rotation=270, transform=ax.transAxes, color='green')
         plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes, color='red')
+        plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (mag_std_sub), rotation=270, transform=ax.transAxes, color='blue')
         gauss = mlab.normpdf(bins_m, mag_mean_m, mag_std_m)
         plt.plot(gauss*mag_n_m*0.05, bins_m, 'g:')
         gauss = mlab.normpdf(bins_s, mag_mean_s, mag_std_s)
         plt.plot(gauss*mag_n_s*0.005, bins_s, 'r:')
+        gauss = mlab.normpdf(bins_s, mag_mean_sub, mag_std_sub)
+        plt.plot(gauss*mag_n_sub*0.005, bins_s, 'b:')
         plt.xticks(rotation=270)
         plt.yticks(rotation=270)
         plt.ylim(-0.25, 0.25)
@@ -398,97 +362,106 @@ class CheckMosaicTask(MosaicTask):
 
         plt.savefig('posAsMag.png')
 
-    def check(self, butler, frameIds, ccdIds, ct=None, debug=False, verbose=False):
-        ccdSet = self.readCcd(butler.mapper.camera, ccdIds)
+    def check(self, dataRefList, ct=None, debug=False, verbose=False):
+        ccdSet = self.readCcd(dataRefList)
+        self.removeNonExistCcd(dataRefList, ccdSet)
+
         sourceSet = measMosaic.SourceGroup()
         matchList = measMosaic.SourceMatchGroup()
+        astrom = measAstrom.Astrometry(self.config.astrom)
+        ssVisit = dict()
+        mlVisit = dict()
+        dataRefListUsed = list()
         wcsDic = dict()
         calibDic = dict()
         ffpDic = dict()
-        astrom = measAstrom.Astrometry(self.config.astrom)
-        for frameId in frameIds:
-            ss = []
-            ml = []
-            if not wcsDic.has_key(frameId):
-                wcsDic[frameId] = dict()
-            if not calibDic.has_key(frameId):
-                calibDic[frameId] = dict()
-            if not ffpDic.has_key(frameId):
-                ffpDic[frameId] = dict()
-            for ccdId in ccdIds:
-                dataId = {'visit': frameId, 'ccd': ccdId}
-                try:
-                    if not butler.datasetExists('src', dataId):
-                        raise RuntimeError("no data for src %s" % (dataId))
+        for dataRef in dataRefList:
+            if not ssVisit.has_key(dataRef.dataId['visit']):
+                ssVisit[dataRef.dataId['visit']] = list()
+                mlVisit[dataRef.dataId['visit']] = list()
+                wcsDic[dataRef.dataId['visit']] = dict()
+                calibDic[dataRef.dataId['visit']] = dict()
+                ffpDic[dataRef.dataId['visit']] = dict()
 
-                    md = butler.get('wcs_md', dataId)
-                    wcs = afwImage.makeWcs(md)
-                    calib = afwImage.Calib(md)
+            try:
+                if not dataRef.datasetExists('src'):
+                    raise RuntimeError("no data for src %s" % (dataRef.dataId))
 
-                    md = butler.get('fcr_md', dataId)
-                    ffp = measMosaic.FluxFitParams(md)
+                if not dataRef.datasetExists('wcs'):
+                    raise RuntimeError("no data for wcs %s" % (dataRef.dataId))
 
-                    sources = butler.get('src', dataId)
+                md = dataRef.get('wcs_md')
+                wcs = afwImage.makeWcs(md)
+                calib = afwImage.Calib(md)
 
-                    icSrces = butler.get('icSrc', dataId)
-                    packedMatches = butler.get('icMatch', dataId)
-                    matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
+                md = dataRef.get('fcr_md')
+                ffp = measMosaic.FluxFitParams(md)
 
-                    mm = list()
+                sources = dataRef.get('src')
+
+                icSrces = dataRef.get('icSrc')
+                packedMatches = dataRef.get('icMatch')
+                matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
+
+                mm = list()
+                for m in matches:
+                    if m.first != None:
+                        mm.append(m)
+                matches = mm
+                if ct != None:
+                    refSchema = matches[0].first.schema
+                    key_p = refSchema.find(ct.primary).key
+                    key_s = refSchema.find(ct.secondary).key
+                    key_f = refSchema.find("flux").key
                     for m in matches:
-                        if m.first != None:
-                            mm.append(m)
-                    matches = mm
-                    if ct != None:
-                        refSchema = matches[0].first.schema
-                        key_p = refSchema.find(ct.primary).key
-                        key_s = refSchema.find(ct.secondary).key
-                        key_f = refSchema.find("flux").key
-                        for m in matches:
-                            refFlux1 = m.first.get(key_p)
-                            refFlux2 = m.first.get(key_s)
-                            refMag1 = -2.5*math.log10(refFlux1)
-                            refMag2 = -2.5*math.log10(refFlux2)
-                            refMag = ct.transformMags(ct.primary, refMag1, refMag2)
-                            refFlux = math.pow(10.0, -0.4*refMag)
-                            if refFlux == refFlux:
-                                m.first.set(key_f, refFlux)
-                            else:
-                                m.first = None
-                                print 'refFlux ', refFlux
-                    sources = self.selectStars(sources)
-                    matches = self.selectStars(matches, True)
-                except Exception, e:
-                    print "Failed to read: %s" % (e)
-                    continue
+                        refFlux1 = m.first.get(key_p)
+                        refFlux2 = m.first.get(key_s)
+                        refMag1 = -2.5*math.log10(refFlux1)
+                        refMag2 = -2.5*math.log10(refFlux2)
+                        refMag = ct.transformMags(ct.primary, refMag1, refMag2)
+                        refFlux = math.pow(10.0, -0.4*refMag)
+                        if refFlux == refFlux:
+                            m.first.set(key_f, refFlux)
+                        else:
+                            m.first = None
+                            print 'refFlux ', refFlux
+                sources = self.selectStars(sources)
+                matches = self.selectStars(matches, True)
+            except Exception, e:
+                print "Failed to read: %s" % (e)
+                sources = None
+                continue
 
-                if sources != None:
-                    for s in sources:
-                        if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
-                            src = measMosaic.Source(s)
-                            src.setExp(frameId)
-                            src.setChip(ccdId)
-                            ss.append(src)
-                    for m in matches:
+            if sources != None:
+                for s in sources:
+                    if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
+                        src = measMosaic.Source(s)
+                        src.setExp(dataRef.dataId['visit'])
+                        src.setChip(dataRef.dataId['ccd'])
+                        ssVisit[dataRef.dataId['visit']].append(src)
+                for m in matches:
+                    if m.first != None and m.second != None:
                         match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs),
                                                        measMosaic.Source(m.second))
-                        match.second.setExp(frameId)
-                        match.second.setChip(ccdId)
-                        ml.append(match)
-                wcsDic[frameId][ccdId] = wcs
-                calibDic[frameId][ccdId] = calib
-                ffpDic[frameId][ccdId] = ffp
-            sourceSet.push_back(ss)
-            matchList.push_back(ml)
+                        match.second.setExp(dataRef.dataId['visit'])
+                        match.second.setChip(dataRef.dataId['ccd'])
+                        mlVisit[dataRef.dataId['visit']].append(match)
+                wcsDic[dataRef.dataId['visit']][dataRef.dataId['ccd']] = wcs
+                calibDic[dataRef.dataId['visit']][dataRef.dataId['ccd']] = calib
+                ffpDic[dataRef.dataId['visit']][dataRef.dataId['ccd']] = ffp
+                dataRefListUsed.append(dataRef)
+
+        for visit in ssVisit.keys():
+            sourceSet.push_back(ssVisit[visit])
+            matchList.push_back(mlVisit[visit])
 
         d_lim = afwGeom.Angle(self.config.radXMatch, afwGeom.arcseconds)
         nbrightest = self.config.nBrightest
         allMat, allSource = self.mergeCatalog(sourceSet, matchList, ccdSet, d_lim, nbrightest)
-            
-        m0_m, dm_m, m0_s, dm_s = self.makeDiffFlux(allMat, allSource, calibDic, ffpDic)
+ 
+        dx_m, dy_m, dx_s, dy_s, m0_m, dm_m, m0_s, dm_s  = self.makeDiffPosFlux(allMat, allSource, wcsDic, calibDic, ffpDic)
         self.plotFlux(m0_m, dm_m, m0_s, dm_s)
         self.makeFluxStat(allMat, allSource, calibDic, ffpDic)
-        dx_m, dy_m, dx_s, dy_s = self.makeDiffPos(allMat, allSource, wcsDic)
         self.plotPos(dx_m, dy_m, dx_s, dy_s)
         self.plotPosAsMag(m0_s, dx_s, dy_s)
 
@@ -510,23 +483,18 @@ class CheckMosaicTask(MosaicTask):
             Colorterm.setColorterms(colortermsData)
             Colorterm.setActiveDevice("Hamamatsu")
 
-        frameIds = list()
-        ccdIds = list()
         filters = list()
         for dataRef in dataRefList:
-            if not dataRef.dataId['visit'] in frameIds:
-                frameIds.append(dataRef.dataId['visit'])
-            if not dataRef.dataId['ccd'] in ccdIds:
-                ccdIds.append(dataRef.dataId['ccd'])
             if not dataRef.dataId['filter'] in filters:
                 filters.append(dataRef.dataId['filter'])
 
-        print frameIds
-        print ccdIds
+        if len(filters) != 1:
+            self.log.fatal("There are %d filters in input frames" % len(filters))
+            return None
 
         ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
 
-        return self.check(butler, frameIds, ccdIds, ct, debug)
+        return self.check(dataRefList, ct, debug)
 
 if __name__ == '__main__':
 
