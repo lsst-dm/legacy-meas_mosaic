@@ -362,6 +362,46 @@ class CheckMosaicTask(MosaicTask):
 
         plt.savefig('posAsMag.png')
 
+    def writeCatalog(self, allSource, wcsDic, calibDic, ffpDic):
+        num = sum(sum(1 for src in ss if src.getExp() >=0 and src.getChip() >= 0) for ss in allSource)
+
+        import pyfits
+
+        schema = pyfits.ColDefs([pyfits.Column(name="id", format="K"),
+                                 pyfits.Column(name="ra", format="D"),
+                                 pyfits.Column(name="dec", format="D"),
+                                 pyfits.Column(name="mag", format="E"),
+                                 pyfits.Column(name="err", format="E"),
+                                 pyfits.Column(name="corr", format="E"),
+                                 ])
+
+        outHdu = pyfits.new_table(schema, nrows=num)
+        outData = outHdu.data
+
+        i = 0
+        for ss in allSource:
+            for src in ss:
+                iexp = src.getExp()
+                ichip = src.getChip()
+                if iexp < 0 or ichip < 0:
+                    continue
+
+                outData.id[i] = src.getId()
+                x, y = src.getX(), src.getY()
+                ra, dec = wcsDic[iexp][ichip].pixelToSky(x, y).getPosition()
+                outData.ra[i] = ra
+                outData.dec[i] = dec
+                fluxMag0 = calibDic[iexp][ichip].getFluxMag0()[0]
+                flux = src.getFlux()
+                corr = ffpDic[iexp][ichip].eval(x, y)
+                outData.mag[i] = -2.5*math.log10(flux/fluxMag0) + corr
+                outData.err[i] = 2.5/math.log(10) * src.getFluxErr() / flux
+                outData.corr[i] = corr
+                i += 1
+
+        outHdu.writeto("catalog.fits", clobber=True)
+
+
     def check(self, dataRefList, ct=None, debug=False, verbose=False):
         ccdSet = self.readCcd(dataRefList)
         self.removeNonExistCcd(dataRefList, ccdSet)
@@ -457,6 +497,7 @@ class CheckMosaicTask(MosaicTask):
 
         d_lim = afwGeom.Angle(self.config.radXMatch, afwGeom.arcseconds)
         nbrightest = self.config.nBrightest
+
         allMat, allSource = self.mergeCatalog(sourceSet, matchList, ccdSet, d_lim, nbrightest)
  
         dx_m, dy_m, dx_s, dy_s, m0_m, dm_m, m0_s, dm_s  = self.makeDiffPosFlux(allMat, allSource, wcsDic, calibDic, ffpDic)
@@ -464,6 +505,7 @@ class CheckMosaicTask(MosaicTask):
         self.makeFluxStat(allMat, allSource, calibDic, ffpDic)
         self.plotPos(dx_m, dy_m, dx_s, dy_s)
         self.plotPosAsMag(m0_s, dx_s, dy_s)
+        self.writeCatalog(allSource, wcsDic, calibDic, ffpDic)
 
     def run(self, camera, butler, dataRefList, debug):
 
