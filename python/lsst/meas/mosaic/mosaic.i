@@ -1,5 +1,6 @@
 %{
 #include "lsst/meas/mosaic/mosaicfit.h"
+#include "lsst/meas/mosaic/spatialCellSource.h"
 %}
 
 %include "std_vector.i"
@@ -21,8 +22,16 @@
 %shared_ptr(lsst::meas::mosaic::KDTree);
 %shared_ptr(lsst::meas::mosaic::Obs);
 %shared_ptr(lsst::meas::mosaic::FluxFitParams);
+%shared_ptr(lsst::meas::mosaic::SpatialCellSource);
+
+%inline %{
+  PTR(lsst::meas::mosaic::SpatialCellSource) cast_SpatialCellSource(PTR(lsst::afw::math::SpatialCellCandidate) candidate) {
+    return boost::shared_dynamic_cast<lsst::meas::mosaic::SpatialCellSource>(candidate);
+  }
+%}
 
 %include "lsst/meas/mosaic/mosaicfit.h"
+%include "lsst/meas/mosaic/spatialCellSource.h"
 
 %template(SourceSet) std::vector<PTR(lsst::meas::mosaic::Source)>;
 %template(SourceGroup) std::vector<std::vector<PTR(lsst::meas::mosaic::Source)> >;
