@@ -257,8 +257,6 @@ class MosaicTask(pipeBase.CmdLineTask):
     def readCatalog(self, dataRefList, ct=None):
         self.log.info("Reading catalogs ...")
 
-        sourceSet = measMosaic.SourceGroup()
-        matchList = measMosaic.SourceMatchGroup()
         astrom = measAstrom.Astrometry(self.config.astrom)
 
         ssVisit = dict()
@@ -287,9 +285,15 @@ class MosaicTask(pipeBase.CmdLineTask):
                 else:
                     self.log.info('%8d %3d : %2d matches  Suspicious to wrong match. Ignore this CCD' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], len(matches)))
 
+        sourceSet = measMosaic.SourceGroup()
+        matchList = measMosaic.SourceMatchGroup()
         for visit in ssVisit.keys():
-            sourceSet.push_back(ssVisit[visit])
-            matchList.push_back(mlVisit[visit])
+            ss = ssVisit[visit]
+            ml = mlVisit[visit]
+            if len(ss) == 0 and len(ml) == 0:
+                continue
+            sourceSet.push_back(ss)
+            matchList.push_back(ml)
 
         return sourceSet, matchList, dataRefListUsed
 
@@ -369,21 +373,6 @@ class MosaicTask(pipeBase.CmdLineTask):
                 v_max = math.fabs(m.v)
 
         return u_max, v_max
-
-    def checkInputs(self, wcsDic, sourceSet, matchList, dataRefListUsed):
-        newWcsDic = measMosaic.WcsDic()
-        newSourceSet = measMosaic.SourceGroup()
-        newMatchList = measMosaic.SourceMatchGroup()
-        newDataRefListUsed = list()
-        for i, (wcs, frame, ss, ml) in enumerate(zip(wcsDic.values(), wcsDic.keys(), sourceSet, matchList)):
-            if len(ss) > 0 or len(ml) > 0:
-                newWcsDic[frame] = wcs
-                newSourceSet.push_back(ss)
-                newMatchList.push_back(ml)
-                for dataRef in dataRefListUsed:
-                    if dataRef.dataId['visit'] == frame and not dataRef in newDataRefListUsed:
-                        newDataRefListUsed.append(dataRef)
-        return newWcsDic, newSourceSet, newMatchList, newDataRefListUsed
 
     def plotCcd(self, coeffx0, coeffy0):
         for ccd in self.ccdSet.values():
@@ -955,7 +944,9 @@ class MosaicTask(pipeBase.CmdLineTask):
             and not os.path.isdir(self.config.outputDir)):
             os.mkdir(self.config.outputDir)
 
-        ccdSet = self.readCcd(dataRefList)
+        sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefList, ct)
+
+        ccdSet = self.readCcd(dataRefListUsed)
 
         if debug:
             for ccd in ccdSet.values():
@@ -963,18 +954,15 @@ class MosaicTask(pipeBase.CmdLineTask):
                               str(ccd.getCenter().getPixels(ccd.getPixelSize()))+" "+
                               str(ccd.getOrientation().getYaw()))
 
-        wcsDic = self.readWcs(dataRefList, ccdSet)
+        wcsDic = self.readWcs(dataRefListUsed, ccdSet)
 
-        self.removeNonExistCcd(dataRefList, ccdSet)
+        self.removeNonExistCcd(dataRefListUsed, ccdSet)
 
         if debug:
             for iexp, wcs in wcsDic.iteritems():
                 self.log.info(str(iexp)+" "+str(wcs.getPixelOrigin())+" "+
                               str(wcs.getSkyOrigin().getPosition(afwGeom.degrees)))
 
-        sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefList, ct)
-
-        wcsDic, sourceSet, matchList, dataRefListUsed = self.checkInputs(wcsDic, sourceSet, matchList, dataRefListUsed)
         self.log.info("frameIds : "+str(wcsDic.keys()))
         self.log.info("ccdIds : "+str(ccdSet.keys()))
 
