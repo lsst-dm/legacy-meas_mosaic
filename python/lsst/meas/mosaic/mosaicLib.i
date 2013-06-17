@@ -13,6 +13,7 @@ Python interface to lsst::meas::mosaic
 #include "lsst/pex/logging.h"
 #include "lsst/afw/detection.h"
 #include "lsst/afw/math.h"
+#include "lsst/afw/table.h"
 %}
 
 %include "lsst/p_lsstSwig.i"
@@ -21,5 +22,6 @@ Python interface to lsst::meas::mosaic
 %import "lsst/afw/geom/geomLib.i"
 %import "lsst/afw/detection/detectionLib.i"
 %import "lsst/afw/math/mathLib.i"
+%import "lsst/afw/table/tableLib.i"
 
 %include "mosaic.i"

@@ -1,6 +1,7 @@
 %{
 #include "lsst/meas/mosaic/mosaicfit.h"
 #include "lsst/meas/mosaic/spatialCellSource.h"
+#include "lsst/meas/mosaic/matches.h"
 %}
 
 %include "std_vector.i"
@@ -32,6 +33,7 @@
 
 %include "lsst/meas/mosaic/mosaicfit.h"
 %include "lsst/meas/mosaic/spatialCellSource.h"
+%include "lsst/meas/mosaic/matches.h"
 
 %template(SourceSet) std::vector<PTR(lsst::meas::mosaic::Source)>;
 %template(SourceGroup) std::vector<std::vector<PTR(lsst::meas::mosaic::Source)> >;

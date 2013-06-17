@@ -209,16 +209,29 @@ class MosaicTask(pipeBase.CmdLineTask):
                 raise RuntimeError("no data for src %s" % (dataRef.dataId))
             if not dataRef.datasetExists('calexp_md'):
                 raise RuntimeError("no data for calexp_md %s" % (dataRef.dataId))
-            md = dataRef.get('calexp_md')
+            md = dataRef.get('calexp_md', immediate=True)
             wcs = afwImage.makeWcs(md)
 
-            sources = dataRef.get('src')
+            sources = dataRef.get('src', immediate=True)
             if False:
                 matches = measAstrom.readMatches(dataRef.getButler(), dataRef.dataId, config=self.config.astrom)
             else:
-                icSrces = dataRef.get('icSrc')
-                packedMatches = dataRef.get('icMatch')
-                matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
+                if False:
+                    icSrces = dataRef.get('icSrc', immediate=True)
+                    packedMatches = dataRef.get('icMatch', immediate=True)
+                    matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
+                else:
+                    matchFull = dataRef.get('icMatchFull', immediate=True)
+                    matches = measMosaic.matchesFromCatalog(matchFull)
+                    #for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
+                    #    getattr(matches[0].second.getTable(), "define" + slot)(getattr(icSrces, "get" + slot + "Definition")())
+                    table = matches[0].second.getTable()
+                    table.definePsfFlux('flux.psf')
+                    table.defineModelFlux('flux.gaussian')
+                    table.defineApFlux('flux.sinc')
+                    table.defineInstFlux('flux.gaussian')
+                    table.defineCentroid('centroid.sdss')
+                    table.defineShape('shape.sdss')
                 mm = list()
                 for m in matches:
                     if m.first != None:
@@ -242,17 +255,15 @@ class MosaicTask(pipeBase.CmdLineTask):
                             else:
                                 m.first = None
 
-            sources = self.selectStars(sources)
+            selSources = self.selectStars(sources)
             selMatches = self.selectStars(matches)
             if len(selMatches) < 10:
-                matches = self.selectStars(matches, True)
-            else:
-                matches = selMatches
+                selMatches = self.selectStars(matches, True)
         except Exception, e:
             print "Failed to read: %s" % (e)
             return None, None, None
     
-        return sources, matches, wcs
+        return selSources, selMatches, wcs
 
     def readCatalog(self, dataRefList, ct=None):
         self.log.info("Reading catalogs ...")
