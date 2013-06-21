@@ -278,7 +278,7 @@ namespace lsst {
 	    KDTree::Ptr kdtreeSource(SourceGroup const &sourceSet,
 				     KDTree::Ptr rootMat,
 				     CcdSet &ccdSet,
-				     lsst::afw::geom::Angle d_lim, unsigned int nbrightest);
+				     lsst::afw::geom::Angle d_lim);
 
 	    ObsVec obsVecFromSourceGroup(SourceGroup const &all,
 					 WcsDic &wcsDic,

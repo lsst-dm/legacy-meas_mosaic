@@ -991,7 +991,7 @@ lsst::meas::mosaic::kdtreeMat(SourceMatchGroup &matchList) {
 
     return root;
 }
-
+#if 0
 KDTree::Ptr
 lsst::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 				 KDTree::Ptr rootMat,
@@ -1048,6 +1048,49 @@ lsst::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 	    }
 	    if (sourceSet[j][i]->getFlux() >= fluxlim[j*nchip+k] &&
 		rootMat->findSource(*sourceSet[j][i]) == NULL) {
+                if (rootSource) {
+                    KDTree::Ptr leaf = rootSource->findNearest(*sourceSet[j][i]);
+                    if (leaf->distance(*sourceSet[j][i]) < d_lim) {
+                        leaf->set.push_back(sourceSet[j][i]);
+                    } else {
+                        rootSource->add(sourceSet[j][i]);
+                    }
+                } else {
+                    rootSource = KDTree::Ptr(new KDTree(sourceSet[j][i], 0));
+                }
+	    }
+	}
+	//std::cout << "(3) " << rootSource->count() << std::endl;
+    }
+    //std::cout << "(4) " << rootSource->count() << std::endl;
+
+    return rootSource;
+}
+#endif
+KDTree::Ptr
+lsst::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
+				 KDTree::Ptr rootMat,
+				 CcdSet &ccdSet,
+				 lsst::afw::geom::Angle d_lim) {
+    //std::cout << "(1) " << sourceSet[0].size() << std::endl;
+
+    SourceSet set;
+    for (size_t i = 0; i < sourceSet[0].size(); i++) {
+        if (rootMat->findSource(*sourceSet[0][i]) == NULL) {
+	    set.push_back(sourceSet[0][i]);
+	}
+    }
+    //std::cout << "(2) " << set.size() << std::endl;
+
+    KDTree::Ptr rootSource;
+    if (set.size() > 0) {
+        rootSource = KDTree::Ptr(new KDTree(set, 0));
+    }
+
+    //std::cout << "(3) " << rootSource->count() << std::endl;
+    for (size_t j = 1; j < sourceSet.size(); j++) {
+	for (size_t i = 0; i < sourceSet[j].size(); i++) {
+	    if (rootMat->findSource(*sourceSet[j][i]) == NULL) {
                 if (rootSource) {
                     KDTree::Ptr leaf = rootSource->findNearest(*sourceSet[j][i]);
                     if (leaf->distance(*sourceSet[j][i]) < d_lim) {

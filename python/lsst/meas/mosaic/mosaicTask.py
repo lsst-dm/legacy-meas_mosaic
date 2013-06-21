@@ -15,6 +15,7 @@ import lsst.afw.geom                    as afwGeom
 import lsst.afw.image                   as afwImage
 import lsst.afw.table                   as afwTable
 import lsst.afw.coord                   as afwCoord
+import lsst.afw.math                    as afwMath
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
 import lsst.meas.mosaic.mosaicLib       as measMosaic
@@ -47,10 +48,19 @@ class MosaicRunner(pipeBase.TaskRunner):
         result = task.run(*args)
 
 class MosaicConfig(pexConfig.Config):
-    nBrightest = pexConfig.RangeField(
+    nBrightest = pexConfig.Field(
         doc="number of stars used for fitting per exposure",
         dtype=int,
-        default=300, min=100)
+        default=0)
+    cellSize = pexConfig.Field(
+        doc="size of cell used to select stars (pixels)",
+        dtype=int,
+        default=512,
+        check = lambda x: x >= 128)
+    nStarPerCell = pexConfig.Field(
+        doc = "number of stars per cell",
+        dtype = int,
+        default = 5)
     radXMatch = pexConfig.RangeField(
         doc="radius to cross-match objects between expsoures in arcsec",
         dtype=float,
@@ -268,6 +278,8 @@ class MosaicTask(pipeBase.CmdLineTask):
     def readCatalog(self, dataRefList, ct=None):
         self.log.info("Reading catalogs ...")
 
+        sourceSet = measMosaic.SourceGroup()
+        matchList = measMosaic.SourceMatchGroup()
         astrom = measAstrom.Astrometry(self.config.astrom)
 
         ssVisit = dict()
@@ -280,12 +292,26 @@ class MosaicTask(pipeBase.CmdLineTask):
                     if not dataRef.dataId['visit'] in ssVisit.keys():
                         ssVisit[dataRef.dataId['visit']] = list()
                         mlVisit[dataRef.dataId['visit']] = list()
+                    calexp_md = dataRef.get('calexp_md')
+                    naxis1, naxis2 = calexp_md.get('NAXIS1'), calexp_md.get('NAXIS2')
+                    bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2))
+                    cellSet = afwMath.SpatialCellSet(bbox, self.config.cellSize, self.config.cellSize)
                     for s in sources:
                         if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
                             src = measMosaic.Source(s)
                             src.setExp(dataRef.dataId['visit'])
                             src.setChip(dataRef.dataId['ccd'])
+                            cellSet.insertCandidate(measMosaic.SpatialCellSource(src))
+                            #ssVisit[dataRef.dataId['visit']].append(src)
+                    for cell in cellSet.getCellList():
+                        cell.sortCandidates()
+                        for i, cand in enumerate(cell):
+                            cand = measMosaic.cast_SpatialCellSource(cand)
+                            src = cand.getSource()
                             ssVisit[dataRef.dataId['visit']].append(src)
+                            if i == self.config.nStarPerCell-1:
+                                break
+                    #print dataRef.dataId['visit'], len(ssVisit[dataRef.dataId['visit']])
                     for m in matches:
                         if m.first != None and m.second != None:
                             match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs), measMosaic.Source(m.second))
@@ -296,15 +322,9 @@ class MosaicTask(pipeBase.CmdLineTask):
                 else:
                     self.log.info('%8d %3d : %2d matches  Suspicious to wrong match. Ignore this CCD' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], len(matches)))
 
-        sourceSet = measMosaic.SourceGroup()
-        matchList = measMosaic.SourceMatchGroup()
         for visit in ssVisit.keys():
-            ss = ssVisit[visit]
-            ml = mlVisit[visit]
-            if len(ss) == 0 and len(ml) == 0:
-                continue
-            sourceSet.push_back(ss)
-            matchList.push_back(ml)
+            sourceSet.push_back(ssVisit[visit])
+            matchList.push_back(mlVisit[visit])
 
         return sourceSet, matchList, dataRefListUsed
 
@@ -315,7 +335,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         return num
 
-    def mergeCatalog(self, sourceSet, matchList, ccdSet, d_lim, nbrightest):
+    def mergeCatalog(self, sourceSet, matchList, ccdSet, d_lim):
 
         self.log.info("Creating kd-tree for matched catalog ...")
         self.log.info("len(matchList) = "+str(len(matchList))+" "+
@@ -328,7 +348,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.log.info("Creating kd-tree for source catalog ...")
         self.log.info('len(sourceSet) = '+str(len(sourceSet))+" "+
                       str([len(sources) for sources in sourceSet]))
-        rootSource = measMosaic.kdtreeSource(sourceSet, rootMat, ccdSet, d_lim, nbrightest)
+        rootSource = measMosaic.kdtreeSource(sourceSet, rootMat, ccdSet, d_lim)
         allSource = rootSource.mergeSource()
         self.log.info("# of allSource : %d" % self.countObsInSourceGroup(allSource))
         self.log.info('len(allSource) = %d' % len(allSource))
@@ -955,6 +975,12 @@ class MosaicTask(pipeBase.CmdLineTask):
             and not os.path.isdir(self.config.outputDir)):
             os.mkdir(self.config.outputDir)
 
+        if self.config.nBrightest != 0:
+            self.log.fatal('Config paremeter nBrightest is deprecated.')
+            self.log.fatal('Please use cellSize and nStarPerCell.')
+            self.log.fatal('Exiting ...')
+            return []
+
         sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefList, ct)
 
         ccdSet = self.readCcd(dataRefListUsed)
@@ -978,12 +1004,10 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.log.info("ccdIds : "+str(ccdSet.keys()))
 
         d_lim = afwGeom.Angle(self.config.radXMatch, afwGeom.arcseconds)
-        nbrightest = self.config.nBrightest
         if debug:
             self.log.info("d_lim : %f" % d_lim)
-            self.log.info("nbrightest : %d" % nbrightest)
 
-        allMat, allSource =self.mergeCatalog(sourceSet, matchList, ccdSet, d_lim, nbrightest)
+        allMat, allSource =self.mergeCatalog(sourceSet, matchList, ccdSet, d_lim)
 
         nmatch  = allMat.size()
         nsource = allSource.size()
