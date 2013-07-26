@@ -223,7 +223,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             md = dataRef.get('calexp_md', immediate=True)
             wcs = afwImage.makeWcs(md)
 
-            sources = dataRef.get('src', immediate=True)
+            sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
             if False:
                 matches = measAstrom.readMatches(dataRef.getButler(), dataRef.dataId, config=self.config.astrom)
             else:
