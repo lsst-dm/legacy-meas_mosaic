@@ -3,6 +3,7 @@
 #define HSC_MEAS_MOSAIC_H
 
 #include <vector>
+#include "lsst/pex/exceptions.h"
 #include "lsst/afw/image.h"
 #include "lsst/afw/geom.h"
 #include "lsst/afw/cameraGeom.h"
@@ -29,10 +30,15 @@ namespace lsst {
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
                     _pixels(wcs.skyToPixel(_sky)),
                     _flux(record.get(record.getSchema().find<double>("flux").key)),
-                    _err(record.get(record.getSchema().find<double>("flux.err").key)),
+                    _err(std::numeric_limits<double>::quiet_NaN()),
                     _xerr(std::numeric_limits<double>::quiet_NaN()),
                     _yerr(std::numeric_limits<double>::quiet_NaN()),
-                    _astromBad(!lsst::utils::isfinite(_flux)) {}
+                    _astromBad(!lsst::utils::isfinite(_flux))
+                    {
+                        try {
+                            _err = record.get(record.getSchema().find<double>("flux.err").key);
+                        } catch (pex::exceptions::NotFoundException const&) {}
+                    }
                 Source(lsst::afw::coord::Coord coord, double flux=std::numeric_limits<double>::quiet_NaN()) :
                     _id(-1), _chip(UNSET), _exp(UNSET), _sky(coord),
                     _pixels(lsst::afw::geom::Point2D(std::numeric_limits<double>::quiet_NaN(),
