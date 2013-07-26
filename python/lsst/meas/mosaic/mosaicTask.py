@@ -118,6 +118,7 @@ class MosaicConfig(pexConfig.Config):
         dtype=int,
         default=15, min=0)
     astrom = pexConfig.ConfigField(dtype=measAstrom.MeasAstromConfig, doc="Configuration for readMatches")
+    doColorTerms = pexConfig.Field(dtype=bool, default=True, doc="Apply color terms as part of solution?")
 
 class MosaicTask(pipeBase.CmdLineTask):
 
@@ -1140,7 +1141,11 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.log.fatal("There are %d filters in input frames" % len(filters))
             return None
 
-        ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
-        self.log.info('color term: '+str(ct))
+        if self.config.doColorTerms:
+            ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
+            self.log.info('color term: '+str(ct))
+        else:
+            ct = None
+            self.log.info("Not applying color term")
 
         return self.mosaic(dataRefList, ct, debug, verbose)
