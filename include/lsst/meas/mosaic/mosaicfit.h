@@ -70,6 +70,7 @@ namespace lsst {
 
                 void setChip(ChipType chip) { _chip = chip; }
                 void setExp(ExpType exp) { _exp = exp; }
+                void setFlux(double value) { _flux = value; }
                 
             private:
                 IdType _id;                       // Identifier
