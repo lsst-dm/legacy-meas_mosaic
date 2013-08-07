@@ -39,8 +39,8 @@ def getMosaicResults(dataRef, dims=None):
     """
     wcsHeader = dataRef.get("wcs_md", immediate=True)
     wcs = afwImage.makeWcs(wcsHeader)
-    calib = afwImage.Calib(wcsHeader)
     ffpHeader = dataRef.get("fcr_md", immediate=True)
+    calib = afwImage.Calib(ffpHeader)
     ffp = FluxFitParams(ffpHeader)
 
     if dims is None:
