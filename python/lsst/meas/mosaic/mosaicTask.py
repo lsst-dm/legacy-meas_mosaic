@@ -971,6 +971,86 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.plotResFlux()
         self.plotDFlux2D()
 
+    def flagSuspect(self, allMat, allSource, wcsDic):
+        # Wrongly matched objects between visits will destroy ubar-calibration fitting.
+        # In this method, determine median magnitude difference between visits and
+        # flag (set flux to negative value to be flagged as bad object) objects which
+        # show large magnitude difference from median value.
+        visits = wcsDic.keys()
+        visit_ref = visits[0]
+        for i in range(1, len(visits)):
+            visit_targ = visits[i]
+            mref  = list()
+            mtarg = list()
+            for mm in allMat:
+                j_ref = -1
+                j_targ = -1
+                for j in range(1, len(mm)):
+                    if mm[j].getExp() == visit_ref:
+                        j_ref = j
+                    elif mm[j].getExp() == visit_targ:
+                        j_targ = j
+                if j_ref != -1 and j_targ != -1 and mm[j_ref].getFlux() > 0 and mm[j_targ].getFlux() > 0:
+                    mref.append(-2.5*math.log10(mm[j_ref].getFlux()))
+                    mtarg.append(-2.5*math.log10(mm[j_targ].getFlux()))
+            for ss in allSource:
+                j_ref = -1
+                j_targ = -1
+                for j in range(1, len(ss)):
+                    if ss[j].getExp() == visit_ref:
+                        j_ref = j
+                    elif ss[j].getExp() == visit_targ:
+                        j_targ = j
+                if j_ref != -1 and j_targ != -1 and ss[j_ref].getFlux() > 0 and ss[j_targ].getFlux() > 0:
+                    mref.append(-2.5*math.log10(ss[j_ref].getFlux()))
+                    mtarg.append(-2.5*math.log10(ss[j_targ].getFlux()))
+            mref = numpy.array(mref)
+            mtarg = numpy.array(mtarg)
+
+            dm = mtarg - mref
+            med = numpy.median(dm)
+            Q1 = numpy.percentile(dm, 10)
+            Q3 = numpy.percentile(dm, 90)
+            SIQR = 0.5 * (Q3 - Q1)
+
+            ngood = 0
+            nbad  = 0
+            for mm in allMat:
+                j_ref = -1
+                j_targ = -1
+                for j in range(1, len(mm)):
+                    if mm[j].getExp() == visit_ref:
+                        j_ref = j
+                    elif mm[j].getExp() == visit_targ:
+                        j_targ = j
+                if j_ref != -1 and j_targ != -1 and mm[j_ref].getFlux() > 0 and mm[j_targ].getFlux() > 0:
+                    mref = -2.5*math.log10(mm[j_ref].getFlux())
+                    mtarg = -2.5*math.log10(mm[j_targ].getFlux())
+                    if math.fabs(mtarg-mref-med) > 3.0 * SIQR:
+                        mm[j_ref].setFlux(-9999)
+                        mm[j_targ].setFlux(-9999)
+                        nbad += 1
+                    else:
+                        ngood += 1
+            for ss in allSource:
+                j_ref = -1
+                j_targ = -1
+                for j in range(1, len(ss)):
+                    if ss[j].getExp() == visit_ref:
+                        j_ref = j
+                    elif ss[j].getExp() == visit_targ:
+                        j_targ = j
+                if j_ref != -1 and j_targ != -1 and ss[j_ref].getFlux() > 0 and ss[j_targ].getFlux() > 0:
+                    mref = -2.5*math.log10(ss[j_ref].getFlux())
+                    mtarg = -2.5*math.log10(ss[j_targ].getFlux())
+                    if math.fabs(mtarg-mref-med) > 3.0 * SIQR:
+                        ss[j_ref].setFlux(-9999)
+                        ss[j_targ].setFlux(-9999)
+                        nbad += 1
+                    else:
+                        ngood += 1
+            print '%d %6.3f %5.3f %5d %5d' % (visit_targ, med, SIQR, ngood, nbad)
+
     def mosaic(self, dataRefList, ct=None, debug=False, verbose=False):
 
         self.log.info(str(self.config))
@@ -1012,6 +1092,8 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.log.info("d_lim : %f" % d_lim)
 
         allMat, allSource =self.mergeCatalog(sourceSet, matchList, ccdSet, d_lim)
+
+        self.flagSuspect(allMat, allSource, wcsDic)
 
         nmatch  = allMat.size()
         nsource = allSource.size()
