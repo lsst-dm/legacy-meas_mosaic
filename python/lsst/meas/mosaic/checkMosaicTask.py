@@ -15,6 +15,7 @@ import lsst.meas.mosaic.mosaicLib       as measMosaic
 import lsst.meas.astrom.astrom          as measAstrom
 import lsst.afw.image                   as afwImage
 import lsst.afw.geom                    as afwGeom
+import lsst.afw.table                   as afwTable
 
 class CheckMosaicConfig(MosaicConfig):
     maxMag = pexConfig.Field(
@@ -85,15 +86,16 @@ class CheckMosaicTask(MosaicTask):
                         mag_source.append(mag+mcor)
                         Sx += (mag+mcor) / (err*err)
                         S  += 1. / (err*err)
-                        
-                ra_cat /= n
-                dec_cat /= n
-                mag_cat = Sx / S
-                for ra, dec, mag in zip(ra_source, dec_source, mag_source):
-                    dx_s.append((ra - ra_cat) * 3600)
-                    dy_s.append((dec - dec_cat) * 3600)
-                    m0_s.append(mag_cat)
-                    dm_s.append(mag - mag_cat)
+
+                if n != 0:
+                    ra_cat /= n
+                    dec_cat /= n
+                    mag_cat = Sx / S
+                    for ra, dec, mag in zip(ra_source, dec_source, mag_source):
+                        dx_s.append((ra - ra_cat) * 3600)
+                        dy_s.append((dec - dec_cat) * 3600)
+                        m0_s.append(mag_cat)
+                        dm_s.append(mag - mag_cat)
 
         dx_m = numpy.array(dx_m)
         dy_m = numpy.array(dy_m)
@@ -128,14 +130,15 @@ class CheckMosaicTask(MosaicTask):
                     Sx += (mag+mcor) / (err*err)
                     S  += 1. / (err*err)
 
-            ra_cat /= n
-            dec_cat /= n
-            mag_cat = Sx / S
-            for ra, dec, mag in zip(ra_source, dec_source, mag_source):
-                dx_s.append((ra - ra_cat) * 3600)
-                dy_s.append((dec - dec_cat) * 3600)
-                m0_s.append(mag_cat)
-                dm_s.append(mag - mag_cat)
+            if n != 0:
+                ra_cat /= n
+                dec_cat /= n
+                mag_cat = Sx / S
+                for ra, dec, mag in zip(ra_source, dec_source, mag_source):
+                    dx_s.append((ra - ra_cat) * 3600)
+                    dy_s.append((dec - dec_cat) * 3600)
+                    m0_s.append(mag_cat)
+                    dm_s.append(mag - mag_cat)
 
         dx_s = numpy.array(dx_s)
         dy_s = numpy.array(dy_s)
@@ -161,14 +164,15 @@ class CheckMosaicTask(MosaicTask):
                 for j in range(1,len(ss)):
                     iexp = ss[j].getExp()
                     ichip = ss[j].getChip()
-                    mag = calibDic[iexp][ichip].getMagnitude(ss[j].getFlux())
-                    err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
-                    mcor = ffpDic[iexp][ichip].eval(ss[j].getX(), ss[j].getY())
-                    Sxx += (mag+mcor)*(mag+mcor) / (err*err)
-                    Sx  += (mag+mcor) / (err*err)
-                    S   += 1. / (err*err)
-                    Sr += ss[j].getRa().asDegrees()
-                    Sd += ss[j].getDec().asDegrees()
+                    if ss[j].getFlux() > 0.0:
+                        mag = calibDic[iexp][ichip].getMagnitude(ss[j].getFlux())
+                        err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
+                        mcor = ffpDic[iexp][ichip].eval(ss[j].getX(), ss[j].getY())
+                        Sxx += (mag+mcor)*(mag+mcor) / (err*err)
+                        Sx  += (mag+mcor) / (err*err)
+                        S   += 1. / (err*err)
+                        Sr += ss[j].getRa().asDegrees()
+                        Sd += ss[j].getDec().asDegrees()
                 avg = Sx / S
                 sig = math.sqrt(Sxx/S - avg*avg)
                 x.append(avg)
@@ -186,7 +190,7 @@ class CheckMosaicTask(MosaicTask):
                 iexp = ss[j].getExp()
                 ichip = ss[j].getChip()
                 #print iexp, ichip, calibDic[iexp][ichip].getFluxMag0()[0], ss[j].getFlux()
-                if calibDic[iexp][ichip].getFluxMag0()[0] > 0:
+                if calibDic[iexp][ichip].getFluxMag0()[0] > 0 and ss[j].getFlux() > 0.0:
                     mag = calibDic[iexp][ichip].getMagnitude(ss[j].getFlux())
                     err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
                     mcor = ffpDic[iexp][ichip].eval(ss[j].getX(), ss[j].getY())
@@ -275,7 +279,7 @@ class CheckMosaicTask(MosaicTask):
         mag_std_s, mag_mean_s, mag_n_s = self.clippedStd(dm_s, 3)
         mag_std_sub, mag_mean_sub, mag_n_sub = self.clippedStd(dmSub, 3)
 
-        bins_m = numpy.arange(-0.25, 0.25, 0.05) + 0.025
+        bins_m = numpy.arange(-0.25, 0.25, 0.025) + 0.0125
         bins_s = numpy.arange(-0.25, 0.25, 0.005) + 0.0025
 
         plt.clf()
@@ -301,12 +305,12 @@ class CheckMosaicTask(MosaicTask):
         plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (mag_std_m), rotation=270, transform=ax.transAxes, color='green')
         plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes, color='red')
         plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (mag_std_sub), rotation=270, transform=ax.transAxes, color='blue')
-        gauss = mlab.normpdf(bins_m, mag_mean_m, mag_std_m)
-        plt.plot(gauss*mag_n_m*0.05, bins_m, 'g:')
-        gauss = mlab.normpdf(bins_s, mag_mean_s, mag_std_s)
-        plt.plot(gauss*mag_n_s*0.005, bins_s, 'r:')
-        gauss = mlab.normpdf(bins_s, mag_mean_sub, mag_std_sub)
-        plt.plot(gauss*mag_n_sub*0.005, bins_s, 'b:')
+        gauss = mlab.normpdf(bins_m+0.0125, mag_mean_m, mag_std_m)
+        plt.plot(gauss*mag_n_m*0.025, bins_m+0.0125, 'g:')
+        gauss = mlab.normpdf(bins_s+0.0025, mag_mean_s, mag_std_s)
+        plt.plot(gauss*mag_n_s*0.005, bins_s+0.0025, 'r:')
+        gauss = mlab.normpdf(bins_s+0.0025, mag_mean_sub, mag_std_sub)
+        plt.plot(gauss*mag_n_sub*0.005, bins_s+0.0025, 'b:')
         plt.xticks(rotation=270)
         plt.yticks(rotation=270)
         plt.ylim(-0.25, 0.25)
@@ -393,11 +397,12 @@ class CheckMosaicTask(MosaicTask):
                 outData.dec[i] = dec
                 fluxMag0 = calibDic[iexp][ichip].getFluxMag0()[0]
                 flux = src.getFlux()
-                corr = ffpDic[iexp][ichip].eval(x, y)
-                outData.mag[i] = -2.5*math.log10(flux/fluxMag0) + corr
-                outData.err[i] = 2.5/math.log(10) * src.getFluxErr() / flux
-                outData.corr[i] = corr
-                i += 1
+                if flux > 0 and fluxMag0 > 0:
+                    corr = ffpDic[iexp][ichip].eval(x, y)
+                    outData.mag[i] = -2.5*math.log10(flux/fluxMag0) + corr
+                    outData.err[i] = 2.5/math.log(10) * src.getFluxErr() / flux
+                    outData.corr[i] = corr
+                    i += 1
 
         outHdu.writeto("catalog.fits", clobber=True)
 
@@ -437,9 +442,13 @@ class CheckMosaicTask(MosaicTask):
                 md = dataRef.get('fcr_md')
                 ffp = measMosaic.FluxFitParams(md)
 
-                sources = dataRef.get('src')
+                sources = dataRef.get('src',
+                              flags=afwTable.SOURCE_IO_NO_FOOTPRINTS,
+                              immediate=True)
 
-                icSrces = dataRef.get('icSrc')
+                icSrces = dataRef.get('icSrc',
+                              flags=afwTable.SOURCE_IO_NO_FOOTPRINTS,
+                              immediate=True)
                 packedMatches = dataRef.get('icMatch')
                 matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
 
@@ -498,7 +507,7 @@ class CheckMosaicTask(MosaicTask):
         d_lim = afwGeom.Angle(self.config.radXMatch, afwGeom.arcseconds)
         nbrightest = self.config.nBrightest
 
-        allMat, allSource = self.mergeCatalog(sourceSet, matchList, ccdSet, d_lim, nbrightest)
+        allMat, allSource = self.mergeCatalog(sourceSet, matchList, ccdSet, d_lim)
  
         dx_m, dy_m, dx_s, dy_s, m0_m, dm_m, m0_s, dm_s  = self.makeDiffPosFlux(allMat, allSource, wcsDic, calibDic, ffpDic)
         self.plotFlux(m0_m, dm_m, m0_s, dm_s)
