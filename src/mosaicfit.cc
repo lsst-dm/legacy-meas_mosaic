@@ -2676,7 +2676,8 @@ void flagObj_rel(std::vector<Obs::Ptr> &m,
 	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->err == -9999) continue;
 	double val = m[i]->mag - 2.5 * log10(fexp[m[i]->iexp] * fchip[m[i]->ichip]);
 	val += p->eval(m[i]->u, m[i]->v);
-	double r2 = pow((val - m[i]->mag0)/m[i]->err, 2.0);
+	//double r2 = pow((val - m[i]->mag0)/m[i]->err, 2.0);
+	double r2 = pow((val - m[i]->mag0), 2.0);
 	if (r2 > e2) {
 	    m[i]->good = false;
 	    nreject++;
@@ -2686,7 +2687,8 @@ void flagObj_rel(std::vector<Obs::Ptr> &m,
 	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999 || s[i]->err == -9999) continue;
 	double val = s[i]->mag - 2.5 * log10(fexp[s[i]->iexp] * fchip[s[i]->ichip]);
 	val += p->eval(s[i]->u, s[i]->v);
-	double r2 = pow((val - s[i]->mag0)/s[i]->err, 2.0);
+	//double r2 = pow((val - s[i]->mag0)/s[i]->err, 2.0);
+	double r2 = pow((val - s[i]->mag0), 2.0);
 	if (r2 > e2) {
 	    s[i]->good = false;
 	    nreject++;
@@ -2712,8 +2714,10 @@ void flagObj_abs(std::vector<Obs::Ptr> &m,
 	    m[i]->err == -9999 || m[i]->mag_cat == -9999) continue;
 	double val = m[i]->mag - 2.5 * log10(fexp[m[i]->iexp] * fchip[m[i]->ichip]);
 	val += p->eval(m[i]->u, m[i]->v);
-	double r2 = pow(val - m[i]->mag_cat, 2.0) / (pow(m[i]->err, 2.0) + pow(m[i]->err_cat, 2.0));
-	if (r2 > e2) {
+	//double r2 = pow(val - m[i]->mag_cat, 2.0) / (pow(m[i]->err, 2.0) + pow(m[i]->err_cat, 2.0));
+	//if (r2 > e2) {
+	double r2 = pow(val - m[i]->mag_cat, 2.0);
+	if (r2 > e2 + 9.0 * pow(m[i]->err_cat, 2.0)) {
 	    m[i]->good = false;
 	    nreject++;
 	}
@@ -2722,7 +2726,8 @@ void flagObj_abs(std::vector<Obs::Ptr> &m,
 	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999 || s[i]->err == -9999) continue;
 	double val = s[i]->mag - 2.5 * log10(fexp[s[i]->iexp] * fchip[s[i]->ichip]);
 	val += p->eval(s[i]->u, s[i]->v);
-	double r2 = pow((val - s[i]->mag0)/s[i]->err, 2.0);
+	//double r2 = pow((val - s[i]->mag0)/s[i]->err, 2.0);
+	double r2 = pow((val - s[i]->mag0), 2.0);
 	if (r2 > e2) {
 	    s[i]->good = false;
 	    nreject++;
@@ -2827,8 +2832,10 @@ void flagObj2(std::vector<Obs::Ptr>& o, CoeffSet& coeffVec, Poly::Ptr p, double 
 	}
 	double dxi  = Bx * o[i]->xerr + Cx * o[i]->yerr;
 	double deta = By * o[i]->xerr + Cy * o[i]->yerr;
-	double chi2 = Ax * Ax / (dxi * dxi + catRMS * catRMS) + Ay * Ay / (deta * deta + catRMS * catRMS);
-	if (chi2 > e2) {
+	//double chi2 = Ax * Ax / (dxi * dxi + catRMS * catRMS) + Ay * Ay / (deta * deta + catRMS * catRMS);
+	//if (chi2 > e2) {
+	double chi2 = Ax * Ax + Ay * Ay;
+	if (chi2 > e2+9.0*catRMS*catRMS) {
 	    o[i]->good = false;
 	    nreject++;
 	} else {
@@ -2850,8 +2857,8 @@ double calcChi2_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, CoeffSe
 
 ObsVec
 lsst::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
-					 WcsDic &wcsDic,
-					 CcdSet &ccdSet)
+					  WcsDic &wcsDic,
+					  CcdSet &ccdSet)
 {
     std::vector<Obs::Ptr> obsVec;
     for (size_t i = 0; i < all.size(); i++) {
@@ -2958,7 +2965,8 @@ void fluxFitRelative(ObsVec& matchVec,
 	printf("chi2f: %e\n", chi2f);
 	double e2f = calcChi2_rel(matchVec, sourceVec, fexp, fchip, ffp, true);
 	printf("err: %f (mag)\n", sqrt(e2f));
-	flagObj_rel(matchVec, sourceVec, 9.0, fexp, fchip, ffp);
+	//flagObj_rel(matchVec, sourceVec, 9.0, fexp, fchip, ffp);
+	flagObj_rel(matchVec, sourceVec, 9.0*e2f, fexp, fchip, ffp);
     }
 
     for (int i = 0; i < ffp->ncoeff; i++) {
@@ -3003,7 +3011,8 @@ void fluxFitAbsolute(ObsVec& matchVec,
 	printf("chi2f: %e\n", chi2f);
 	double e2f = calcChi2_abs(matchVec, sourceVec, fexp, fchip, ffp, true);
 	printf("err: %f (mag)\n", sqrt(e2f));
-	flagObj_abs(matchVec, sourceVec, 9.0, fexp, fchip, ffp);
+	//flagObj_abs(matchVec, sourceVec, 9.0, fexp, fchip, ffp);
+	flagObj_abs(matchVec, sourceVec, 9.0*e2f, fexp, fchip, ffp);
     }
 
     for (int i = 0; i < ffp->ncoeff; i++) {
@@ -3398,7 +3407,8 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
 
 	double chi2 = calcChi2(matchVec, coeffVec, p);
 	printf("calcChi2: %e\n", chi2);
-	flagObj2(matchVec, coeffVec, p, 9.0, catRMS);
+	double drm = calcChi2(matchVec, coeffVec, p, true);
+	flagObj2(matchVec, coeffVec, p, 9.0*drm, catRMS);
     }
 
     std::map<int, Eigen::Matrix2d> cd;
@@ -3602,8 +3612,12 @@ lsst::meas::mosaic::solveMosaic_CCD(int order,
 	       (k+1),
 	       sqrt(calcChi2(matchVec, coeffVec, p, true))*3600.0,
 	       sqrt(calcChi2(sourceVec, coeffVec, p, true))*3600.0);
-	flagObj2(matchVec, coeffVec, p, 9.0, catRMS);
-	flagObj2(sourceVec, coeffVec, p, 9.0);
+	//flagObj2(matchVec, coeffVec, p, 9.0, catRMS);
+	//flagObj2(sourceVec, coeffVec, p, 9.0);
+	double drm = calcChi2(matchVec, coeffVec, p, true);
+	double drs = calcChi2(sourceVec, coeffVec, p, true);
+	flagObj2(matchVec, coeffVec, p, 9.0*drm, catRMS);
+	flagObj2(sourceVec, coeffVec, p, 9.0*drs);
     }
 
     std::map<int, Eigen::Matrix2d> cd;
