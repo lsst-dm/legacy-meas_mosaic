@@ -268,8 +268,8 @@ class MosaicTask(pipeBase.CmdLineTask):
 
             selSources = self.selectStars(sources)
             selMatches = self.selectStars(matches)
-            if len(selMatches) < 10:
-                selMatches = self.selectStars(matches, True)
+            #if len(selMatches) < 10:
+            #    selMatches = self.selectStars(matches, True)
         except Exception, e:
             print "Failed to read: %s" % (e)
             return None, None, None
@@ -302,7 +302,10 @@ class MosaicTask(pipeBase.CmdLineTask):
                             src = measMosaic.Source(s)
                             src.setExp(dataRef.dataId['visit'])
                             src.setChip(dataRef.dataId['ccd'])
-                            cellSet.insertCandidate(measMosaic.SpatialCellSource(src))
+                            try:
+                                cellSet.insertCandidate(measMosaic.SpatialCellSource(src))
+                            except Exception, e:
+                                self.log.info('visit=%d ccd=%d x=%f y=%f' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], src.getX(), src.getY()) + ' bbox=' + str(bbox))
                             #ssVisit[dataRef.dataId['visit']].append(src)
                     for cell in cellSet.getCellList():
                         cell.sortCandidates()
@@ -453,7 +456,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         coeff = self.coeffSet[iexp]
 
         delta = 300.
-        if (self.ccdSet.size() >= 100):
+        if (self.ccdSet.size() > 10):
             x = numpy.arange(-18000., 18000., delta)
             y = numpy.arange(-18000., 18000., delta)
 #            levels = numpy.linspace(0.81, 1.02, 36)
@@ -1069,7 +1072,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.writeFcr(dataRefListUsed)
 
         if self.config.outputDiag:
-            self.writeCatalog(sourceVec, wcsDic, os.path.join(self.config.outputDir, "catalog.fits"))
+            if sourceVec != None:
+                self.writeCatalog(sourceVec, wcsDic, os.path.join(self.config.outputDir, "catalog.fits"))
             self.outputDiag()
 
         return wcsDic.keys()
