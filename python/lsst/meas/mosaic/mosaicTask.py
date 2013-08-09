@@ -368,10 +368,10 @@ class MosaicTask(pipeBase.CmdLineTask):
             c = measMosaic.convertCoeff(self.coeffSet[iexp], self.ccdSet[ichip]);
             wcs = measMosaic.wcsFromCoeff(c);
             exp.setWcs(wcs)
-            scale = self.fexp[iexp] * self.fchip[ichip]
-            calib = afwImage.Calib()
-            calib.setFluxMag0(1.0/scale)
-            exp.setCalib(calib)
+#            scale = self.fexp[iexp] * self.fchip[ichip]
+#            calib = afwImage.Calib()
+#            calib.setFluxMag0(1.0/scale)
+#            exp.setCalib(calib)
             try:
 #                self.butler.put(exp, 'wcs', dict(visit=iexp, ccd=ichip))
                 dataRef.put(exp, 'wcs')
@@ -977,79 +977,85 @@ class MosaicTask(pipeBase.CmdLineTask):
         # flag (set flux to negative value to be flagged as bad object) objects which
         # show large magnitude difference from median value.
         visits = wcsDic.keys()
-        visit_ref = visits[0]
-        for i in range(1, len(visits)):
-            visit_targ = visits[i]
-            mref  = list()
-            mtarg = list()
-            for mm in allMat:
-                j_ref = -1
-                j_targ = -1
-                for j in range(1, len(mm)):
-                    if mm[j].getExp() == visit_ref:
-                        j_ref = j
-                    elif mm[j].getExp() == visit_targ:
-                        j_targ = j
-                if j_ref != -1 and j_targ != -1 and mm[j_ref].getFlux() > 0 and mm[j_targ].getFlux() > 0:
-                    mref.append(-2.5*math.log10(mm[j_ref].getFlux()))
-                    mtarg.append(-2.5*math.log10(mm[j_targ].getFlux()))
-            for ss in allSource:
-                j_ref = -1
-                j_targ = -1
-                for j in range(1, len(ss)):
-                    if ss[j].getExp() == visit_ref:
-                        j_ref = j
-                    elif ss[j].getExp() == visit_targ:
-                        j_targ = j
-                if j_ref != -1 and j_targ != -1 and ss[j_ref].getFlux() > 0 and ss[j_targ].getFlux() > 0:
-                    mref.append(-2.5*math.log10(ss[j_ref].getFlux()))
-                    mtarg.append(-2.5*math.log10(ss[j_targ].getFlux()))
-            mref = numpy.array(mref)
-            mtarg = numpy.array(mtarg)
+        for j in range(len(visits)-1):
+            visit_ref = visits[j]
+            for i in range(j+1, len(visits)):
+                visit_targ = visits[i]
+                mref  = list()
+                mtarg = list()
+                for mm in allMat:
+                    j_ref = -1
+                    j_targ = -1
+                    for k in range(1, len(mm)):
+                        if mm[k].getExp() == visit_ref:
+                            j_ref = k
+                        elif mm[k].getExp() == visit_targ:
+                            j_targ = k
+                    if j_ref != -1 and j_targ != -1 and mm[j_ref].getFlux() > 0 and mm[j_targ].getFlux() > 0:
+                        mref.append(-2.5*math.log10(mm[j_ref].getFlux()))
+                        mtarg.append(-2.5*math.log10(mm[j_targ].getFlux()))
+                for ss in allSource:
+                    j_ref = -1
+                    j_targ = -1
+                    for k in range(1, len(ss)):
+                        if ss[k].getExp() == visit_ref:
+                            j_ref = k
+                        elif ss[k].getExp() == visit_targ:
+                            j_targ = k
+                    if j_ref != -1 and j_targ != -1 and ss[j_ref].getFlux() > 0 and ss[j_targ].getFlux() > 0:
+                        mref.append(-2.5*math.log10(ss[j_ref].getFlux()))
+                        mtarg.append(-2.5*math.log10(ss[j_targ].getFlux()))
+                mref = numpy.array(mref)
+                mtarg = numpy.array(mtarg)
 
-            dm = mtarg - mref
-            med = numpy.median(dm)
-            Q1 = numpy.percentile(dm, 10)
-            Q3 = numpy.percentile(dm, 90)
-            SIQR = 0.5 * (Q3 - Q1)
+                # There is no overlapping sources
+                if len(mref) == 0:
+                    print '%d %d' % (visit_ref, visit_targ)
+                    next
 
-            ngood = 0
-            nbad  = 0
-            for mm in allMat:
-                j_ref = -1
-                j_targ = -1
-                for j in range(1, len(mm)):
-                    if mm[j].getExp() == visit_ref:
-                        j_ref = j
-                    elif mm[j].getExp() == visit_targ:
-                        j_targ = j
-                if j_ref != -1 and j_targ != -1 and mm[j_ref].getFlux() > 0 and mm[j_targ].getFlux() > 0:
-                    mref = -2.5*math.log10(mm[j_ref].getFlux())
-                    mtarg = -2.5*math.log10(mm[j_targ].getFlux())
-                    if math.fabs(mtarg-mref-med) > 3.0 * SIQR:
-                        mm[j_ref].setFlux(-9999)
-                        mm[j_targ].setFlux(-9999)
-                        nbad += 1
-                    else:
-                        ngood += 1
-            for ss in allSource:
-                j_ref = -1
-                j_targ = -1
-                for j in range(1, len(ss)):
-                    if ss[j].getExp() == visit_ref:
-                        j_ref = j
-                    elif ss[j].getExp() == visit_targ:
-                        j_targ = j
-                if j_ref != -1 and j_targ != -1 and ss[j_ref].getFlux() > 0 and ss[j_targ].getFlux() > 0:
-                    mref = -2.5*math.log10(ss[j_ref].getFlux())
-                    mtarg = -2.5*math.log10(ss[j_targ].getFlux())
-                    if math.fabs(mtarg-mref-med) > 3.0 * SIQR:
-                        ss[j_ref].setFlux(-9999)
-                        ss[j_targ].setFlux(-9999)
-                        nbad += 1
-                    else:
-                        ngood += 1
-            print '%d %6.3f %5.3f %5d %5d' % (visit_targ, med, SIQR, ngood, nbad)
+                dm = mtarg - mref
+                med = numpy.median(dm)
+                Q1 = numpy.percentile(dm, 10)
+                Q3 = numpy.percentile(dm, 90)
+                SIQR = 0.5 * (Q3 - Q1)
+
+                ngood = 0
+                nbad  = 0
+                for mm in allMat:
+                    j_ref = -1
+                    j_targ = -1
+                    for k in range(1, len(mm)):
+                        if mm[k].getExp() == visit_ref:
+                            j_ref = k
+                        elif mm[k].getExp() == visit_targ:
+                            j_targ = k
+                    if j_ref != -1 and j_targ != -1 and mm[j_ref].getFlux() > 0 and mm[j_targ].getFlux() > 0:
+                        mref = -2.5*math.log10(mm[j_ref].getFlux())
+                        mtarg = -2.5*math.log10(mm[j_targ].getFlux())
+                        if math.fabs(mtarg-mref-med) > 3.0 * SIQR:
+                            mm[j_ref].setFlux(-9999)
+                            mm[j_targ].setFlux(-9999)
+                            nbad += 1
+                        else:
+                            ngood += 1
+                for ss in allSource:
+                    j_ref = -1
+                    j_targ = -1
+                    for k in range(1, len(ss)):
+                        if ss[k].getExp() == visit_ref:
+                            j_ref = k
+                        elif ss[k].getExp() == visit_targ:
+                            j_targ = k
+                    if j_ref != -1 and j_targ != -1 and ss[j_ref].getFlux() > 0 and ss[j_targ].getFlux() > 0:
+                        mref = -2.5*math.log10(ss[j_ref].getFlux())
+                        mtarg = -2.5*math.log10(ss[j_targ].getFlux())
+                        if math.fabs(mtarg-mref-med) > 3.0 * SIQR:
+                            ss[j_ref].setFlux(-9999)
+                            ss[j_targ].setFlux(-9999)
+                            nbad += 1
+                        else:
+                            ngood += 1
+                print '%d %d %6.3f %5.3f %5d %5d' % (visit_ref, visit_targ, med, SIQR, ngood, nbad)
 
     def mosaic(self, dataRefList, ct=None, debug=False, verbose=False):
 
