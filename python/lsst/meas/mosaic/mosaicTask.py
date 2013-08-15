@@ -1009,9 +1009,9 @@ class MosaicTask(pipeBase.CmdLineTask):
                 mtarg = numpy.array(mtarg)
 
                 # There is no overlapping sources
-                if len(mref) == 0:
+                if len(mref) < 10:
                     print '%d %d' % (visit_ref, visit_targ)
-                    next
+                    continue
 
                 dm = mtarg - mref
                 med = numpy.median(dm)
