@@ -1,3 +1,3 @@
 #!/usr/bin/env python
-from lsst.meas.mosaic.calibrateCatalog import CalibrateCatalogTask
+from lsst.meas.mosaic.calibrate import CalibrateCatalogTask
 CalibrateCatalogTask.parseAndRun()
