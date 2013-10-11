@@ -222,6 +222,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 raise RuntimeError("no data for calexp_md %s" % (dataRef.dataId))
             md = dataRef.get('calexp_md', immediate=True)
             wcs = afwImage.makeWcs(md)
+            filterName = afwImage.Filter(md).getName()
 
             sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
             if False:
@@ -259,7 +260,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                             refFlux2 = m.first.get(key_s)
                             refMag1 = -2.5*math.log10(refFlux1)
                             refMag2 = -2.5*math.log10(refFlux2)
-                            refMag = ct.transformMags(ct.primary, refMag1, refMag2)
+                            refMag = ct.transformMags(filterName, refMag1, refMag2)
                             refFlux = math.pow(10.0, -0.4*refMag)
                             if refFlux == refFlux:
                                 m.first.set(key_f, refFlux)
@@ -271,7 +272,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             #if len(selMatches) < 10:
             #    selMatches = self.selectStars(matches, True)
         except Exception, e:
-            print "Failed to read: %s" % (e)
+            self.log.warn("Failed to read %s: %s" % (dataRef.dataId, e))
             return None, None, None
     
         return selSources, selMatches, wcs
