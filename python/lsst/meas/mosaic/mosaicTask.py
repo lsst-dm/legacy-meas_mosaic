@@ -64,7 +64,7 @@ class MosaicConfig(pexConfig.Config):
     radXMatch = pexConfig.RangeField(
         doc="radius to cross-match objects between expsoures in arcsec",
         dtype=float,
-        default=5.0, min=3.0)
+        default=1.0, min=0.1)
     fittingOrder = pexConfig.RangeField(
         doc="fitting order",
         dtype=int,

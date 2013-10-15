@@ -1093,7 +1093,7 @@ lsst::meas::mosaic::kdtreeSource(SourceGroup const &sourceSet,
 	    if (rootMat->findSource(*sourceSet[j][i]) == NULL) {
                 if (rootSource) {
                     KDTree::Ptr leaf = rootSource->findNearest(*sourceSet[j][i]);
-                    if (leaf->distance(*sourceSet[j][i]) < d_lim) {
+                    if (leaf->distance(*sourceSet[j][i]) < d_lim.asDegrees()) {
                         leaf->set.push_back(sourceSet[j][i]);
                     } else {
                         rootSource->add(sourceSet[j][i]);
