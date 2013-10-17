@@ -278,7 +278,7 @@ namespace lsst {
 		double eval(double u, double v);
 		int getXorder(int i) { return xorder[i]; }
 		int getYorder(int i) { return yorder[i]; }
-		int getCoeff(int i) { return coeff[i]; }
+		double getCoeff(int i) { return coeff[i]; }
 		int getIndex(int i, int j);
 	    };
 
