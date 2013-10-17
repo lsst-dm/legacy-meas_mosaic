@@ -2948,17 +2948,20 @@ void fluxFitRelative(ObsVec& matchVec,
 	int i = 0;
 	for (WcsDic::iterator it = wcsDic.begin();
 	     it != wcsDic.end(); it++, i++) {
-	    fexp.insert(std::map<int, float>::value_type(it->first, pow(10., -0.4*fsol(i))));
+	    //fexp.insert(std::map<int, float>::value_type(it->first, pow(10., -0.4*fsol(i))));
+	    fexp[it->first] = pow(10., -0.4*fsol(i));
 	}
 	if (solveCcd) {
 	    for (CcdSet::iterator it = ccdSet.begin();
 		 it != ccdSet.end(); it++, i++) {
-		fchip.insert(std::map<int, float>::value_type(it->first, pow(10., -0.4*fsol(i))));
+		//fchip.insert(std::map<int, float>::value_type(it->first, pow(10., -0.4*fsol(i))));
+		fchip[it->first] = pow(10., -0.4*fsol(i));
 	    }
 	} else {
 	    for (CcdSet::iterator it = ccdSet.begin();
 		 it != ccdSet.end(); it++, i++) {
-		fchip.insert(std::map<int, float>::value_type(it->first, 1.0));
+		//fchip.insert(std::map<int, float>::value_type(it->first, 1.0));
+		fchip[it->first] = 1.0;
 	    }
 	}
 	double chi2f = calcChi2_rel(matchVec, sourceVec, fexp, fchip, ffp);
@@ -2966,7 +2969,8 @@ void fluxFitRelative(ObsVec& matchVec,
 	double e2f = calcChi2_rel(matchVec, sourceVec, fexp, fchip, ffp, true);
 	printf("err: %f (mag)\n", sqrt(e2f));
 	//flagObj_rel(matchVec, sourceVec, 9.0, fexp, fchip, ffp);
-	flagObj_rel(matchVec, sourceVec, 9.0*e2f, fexp, fchip, ffp);
+	if (k < 2)
+	    flagObj_rel(matchVec, sourceVec, 9.0*e2f, fexp, fchip, ffp);
     }
 
     for (int i = 0; i < ffp->ncoeff; i++) {
@@ -2994,17 +2998,20 @@ void fluxFitAbsolute(ObsVec& matchVec,
 	int i = 0;
 	for (WcsDic::iterator it = wcsDic.begin();
 	     it != wcsDic.end(); it++, i++) {
-	    fexp.insert(std::map<int, float>::value_type(it->first, pow(10., -0.4*fsol(i))));
+	    //fexp.insert(std::map<int, float>::value_type(it->first, pow(10., -0.4*fsol(i))));
+	    fexp[it->first] = pow(10., -0.4*fsol(i));
 	}
 	if (solveCcd) {
 	    for (CcdSet::iterator it = ccdSet.begin();
 		 it != ccdSet.end(); it++, i++) {
-		fchip.insert(std::map<int, float>::value_type(it->first, pow(10., -0.4*fsol(i))));
+		//fchip.insert(std::map<int, float>::value_type(it->first, pow(10., -0.4*fsol(i))));
+		fchip[it->first] = pow(10., -0.4*fsol(i));
 	    }
 	} else {
 	    for (CcdSet::iterator it = ccdSet.begin();
 		 it != ccdSet.end(); it++, i++) {
-		fchip.insert(std::map<int, float>::value_type(it->first, 1.0));
+		//fchip.insert(std::map<int, float>::value_type(it->first, 1.0));
+		fchip[it->first] = 1.0;
 	    }
 	}
 	double chi2f = calcChi2_abs(matchVec, sourceVec, fexp, fchip, ffp);
@@ -3012,7 +3019,8 @@ void fluxFitAbsolute(ObsVec& matchVec,
 	double e2f = calcChi2_abs(matchVec, sourceVec, fexp, fchip, ffp, true);
 	printf("err: %f (mag)\n", sqrt(e2f));
 	//flagObj_abs(matchVec, sourceVec, 9.0, fexp, fchip, ffp);
-	flagObj_abs(matchVec, sourceVec, 9.0*e2f, fexp, fchip, ffp);
+	if (k < 2)
+	    flagObj_abs(matchVec, sourceVec, 9.0*e2f, fexp, fchip, ffp);
     }
 
     for (int i = 0; i < ffp->ncoeff; i++) {
