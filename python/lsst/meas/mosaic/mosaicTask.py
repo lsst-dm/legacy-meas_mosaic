@@ -854,7 +854,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         iexp = numpy.array(_iexp)
         ichip = numpy.array(_ichip)
 
-        mag_std  = self.clippedStd(d_mag, 3)[0]
+        mag_std = self.clippedStd(d_mag, 3)[0]
 
         _r = []
         _dm = []
@@ -950,7 +950,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             f.write("%ld %12.5f %12.5f\n" % (iexp, c.x0, c.y0));
             for k in range(c.getNcoeff()):
                 f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" % (iexp, c.get_a(k), c.get_b(k), c.get_ap(k), c.get_bp(k)));
-            f.write("%5.3f\n" % (-2.5*math.log10(self.fexp[iexp])))
+            f.write("%7.4f\n" % (-2.5*math.log10(self.fexp[iexp])))
         f.close()
 
         f = open(os.path.join(self.outputDir, "ccd.dat"), "wt")
@@ -1162,47 +1162,107 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         if self.config.outputDiag:
             if sourceVec != None:
-                self.writeCatalog(sourceVec, wcsDic, os.path.join(self.config.outputDir, "catalog.fits"))
+                self.writeCatalog(matchVec, sourceVec, coeffSet,
+                                  os.path.join(self.config.outputDir, "catalog.fits"))
             self.outputDiag()
 
         return wcsDic.keys()
 
-    def writeCatalog(self, sourceVec, wcsDic, name):
-        num = len(sourceVec)
-        ra = numpy.ndarray(num, dtype=numpy.float64)
-        dec = numpy.ndarray(num, dtype=numpy.float64)
-        mag = numpy.ndarray(num, dtype=numpy.float32)
-        err = numpy.zeros(num, dtype=numpy.float32)
-        numbers = numpy.zeros(num, dtype=numpy.int32)
-        numGood = 0
+    def writeCatalog(self, matchVec, sourceVec, coeffSet, name):
+        # count number of unique objects
+        idList = list()
+        for m in matchVec:
+            if not m.istar in idList:
+                idList.append(m.istar)
+        num_m = len(idList)
+        idList = list()
         for s in sourceVec:
-            index = s.jstar;
-            if not s.good or index < 0:
+            if not s.istar in idList:
+                idList.append(s.istar)
+        num_s = len(idList)
+        num = num_m + num_s
+
+        ra  = numpy.zeros(num, dtype=numpy.float64)
+        dec = numpy.zeros(num, dtype=numpy.float64)
+        mag = numpy.zeros(num, dtype=numpy.float64)
+        var = numpy.zeros(num, dtype=numpy.float64)
+        err = numpy.zeros(num, dtype=numpy.float64)
+        numbers = numpy.zeros(num, dtype=numpy.int32)
+
+        numGood = 0
+        for m in matchVec:
+            if (not m.good or m.jstar == -1 or
+                m.mag == -9999 or m.err == -9999 or
+                m.mag_cat == -9999):
                 continue
 
+            index = m.istar
+
             if numbers[index] == 0:
-                mag[index] = s.mag0
                 numGood += 1
 
-                # Deproject s.{xi,eta}_fit
-                crval = wcsDic[s.iexp].getSkyOrigin().getPosition(afwGeom.radians)
-                x = s.xi_fit
-                y = s.eta_fit
-                radius = math.hypot(x, y)
-                sinPhi, cosPhi = x/radius, y/radius
-                rho = math.sqrt(1.0 + radius**2)
-                sinTheta, cosTheta = 1.0/rho, radius/rho
-                sinD, cosD = math.sin(crval[1]), math.cos(crval[1])
-                dec[index] = math.asin(sinTheta*sinD - cosTheta*cosPhi*cosD)
-                sinAlpha = cosTheta*sinPhi
-                cosAlpha = cosTheta*cosPhi*sinD + sinTheta*cosD
-                ra[index] = math.atan2(sinAlpha, cosAlpha) + crval[0]
-            else:
-                assert mag[index] == numpy.float32(s.mag0), "Discrepancy between solved magnitudes"
-            err[index] += 1.0 / s.err**2;
+            # Deproject m.{xi,eta}_fit
+            crval = [coeffSet[m.iexp].A, coeffSet[m.iexp].D]
+            x = math.radians(m.xi_fit)
+            y = math.radians(m.eta_fit)
+            radius = math.hypot(x, y)
+            sinPhi, cosPhi = x/radius, y/radius
+            rho = math.sqrt(1.0 + radius**2)
+            sinTheta, cosTheta = 1.0/rho, radius/rho
+            sinD, cosD = math.sin(crval[1]), math.cos(crval[1])
+            dec[index] += math.asin(sinTheta*sinD + cosTheta*cosPhi*cosD)
+            sinAlpha = cosTheta*sinPhi
+            cosAlpha = -cosTheta*cosPhi*sinD + sinTheta*cosD
+            ra[index] += math.atan2(sinAlpha, cosAlpha) + crval[0]
+
+            exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
+            chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
+            gain_cor = self.ffp.eval(m.u, m.v)
+            mag_cor = m.mag + exp_cor + chip_cor + gain_cor
+
+            mag[index] += mag_cor / m.err**2
+            var[index] += mag_cor * mag_cor / m.err**2
+            err[index] += (1.0 / m.err**2)
             numbers[index] += 1
 
-        err = numpy.sqrt(1.0/err)
+        # Take a mean of individual measurements
+        ra /= numbers
+        dec /= numbers
+        mag /= err
+        err = numpy.sqrt((var - mag * mag * err) / err)
+
+        for s in sourceVec:
+            if (not s.good or s.jstar == -1 or
+                s.mag == -9999 or s.err == -9999):
+                continue
+
+            index = s.istar + num_m
+
+            if numbers[index] == 0:
+                numGood += 1
+
+                # For sourceVec, fitted values are stored.
+                # So simply take them.
+                mag[index] = s.mag0
+                ra[index] = s.ra
+                dec[index] = s.dec
+                err[index] = 0.0
+
+            else:
+                assert mag[index] == numpy.float64(s.mag0), "Discrepancy between solved magnitudes"
+                assert ra[index] == numpy.float64(s.ra), "Discrepancy between solved positions"
+                assert dec[index] == numpy.float64(s.dec), "Discrepancy between solved positions"
+
+            # For error, calculate RMS around fitted values
+            exp_cor = -2.5 * math.log10(self.fexp[s.iexp])
+            chip_cor = -2.5 * math.log10(self.fchip[s.ichip])
+            gain_cor = self.ffp.eval(s.u, s.v)
+            mag_cor = s.mag + exp_cor + chip_cor + gain_cor
+            var[index] += ((mag_cor-s.mag0)/s.err)**2
+            err[index] += (1.0 / s.err**2)
+            numbers[index] += 1
+
+        err[num_m:] = numpy.sqrt(var[num_m:]/err[num_m:])
 
         schema = afwTable.SimpleTable.makeMinimalSchema()
         magKey = schema.addField("mag", type="F", doc="Magnitude")
