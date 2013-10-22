@@ -86,9 +86,17 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
 
     fluxKeys, errKeys = getFluxKeys(catalog.schema)
     for name, key in fluxKeys.items():
-        catalog[key][:] *= corr
+        if key.getElementCount() == 1:
+            catalog[key][:] *= corr
+        else:
+            for i in range(key.getElementCount()):
+                catalog[key][:,i] *= corr
         if name in errKeys:
-            catalog[errKeys[name]][:] *= corr
+            if key.getElementCount() == 1:
+                catalog[errKeys[name]][:] *= corr
+            else:
+                for i in range(key.getElementCount()):
+                    catalog[errKeys[name]][:,i] *= corr
 
     for rec in catalog:
         rec.updateCoord(mosaic.wcs)
