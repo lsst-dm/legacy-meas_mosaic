@@ -112,12 +112,38 @@ def applyCalib(catalog, calib):
     """
     fluxKeys, errKeys = getFluxKeys(catalog.schema)
 
+    mapper = afwTable.SchemaMapper(catalog.schema)
+    for item in catalog.schema:
+        name = item.field.getName()
+        if name in fluxKeys:
+            continue
+        mapper.addMapping(item.key)
+
+    newFluxKeys = {}
+    newErrKeys = {}
+    for name in fluxKeys:
+        fluxField = catalog.schema.find(name).field
+        newName = name.replace("flux", "mag")
+        newField = fluxField.__class__(newName, "Calibrated magnitude from %s (%s)" %
+                                       (fluxField.getName(), fluxField.getDoc()), "mag")
+        newFluxKeys[newName] = mapper.addMapping(fluxKeys[name], newField)
+        if name in errKeys:
+            errField = catalog.schema.find(name + ".err").field
+            newErrField = errField.__class__(newName + ".err",
+                                          "Calibrated magnitude error from %s (%s)" %
+                                          (errField.getName(), errField.getDoc()),
+                                          "mag")
+            newErrKeys[newName] = mapper.addMapping(errKeys[name], newErrField)
+
     calib.setThrowOnNegativeFlux(False)
 
-    for name, key in fluxKeys.items():
-        flux = catalog[key]
-        if name in errKeys:
-            fluxErr = catalog[errKeys[name]]
+    newCatalog = afwTable.SourceCatalog(mapper.getOutputSchema())
+    newCatalog.extend(catalog, mapper=mapper)
+
+    for name, key in newFluxKeys.items():
+        flux = newCatalog[key]
+        if name in newErrKeys:
+            fluxErr = newCatalog[newErrKeys[name]]
             magArray = numpy.array([calib.getMagnitude(f, e) for f,e in zip(flux, fluxErr)])
             mag = magArray[:,0]
             fluxErr[:] = magArray[:,1]
@@ -125,6 +151,7 @@ def applyCalib(catalog, calib):
             mag = numpy.array([calib.getMagnitude(f) for f in flux])
         flux[:] = mag
 
+    return newCatalog
 
 def getFluxKeys(schema):
     """Retrieve the flux and flux error keys from a schema

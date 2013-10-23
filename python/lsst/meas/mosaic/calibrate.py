@@ -18,9 +18,10 @@ class CalibrateCatalogTask(CmdLineTask):
     def run(self, dataRef):
         catalog = dataRef.get("src", immediate=True)
         results = applyMosaicResultsCatalog(dataRef, catalog)
+        catalog = results.catalog
         if self.config.doApplyCalib:
-            applyCalib(results.catalog, results.mosaic.calib)
-        dataRef.put(results.catalog, "calibrated_src")
+            catalog = applyCalib(catalog, results.mosaic.calib)
+        dataRef.put(catalog, "calibrated_src")
 
     def writeConfig(self, *args, **kwargs):
         pass
