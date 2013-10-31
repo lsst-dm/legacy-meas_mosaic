@@ -2974,9 +2974,12 @@ void fluxFitRelative(ObsVec& matchVec,
     }
 
     for (int i = 0; i < ffp->ncoeff; i++) {
-       printf("%2d %8.5f\n", i, ffp->coeff[i]);
+       printf("FFP: %2d %8.5f\n", i, ffp->coeff[i]);
     }
 
+    for (typename std::map<int, float>::iterator it = fchip.begin(); it != fchip.end(); ++it) {
+        std::cout << "CCD " << it->first << ": " << it->second << std::endl;
+    }
 }
 
 void fluxFitAbsolute(ObsVec& matchVec,
@@ -3024,9 +3027,12 @@ void fluxFitAbsolute(ObsVec& matchVec,
     }
 
     for (int i = 0; i < ffp->ncoeff; i++) {
-       printf("%2d %8.5f\n", i, ffp->coeff[i]);
+       printf("FFP %2d: %8.5f\n", i, ffp->coeff[i]);
     }
 
+    for (typename std::map<int, float>::iterator it = fchip.begin(); it != fchip.end(); ++it) {
+        std::cout << "CCD " << it->first << ": " << it->second << std::endl;
+    }
 }
 
 Eigen::VectorXd solveSIP_P(Poly::Ptr p,
