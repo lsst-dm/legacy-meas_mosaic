@@ -119,6 +119,9 @@ class MosaicConfig(pexConfig.Config):
         default=15, min=0)
     astrom = pexConfig.ConfigField(dtype=measAstrom.MeasAstromConfig, doc="Configuration for readMatches")
     doColorTerms = pexConfig.Field(dtype=bool, default=True, doc="Apply color terms as part of solution?")
+    doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
+    doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
+    commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
 
 class MosaicTask(pipeBase.CmdLineTask):
 
@@ -369,12 +372,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             c = measMosaic.convertCoeff(self.coeffSet[iexp], self.ccdSet[ichip]);
             wcs = measMosaic.wcsFromCoeff(c);
             exp.setWcs(wcs)
-#            scale = self.fexp[iexp] * self.fchip[ichip]
-#            calib = afwImage.Calib()
-#            calib.setFluxMag0(1.0/scale)
-#            exp.setCalib(calib)
             try:
-#                self.butler.put(exp, 'wcs', dict(visit=iexp, ccd=ichip))
                 dataRef.put(exp, 'wcs')
             except Exception, e:
                 print "failed to write something: %s" % (e)
@@ -384,8 +382,14 @@ class MosaicTask(pipeBase.CmdLineTask):
         for dataRef in dataRefList:
             iexp = dataRef.dataId['visit']
             ichip = dataRef.dataId['ccd']
-            newP = measMosaic.convertFluxFitParams(self.coeffSet[iexp], self.ccdSet[ichip],
-                                                   measMosaic.FluxFitParams(self.ffp))
+            try:
+                x0 = self.coeffSet[iexp].x0
+                y0 = self.coeffSet[iexp].y0
+            except Exception, e:
+                x0 = 0.0
+                y0 = 0.0
+            newP = measMosaic.convertFluxFitParams(measMosaic.FluxFitParams(self.ffpSet[iexp]),
+                                                   self.ccdSet[ichip], x0, y0)
             metadata = measMosaic.metadataFromFluxFitParams(newP)
             exp = afwImage.ExposureI(0,0)
             exp.getMetadata().combine(metadata)
@@ -394,7 +398,6 @@ class MosaicTask(pipeBase.CmdLineTask):
             calib.setFluxMag0(1.0/scale)
             exp.setCalib(calib)
             try:
-#                self.butler.put(exp, 'fcr', dict(visit=iexp, ccd=ichip))
                 dataRef.put(exp, 'fcr')
             except Exception, e:
                 print "failed to write something: %s" % (e)
@@ -448,20 +451,19 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.clf()
         plt.contourf(X, Y, Z, levels=levels)
         plt.colorbar()
+        plt.title('%d' % (iexp))
 
         self.plotCcd(coeff.x0, coeff.y0)
 
         plt.savefig(os.path.join(self.outputDir, "jcont_%d.png" % (iexp)), format='png')
 
     def plotFCorCont(self, iexp):
-        coeff = self.coeffSet[iexp]
-
         delta = 300.
         if (self.ccdSet.size() > 10):
             x = numpy.arange(-18000., 18000., delta)
             y = numpy.arange(-18000., 18000., delta)
 #            levels = numpy.linspace(0.81, 1.02, 36)
-            levels = numpy.linspace(0.86, 1.14, 36)
+            levels = numpy.linspace(0.72, 1.28, 36)
         else:
             x = numpy.arange(-6000., 6000., delta)
             y = numpy.arange(-6000., 6000., delta)
@@ -471,13 +473,22 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         for j in range(len(Y)):
             for i in range(len(X)):
-                Z[i][j] = 10**(-0.4*self.ffp.eval(X[i][j], Y[i][j]))
+                Z[i][j] = 10**(-0.4*self.ffpSet[iexp].eval(X[i][j], Y[i][j]))
+        mean = math.floor(Z[len(X)/2][len(Y)/2] * 10 + 0.5) / 10.
+        levels = numpy.linspace(mean-0.3, mean+0.1, 41)
 
         plt.clf()
         plt.contourf(X, Y, Z, levels=levels)
         plt.colorbar()
+        plt.title('%d' % (iexp))
 
-        self.plotCcd(coeff.x0, coeff.y0)
+        try:
+            x0 = self.coeffSet[iexp].x0
+            y0 = self.coeffSet[iexp].y0
+        except Exception, e:
+            x0 = 0.0
+            y0 = 0.0
+        self.plotCcd(x0, y0)
         
         plt.savefig(os.path.join(self.outputDir, "fcont_%d.png" % (iexp)), format='png')
 
@@ -672,7 +683,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 mag_cat = m.mag_cat
                 exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
                 chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-                gain_cor = self.ffp.eval(m.u, m.v)
+                gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
                 mag_cor = mag + exp_cor + chip_cor + gain_cor
                 diff = mag_cor - mag0
                 _dmag_m.append(diff)
@@ -688,7 +699,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 mag_cat = m.mag_cat
                 exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
                 chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-                gain_cor = self.ffp.eval(m.u, m.v)
+                gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
                 mag_cor = mag + exp_cor + chip_cor + gain_cor
                 diff = mag_cor - mag0
                 _dmag_bad.append(diff)
@@ -704,7 +715,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                     mag0 = s.mag0
                     exp_cor = -2.5 * math.log10(self.fexp[s.iexp])
                     chip_cor = -2.5 * math.log10(self.fchip[s.ichip])
-                    gain_cor = self.ffp.eval(s.u, s.v)
+                    gain_cor = self.ffpSet[s.iexp].eval(s.u, s.v)
                     mag_cor = mag + exp_cor + chip_cor + gain_cor
                     diff = mag_cor - mag0
                     _dmag_s.append(diff)
@@ -717,7 +728,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                     mag0 = s.mag0
                     exp_cor = -2.5 * math.log10(self.fexp[s.iexp])
                     chip_cor = -2.5 * math.log10(self.fchip[s.ichip])
-                    gain_cor = self.ffp.eval(s.u, s.v)
+                    gain_cor = self.ffpSet[s.iexp].eval(s.u, s.v)
                     mag_cor = mag + exp_cor + chip_cor + gain_cor
                     diff = mag_cor - mag0
                     _dmag_bad.append(diff)
@@ -843,7 +854,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 mag0 = m.mag0
                 exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
                 chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-                gain_cor = self.ffp.eval(m.u, m.v)
+                gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
                 mag_cor = mag + exp_cor + chip_cor + gain_cor
                 diff = mag_cor - mag0
                 _dmag.append(diff)
@@ -908,7 +919,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 mag0 = m.mag0
                 exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
                 chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-                gain_cor = self.ffp.eval(m.u, m.v)
+                gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
                 mag_cor = mag + exp_cor + chip_cor + gain_cor
                 diff = mag_cor - mag0
                 _dmag.append(diff)
@@ -937,7 +948,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         plt.savefig(os.path.join(self.outputDir, "DFlux2D.png"), format='png')
 
-    def outputDiag(self):
+    def outputDiagWcs(self):
         self.log.info("Output Diagnostic Figures...")
 
         if not os.path.isdir(self.outputDir):
@@ -950,7 +961,6 @@ class MosaicTask(pipeBase.CmdLineTask):
             f.write("%ld %12.5f %12.5f\n" % (iexp, c.x0, c.y0));
             for k in range(c.getNcoeff()):
                 f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" % (iexp, c.get_a(k), c.get_b(k), c.get_ap(k), c.get_bp(k)));
-            f.write("%7.4f\n" % (-2.5*math.log10(self.fexp[iexp])))
         f.close()
 
         f = open(os.path.join(self.outputDir, "ccd.dat"), "wt")
@@ -958,17 +968,26 @@ class MosaicTask(pipeBase.CmdLineTask):
             ccd = self.ccdSet[ichip]
             center = ccd.getCenter().getPixels(ccd.getPixelSize())
             orient = ccd.getOrientation()
-            f.write("%3ld %10.3f %10.3f %10.7f %5.3f\n" % (ichip, center[0], center[1], orient.getYaw(), self.fchip[ichip]));
+            f.write("%3ld %10.3f %10.3f %10.7f\n" % (ichip, center[0], center[1], orient.getYaw()))
         f.close()
 
         for iexp in self.coeffSet.keys():
             self.plotJCont(iexp)
-            self.plotFCorCont(iexp)
             self.plotResPosArrow2D(iexp)
 
         self.plotResPosScatter()
-        self.plotMdM()
         self.plotPosDPos()
+
+    def outputDiagFlux(self):
+        self.log.info("Output Diagnostic Figures...")
+
+        if not os.path.isdir(self.outputDir):
+            os.mkdir(self.outputDir)
+
+        for iexp in self.wcsDic.keys():
+            self.plotFCorCont(iexp)
+
+        self.plotMdM()
         self.plotResFlux()
         self.plotDFlux2D()
 
@@ -1127,44 +1146,64 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.log.info("solveCcd : %r " % solveCcd)
             self.log.info("allowRotation : %r" % allowRotation)
 
-        ffp = measMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
-        u_max, v_max = self.getExtent(matchVec)
-        ffp.u_max = (math.floor(u_max / 10.) + 1) * 10
-        ffp.v_max = (math.floor(v_max / 10.) + 1) * 10
-
-        fexp = measMosaic.map_int_float()
-        fchip = measMosaic.map_int_float()
-
-        if internal:
-            coeffSet = measMosaic.solveMosaic_CCD(order, nmatch, nsource,
-                                                  matchVec, sourceVec,
-                                                  wcsDic, ccdSet, ffp, fexp, fchip,
-                                                  solveCcd, allowRotation, solveCcdScale, verbose, catRMS,
-                                                  self.config.outputSnapshots, self.config.outputDir)
-        else:
-            coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
-                                                       wcsDic, ccdSet, ffp, fexp, fchip,
-                                                       solveCcd, allowRotation, solveCcdScale, verbose, catRMS,
-                                                       self.config.outputSnapshots, self.config.outputDir)
-
         self.outputDir = self.config.outputDir
         self.matchVec = matchVec
         self.sourceVec = sourceVec
         self.wcsDic = wcsDic
         self.ccdSet = ccdSet
-        self.coeffSet = coeffSet
-        self.ffp = ffp
-        self.fexp = fexp
-        self.fchip = fchip
 
-        self.writeNewWcs(dataRefListUsed)
-        self.writeFcr(dataRefListUsed)
+        if self.config.doSolveWcs:
 
-        if self.config.outputDiag:
+            if internal:
+                coeffSet = measMosaic.solveMosaic_CCD(order, nmatch, nsource,
+                                                      matchVec, sourceVec,
+                                                      wcsDic, ccdSet, #ffpSet, fexp, fchip,
+                                                      solveCcd, allowRotation, #solveCcdScale,
+                                                      verbose, catRMS,
+                                                      self.config.outputSnapshots, self.config.outputDir)
+            else:
+                coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
+                                                           wcsDic, ccdSet, #ffpSet, fexp, fchip,
+                                                           solveCcd, allowRotation, #solveCcdScale,
+                                                           verbose, catRMS,
+                                                           self.config.outputSnapshots, self.config.outputDir)
+
+            self.coeffSet = coeffSet
+
+            self.writeNewWcs(dataRefListUsed)
+
+            if self.config.outputDiag:
+                self.outputDiagWcs()
+
+        if self.config.doSolveFlux:
+
+            ffpSet = measMosaic.FfpSet()
+            for visit in wcsDic.keys():
+                ffp = measMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
+                u_max, v_max = self.getExtent(matchVec)
+                ffp.u_max = (math.floor(u_max / 10.) + 1) * 10
+                ffp.v_max = (math.floor(v_max / 10.) + 1) * 10
+                ffpSet[visit] = ffp
+
+            fexp = measMosaic.map_int_float()
+            fchip = measMosaic.map_int_float()
+
+            measMosaic.fluxFit(absolute, self.config.commonFluxCorr, matchVec, nmatch, sourceVec, nsource, wcsDic, ccdSet,
+                               fexp, fchip, ffpSet, solveCcdScale)
+
+            self.ffpSet = ffpSet
+            self.fexp = fexp
+            self.fchip = fchip
+
+            self.writeFcr(dataRefListUsed)
+
+            if self.config.outputDiag:
+                self.outputDiagFlux()
+
+        if self.config.outputDiag and self.config.doSolveWcs and self.config.doSolveFlux:
             if sourceVec != None:
                 self.writeCatalog(matchVec, sourceVec, coeffSet,
                                   os.path.join(self.config.outputDir, "catalog.fits"))
-            self.outputDiag()
 
         return wcsDic.keys()
 
@@ -1217,7 +1256,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
             exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
             chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-            gain_cor = self.ffp.eval(m.u, m.v)
+            gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
             mag_cor = m.mag + exp_cor + chip_cor + gain_cor
 
             mag[index] += mag_cor / m.err**2
@@ -1256,7 +1295,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             # For error, calculate RMS around fitted values
             exp_cor = -2.5 * math.log10(self.fexp[s.iexp])
             chip_cor = -2.5 * math.log10(self.fchip[s.ichip])
-            gain_cor = self.ffp.eval(s.u, s.v)
+            gain_cor = self.ffpSet[s.iexp].eval(s.u, s.v)
             mag_cor = s.mag + exp_cor + chip_cor + gain_cor
             var[index] += ((mag_cor-s.mag0)/s.err)**2
             err[index] += (1.0 / s.err**2)

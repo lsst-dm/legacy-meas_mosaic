@@ -254,34 +254,6 @@ namespace lsst {
                 void _initializeMatches(SourceMatchSet& m, int depth);
             };
 
-	    class FluxFitParams {
-	    public:
-		typedef boost::shared_ptr<FluxFitParams> Ptr;
-
-		int order;
-		bool chebyshev;
-		int ncoeff;
-		int *xorder;
-		int *yorder;
-		bool absolute;
-
-		double *coeff;
-		double u_max;
-		double v_max;
-		double x0;
-		double y0;
-
-		FluxFitParams(int order, bool absolute=false, bool chebyshev=false);
-		FluxFitParams(lsst::daf::base::PropertySet::Ptr& metadata);
-		~FluxFitParams();
-		FluxFitParams(const FluxFitParams &p);
-		double eval(double u, double v);
-		int getXorder(int i) { return xorder[i]; }
-		int getYorder(int i) { return yorder[i]; }
-		double getCoeff(int i) { return coeff[i]; }
-		int getIndex(int i, int j);
-	    };
-
 	    typedef std::map<int, lsst::afw::cameraGeom::Ccd::Ptr> CcdSet;
 	    typedef std::map<int, Coeff::Ptr> CoeffSet;
 	    typedef std::vector<Obs::Ptr> ObsVec;
@@ -301,12 +273,8 @@ namespace lsst {
 					  ObsVec &matchVec,
 					  WcsDic &wcsDic,
 					  CcdSet &ccdSet,
-					  FluxFitParams::Ptr &ffp,
-					  std::map<int, float> &fexp,
-					  std::map<int, float> &fchip,
 					  bool solveCcd = true,
 					  bool allowRotation = true,
-					  bool solveCcdScale = false,
 					  bool verbose = false,
 					  double catRMS = 0.0,
                                           bool writeSnapshots = false,
@@ -319,12 +287,8 @@ namespace lsst {
 				     ObsVec &sourceVec,
 				     WcsDic &wcsDic,
 				     CcdSet &ccdSet,
-				     FluxFitParams::Ptr &ffp,
-				     std::map<int, float> &fexp,
-				     std::map<int, float> &fchip,
 				     bool solveCcd = true,
 				     bool allowRotation = true,
-				     bool solveCcdScale = false,
 				     bool verbose = false,
 				     double catRMS = 0.0,
                                      bool writeSnapshots = false,
@@ -337,14 +301,6 @@ namespace lsst {
 
             Coeff::Ptr coeffFromTanWcs(lsst::afw::image::Wcs::Ptr& wcs);
 
-	    FluxFitParams::Ptr
-	      convertFluxFitParams(Coeff::Ptr& coeff,
-				   lsst::afw::cameraGeom::Ccd::Ptr& ccd,
-				   FluxFitParams::Ptr& ffp);
-
-	    lsst::daf::base::PropertySet::Ptr
-	      metadataFromFluxFitParams(FluxFitParams::Ptr& ffp);
-
 	    lsst::afw::image::Image<float>::Ptr
 	      getJImg(Coeff::Ptr& coeff,
 		      lsst::afw::cameraGeom::Ccd::Ptr& ccd);
@@ -356,20 +312,6 @@ namespace lsst {
 	    lsst::afw::image::Image<float>::Ptr
 	      getJImg(lsst::afw::image::Wcs::Ptr& wcs,
 		      lsst::afw::cameraGeom::Ccd::Ptr& ccd);
-
-	    lsst::afw::image::Image<float>::Ptr
-	      getFCorImg(FluxFitParams::Ptr& p,
-			 lsst::afw::cameraGeom::Ccd::Ptr& ccd,
-			 Coeff::Ptr& coeff);
-
-	    lsst::afw::image::Image<float>::Ptr
-	      getFCorImg(FluxFitParams::Ptr& p, int width, int height);
-
-	    lsst::afw::image::Image<float>::Ptr
-	      getFCorImg(FluxFitParams::Ptr& p,
-			 lsst::afw::cameraGeom::Ccd::Ptr& ccd);
-
-#include "chebyshev.h"
     }
   }
 }

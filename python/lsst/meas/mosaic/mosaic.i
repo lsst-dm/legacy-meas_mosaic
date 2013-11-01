@@ -1,5 +1,6 @@
 %{
 #include "lsst/meas/mosaic/mosaicfit.h"
+#include "lsst/meas/mosaic/fluxfit.h"
 #include "lsst/meas/mosaic/spatialCellSource.h"
 #include "lsst/meas/mosaic/matches.h"
 %}
@@ -32,6 +33,7 @@
 %}
 
 %include "lsst/meas/mosaic/mosaicfit.h"
+%include "lsst/meas/mosaic/fluxfit.h"
 %include "lsst/meas/mosaic/spatialCellSource.h"
 %include "lsst/meas/mosaic/matches.h"
 
@@ -45,3 +47,4 @@
 %template(CcdSet) std::map<int, lsst::afw::cameraGeom::Ccd::Ptr>;
 %template(CoeffSet) std::map<int, lsst::meas::mosaic::Coeff::Ptr>;
 %template(ObsVec) std::vector<lsst::meas::mosaic::Obs::Ptr>;
+%template(FfpSet) std::map<int, lsst::meas::mosaic::FluxFitParams::Ptr>;
