@@ -28,7 +28,7 @@
 
 %inline %{
   PTR(lsst::meas::mosaic::SpatialCellSource) cast_SpatialCellSource(PTR(lsst::afw::math::SpatialCellCandidate) candidate) {
-    return boost::shared_dynamic_cast<lsst::meas::mosaic::SpatialCellSource>(candidate);
+    return boost::dynamic_pointer_cast<lsst::meas::mosaic::SpatialCellSource>(candidate);
   }
 %}
 
