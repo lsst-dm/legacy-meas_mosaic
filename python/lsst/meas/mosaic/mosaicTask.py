@@ -117,6 +117,10 @@ class MosaicConfig(pexConfig.Config):
         doc="Minimum number of matches in CCD to be used.",
         dtype=int,
         default=15, min=0)
+    numSourceMerge = pexConfig.RangeField(
+        doc="Minimum number of sources to be merged.",
+        dtype=int,
+        default=2, min=0)
     astrom = pexConfig.ConfigField(dtype=measAstrom.MeasAstromConfig, doc="Configuration for readMatches")
     doColorTerms = pexConfig.Field(dtype=bool, default=True, doc="Apply color terms as part of solution?")
     doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
@@ -357,7 +361,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.log.info('len(sourceSet) = '+str(len(sourceSet))+" "+
                       str([len(sources) for sources in sourceSet]))
         rootSource = measMosaic.kdtreeSource(sourceSet, rootMat, ccdSet, d_lim)
-        allSource = rootSource.mergeSource()
+        allSource = rootSource.mergeSource(self.config.numSourceMerge)
         self.log.info("# of allSource : %d" % self.countObsInSourceGroup(allSource))
         self.log.info('len(allSource) = %d' % len(allSource))
 
@@ -475,7 +479,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             for i in range(len(X)):
                 Z[i][j] = 10**(-0.4*self.ffpSet[iexp].eval(X[i][j], Y[i][j]))
         mean = math.floor(Z[len(X)/2][len(Y)/2] * 10 + 0.5) / 10.
-        levels = numpy.linspace(mean-0.3, mean+0.1, 41)
+        levels = numpy.linspace(mean-0.2, mean+0.2, 41)
 
         plt.clf()
         plt.contourf(X, Y, Z, levels=levels)
@@ -507,7 +511,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         _ys = []
         _dxs = []
         _dys = []
-        if (self.sourceVec != None):
+        if (self.sourceVec.size() != 0):
             for s in self.sourceVec:
                 if (s.good == True and s.iexp == iexp):
                     _xs.append(s.u)
@@ -582,7 +586,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                                                      m.xi, m.eta, m.u, m.v))
         _xs = []
         _ys = []
-        if (self.sourceVec != None):
+        if (self.sourceVec.size() != 0):
             for s in self.sourceVec:
                 if (s.good == True):
                     _x.append((s.xi_fit - s.xi) * 3600)
@@ -630,7 +634,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         bins = numpy.arange(-0.5, 0.5, 0.01) + 0.005
 
         ax = plt.subplot2grid((5,6),(0,0), colspan=4)
-        if self.sourceVec != None:
+        if self.sourceVec.size() != 0:
             plt.hist([d_xi, d_xi_m, d_xi_s], bins=bins, normed=False, histtype='step')
         else:
             plt.hist([d_xi, d_xi_m], bins=bins, normed=False, histtype='step')
@@ -638,7 +642,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.text(0.75, 0.5, r"$\sigma=$%5.3f" % (xi_std_m), transform=ax.transAxes, color='green')
         y = mlab.normpdf(bins, xi_mean_m, xi_std_m)
         plt.plot(bins, y*xi_n_m*0.01, 'g:')
-        if self.sourceVec != None:
+        if self.sourceVec.size() != 0:
             plt.text(0.75, 0.3, r"$\sigma=$%5.3f" % (xi_std_s), transform=ax.transAxes, color='red')
             y = mlab.normpdf(bins, xi_mean_s, xi_std_s)
             plt.plot(bins, y*xi_n_s*0.01, 'r:')
@@ -647,13 +651,13 @@ class MosaicTask(pipeBase.CmdLineTask):
         ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
         plt.hist(d_eta, bins=bins, normed=False, orientation='horizontal', histtype='step')
         plt.hist(d_eta_m, bins=bins, normed=False, orientation='horizontal', histtype='step')
-        if self.sourceVec != None:
+        if self.sourceVec.size() != 0:
             plt.hist(d_eta_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
         plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes, color='blue')
         plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (eta_std_m), rotation=270, transform=ax.transAxes, color='green')
         y = mlab.normpdf(bins, eta_mean_m, eta_std_m)
         plt.plot(y*eta_n_m*0.01, bins, 'g:')
-        if self.sourceVec != None:
+        if self.sourceVec.size() != 0:
             plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (eta_std_s), rotation=270, transform=ax.transAxes, color='red')
             y = mlab.normpdf(bins, eta_mean_s, eta_std_s)
             plt.plot(y*eta_n_s*0.01, bins, 'r:')
@@ -708,7 +712,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 _mag_cat_bad.append(mag_cat)
                 f.write("m %f %f %f %f %f 0\n" % (mag_cor, mag0, mag_cat,
                                                   m.u, m.v))
-        if self.sourceVec != None:
+        if self.sourceVec.size() != 0:
             for s in self.sourceVec:
                 if (s.good == True and s.mag != -9999 and s.jstar != -1):
                     mag = s.mag
@@ -760,7 +764,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
         plt.plot(mag0_bad, d_mag_bad, 'k,', markeredgewidth=0)
         plt.plot(mag_cat_m, d_mag_cat_m, 'c,', markeredgewidth=0)
-        if self.sourceVec != None:
+        if self.sourceVec.size() != 0:
             plt.plot(mag0_s, d_mag_s, 'r,', markeredgewidth=0)
         plt.plot(mag0_m, d_mag_m, 'g,', markeredgewidth=0)
         plt.plot([15,25], [0,0], 'k--')
@@ -774,7 +778,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
         plt.hist(d_mag_a, bins=bins, normed=False, orientation='horizontal', histtype='step')
         plt.hist(d_mag_m, bins=bins, normed=False, orientation='horizontal', histtype='step')
-        if self.sourceVec != None:
+        if self.sourceVec.size() != 0:
             plt.hist(d_mag_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
         plt.hist(d_mag_cat_m, bins=bins2, normed=False, orientation='horizontal', histtype='step')
         plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (mag_std_a), rotation=270, transform=ax.transAxes, color='blue')
@@ -782,7 +786,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.text(0.7, 0.90, r"$\sigma=$%5.3f" % (mag_cat_std_m), rotation=270, transform=ax.transAxes, color='cyan')
         y = mlab.normpdf(bins, mag_mean_m, mag_std_m)
         plt.plot(y*mag_n_m*0.005, bins, 'g:')
-        if self.sourceVec != None:
+        if self.sourceVec.size() != 0:
             plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes, color='red')
             y = mlab.normpdf(bins, mag_mean_s, mag_std_s)
             plt.plot(y*mag_n_s*0.005, bins, 'r:')
@@ -805,7 +809,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 _y.append((m.eta_fit - m.eta) * 3600)
                 _xi.append(m.xi * 3600)
                 _eta.append(m.eta * 3600)
-        if (self.sourceVec != None):
+        if (self.sourceVec.size() != 0):
             for s in self.sourceVec:
                 if (s.good == True):
                     _x.append((s.xi_fit - s.xi) * 3600)
@@ -987,6 +991,12 @@ class MosaicTask(pipeBase.CmdLineTask):
         for iexp in self.wcsDic.keys():
             self.plotFCorCont(iexp)
 
+        f = open(os.path.join(self.outputDir, "ccdScale.dat"), "wt")
+        for ichip in self.fchip.keys():
+            scale = self.fchip[ichip]
+            f.write("%3ld %6.3f\n" % (ichip, scale))
+        f.close()
+
         self.plotMdM()
         self.plotResFlux()
         self.plotDFlux2D()
@@ -1138,7 +1148,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         catRMS = self.config.catRMS
 
         if not internal:
-            sourceVec = None
+            sourceVec = measMosaic.ObsVec()
 
         if debug:
             self.log.info("order : %d" % ffp.order)
@@ -1175,6 +1185,40 @@ class MosaicTask(pipeBase.CmdLineTask):
             if self.config.outputDiag:
                 self.outputDiagWcs()
 
+            for m in matchVec:
+                coeff = coeffSet[m.iexp]
+                scale = coeff.pixelScale()
+                m.mag -= 2.5 * math.log10(coeff.detJ(m.u, m.v) / scale**2)
+
+            if sourceVec.size() != 0:
+                for s in sourceVec:
+                    coeff = coeffSet[s.iexp]
+                    scale = coeff.pixelScale()
+                    s.mag -= 2.5 * math.log10(coeff.detJ(s.u, s.v) / scale**2)
+
+        else:
+
+            wcsAll = dict()
+
+            for dataRef in dataRefListUsed:
+                frameId = '%07d-%03d' % (dataRef.dataId['visit'], dataRef.dataId['ccd'])
+                md = dataRef.get('calexp_md')
+                wcsAll[frameId] = afwImage.makeWcs(md)
+                del md
+
+            for m in matchVec:
+                wcs = wcsAll['%07d-%03d' % (m.iexp, m.ichip)]
+                scale = wcs.pixelScale().asDegrees()
+                m.mag -= 2.5 * math.log10(wcs.pixArea(afwGeom.Point2D(m.x, m.y)) / scale**2)
+
+            if sourceVec.size() != 0:
+                for s in sourceVec:
+                    wcs = wcsAll['%07d-%03d' % (s.iexp, s.ichip)]
+                    scale = wcs.pixelScale().asDegrees()
+                    s.mag -= 2.5 * math.log10(wcs.pixArea(afwGeom.Point2D(s.x, s.y)) / scale**2)
+
+            del wcsAll
+
         if self.config.doSolveFlux:
 
             ffpSet = measMosaic.FfpSet()
@@ -1201,7 +1245,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 self.outputDiagFlux()
 
         if self.config.outputDiag and self.config.doSolveWcs and self.config.doSolveFlux:
-            if sourceVec != None:
+            if sourceVec.size() != 0:
                 self.writeCatalog(matchVec, sourceVec, coeffSet,
                                   os.path.join(self.config.outputDir, "catalog.fits"))
 

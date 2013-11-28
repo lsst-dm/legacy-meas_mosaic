@@ -759,9 +759,9 @@ SourceGroup KDTree::mergeMat() const {
     return sg;
 }
 
-SourceGroup KDTree::mergeSource() {
+SourceGroup KDTree::mergeSource(unsigned int minNumMatch) {
     SourceGroup sg;
-    if (this->set.size() >= 2) {
+    if (this->set.size() >= minNumMatch) {
 	double sr = 0.0;
 	double sd = 0.0;
 	double sm = 0.0;
@@ -2319,6 +2319,11 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
         writeObsVec((snapshotPath / "match-initial-1.fits").native(), matchVec);
     }
 
+    printf("Before fitting calcChi2: %e\n",
+	   calcChi2(matchVec, coeffVec, p));
+    printf("Before fitting matched: %5.3f (arcsec)\n",
+	   sqrt(calcChi2(matchVec, coeffVec, p, true))*3600.0);
+
     for (int k = 0; k < 3; k++) {
 	Eigen::VectorXd coeff = solveLinApprox(matchVec, coeffVec, nchip, p, solveCcd, allowRotation, catRMS);
 
@@ -2365,8 +2370,10 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
 	    writeObsVec((snapshotPath / (boost::format("match-iter-%d.fits") % k).str()).native(), matchVec);
 	}
 
-	double chi2 = calcChi2(matchVec, coeffVec, p);
-	printf("calcChi2: %e\n", chi2);
+	printf("%dth iteration calcChi2: %e\n", (k+1), calcChi2(matchVec, coeffVec, p));
+	printf("%dth iteration matched: %5.3f (arcsec)\n",
+	       (k+1),
+	       sqrt(calcChi2(matchVec, coeffVec, p, true))*3600.0);
 	double drm = calcChi2(matchVec, coeffVec, p, true);
 	flagObj2(matchVec, coeffVec, p, 9.0*drm, catRMS);
     }

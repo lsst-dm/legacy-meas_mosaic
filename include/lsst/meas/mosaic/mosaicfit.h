@@ -239,7 +239,7 @@ namespace lsst {
                          lsst::afw::geom::Angle d_lim=lsst::afw::geom::Angle(0, lsst::afw::geom::degrees));
 		int count(void);
 		SourceGroup mergeMat() const;
-		SourceGroup mergeSource();
+		SourceGroup mergeSource(unsigned int minNumMatch = 2);
 		void printMat() const;
 		void printSource() const;
 		bool isLeaf(void) const { return left == NULL && right == NULL; }

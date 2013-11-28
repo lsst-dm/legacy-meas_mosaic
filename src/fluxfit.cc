@@ -1557,7 +1557,6 @@ double calcChi2_abs(std::vector<Obs::Ptr> &m,
 	num++;
     }
 
-    std::cout << chi2 << " " << mag2 << " " << num << std::endl;
     if (mag)
 	return mag2 / num;
     else
@@ -1673,6 +1672,10 @@ void fluxFitRelative(ObsVec& matchVec,
 	     it != wcsDic.end(); it++, i++) {
 	    //fexp.insert(std::map<int, float>::value_type(it->first, pow(10., -0.4*fsol(i))));
 	    fexp[it->first] = pow(10., -0.4*fsol(i));
+	    // Set the flux correction value at the origin of focal plane coordinate to be zero
+	    double f0 = ffpSet[it->first]->eval(0,0);
+	    ffpSet[it->first]->coeff[0] = -f0;
+	    fexp[it->first] = pow(10., -0.4*(fsol(i)+f0));
 	}
 	if (solveCcd) {
 	    for (CcdSet::iterator it = ccdSet.begin();
@@ -1742,6 +1745,10 @@ void fluxFitAbsolute(ObsVec& matchVec,
 	     it != wcsDic.end(); it++, i++) {
 	    //fexp.insert(std::map<int, float>::value_type(it->first, pow(10., -0.4*fsol(i))));
 	    fexp[it->first] = pow(10., -0.4*fsol(i));
+	    // Set the flux correction value at the origin of focal plane coordinate to be zero
+	    double f0 = ffpSet[it->first]->eval(0,0);
+	    ffpSet[it->first]->coeff[0] = -f0;
+	    fexp[it->first] = pow(10., -0.4*(fsol(i)+f0));
 	}
 	if (solveCcd) {
 	    for (CcdSet::iterator it = ccdSet.begin();

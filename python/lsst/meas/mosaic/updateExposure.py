@@ -1,6 +1,6 @@
 import numpy
 
-from .mosaicLib import getFCorImg, FluxFitParams
+from .mosaicLib import getFCorImg, FluxFitParams, getJImg
 from lsst.pipe.base import Struct
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
@@ -49,6 +49,9 @@ def getMosaicResults(dataRef, dims=None):
     else:
         width, height = dims
     fcor = getFCorImg(ffp, width, height)
+    jcor = getJImg(wcs, width, height)
+    fcor *= jcor
+    del jcor
 
     return Struct(wcs=wcs, calib=calib, fcor=fcor)
 
