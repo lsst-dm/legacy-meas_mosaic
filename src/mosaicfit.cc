@@ -782,13 +782,13 @@ SourceGroup KDTree::mergeSource(unsigned int minNumMatch) {
     }
 
     if (this->left != NULL) {
-	SourceGroup sg_left = this->left->mergeSource();
+	SourceGroup sg_left = this->left->mergeSource(minNumMatch);
 	for (size_t i = 0; i < sg_left.size(); i++) {
 	    sg.push_back(sg_left[i]);
 	}
     }
     if (this->right != NULL) {
-	SourceGroup sg_right = this->right->mergeSource();
+	SourceGroup sg_right = this->right->mergeSource(minNumMatch);
 	for (size_t i = 0; i < sg_right.size(); i++) {
 	    sg.push_back(sg_right[i]);
 	}
