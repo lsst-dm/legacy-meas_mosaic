@@ -1501,7 +1501,6 @@ double calcChi2_rel(std::vector<Obs::Ptr> &m,
     for (int i = 0; i < nMobs; i++) {
 	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->err == -9999) continue;
 	double val = m[i]->mag - 2.5 * log10(fexp[m[i]->iexp] * fchip[m[i]->ichip]);
-	//val += p->eval(m[i]->u, m[i]->v);
 	val += ffpSet[m[i]->iexp]->eval(m[i]->u, m[i]->v);
 	chi2 += pow((val - m[i]->mag0)/m[i]->err, 2.0);
 	mag2 += pow((val - m[i]->mag0), 2.0);
@@ -1510,8 +1509,7 @@ double calcChi2_rel(std::vector<Obs::Ptr> &m,
     for (int i = 0; i < nSobs; i++) {
 	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999 || s[i]->err == -9999) continue;
 	double val = s[i]->mag - 2.5 * log10(fexp[s[i]->iexp] * fchip[s[i]->ichip]);
-	//val += p->eval(s[i]->u, s[i]->v);
-	val += ffpSet[s[i]->iexp]->eval(m[i]->u, m[i]->v);
+	val += ffpSet[s[i]->iexp]->eval(s[i]->u, s[i]->v);
 	chi2 += pow((val - s[i]->mag0)/s[i]->err, 2.0);
 	mag2 += pow((val - s[i]->mag0), 2.0);
 	num++;
@@ -1541,7 +1539,6 @@ double calcChi2_abs(std::vector<Obs::Ptr> &m,
 	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 ||
 	    m[i]->err == -9999 || m[i]->mag_cat == -9999) continue;
 	double val = m[i]->mag - 2.5 * log10(fexp[m[i]->iexp] * fchip[m[i]->ichip]);
-	//val += p->eval(m[i]->u, m[i]->v);
 	val += ffpSet[m[i]->iexp]->eval(m[i]->u, m[i]->v);
 	chi2 += pow(val - m[i]->mag_cat, 2.0) / (pow(m[i]->err, 2.0) + pow(m[i]->err_cat, 2.0));
 	mag2 += pow(val - m[i]->mag_cat, 2.0);
@@ -1550,7 +1547,6 @@ double calcChi2_abs(std::vector<Obs::Ptr> &m,
     for (int i = 0; i < nSobs; i++) {
 	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999 || s[i]->err == -9999) continue;
 	double val = s[i]->mag - 2.5 * log10(fexp[s[i]->iexp] * fchip[s[i]->ichip]);
-	//val += p->eval(s[i]->u, s[i]->v);
 	val += ffpSet[s[i]->iexp]->eval(s[i]->u, s[i]->v);
 	chi2 += pow((val - s[i]->mag0)/s[i]->err, 2.0);
 	mag2 += pow((val - s[i]->mag0), 2.0);
@@ -1578,7 +1574,6 @@ void flagObj_rel(std::vector<Obs::Ptr> &m,
     for (int i = 0; i < nMobs; i++) {
 	if (m[i]->jstar == -1 || !m[i]->good || m[i]->mag == -9999 || m[i]->err == -9999) continue;
 	double val = m[i]->mag - 2.5 * log10(fexp[m[i]->iexp] * fchip[m[i]->ichip]);
-	//val += p->eval(m[i]->u, m[i]->v);
 	val += ffpSet[m[i]->iexp]->eval(m[i]->u, m[i]->v);
 	//double r2 = pow((val - m[i]->mag0)/m[i]->err, 2.0);
 	double r2 = pow((val - m[i]->mag0), 2.0);
@@ -1590,8 +1585,7 @@ void flagObj_rel(std::vector<Obs::Ptr> &m,
     for (int i = 0; i < nSobs; i++) {
 	if (s[i]->jstar == -1 || !s[i]->good || s[i]->mag == -9999 || s[i]->err == -9999) continue;
 	double val = s[i]->mag - 2.5 * log10(fexp[s[i]->iexp] * fchip[s[i]->ichip]);
-	//val += p->eval(s[i]->u, s[i]->v);
-	val += ffpSet[s[i]->iexp]->eval(m[i]->u, m[i]->v);
+	val += ffpSet[s[i]->iexp]->eval(s[i]->u, s[i]->v);
 	//double r2 = pow((val - s[i]->mag0)/s[i]->err, 2.0);
 	double r2 = pow((val - s[i]->mag0), 2.0);
 	if (r2 > e2) {
