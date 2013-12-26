@@ -127,20 +127,37 @@ def applyCalib(catalog, calib):
     for name in fluxKeys:
         fluxField = catalog.schema.find(name).field
         newName = name.replace("flux", "mag")
-        newField = fluxField.__class__(newName, "Calibrated magnitude from %s (%s)" %
-                                       (fluxField.getName(), fluxField.getDoc()), "mag")
+        if fluxField.getElementCount() == 1:
+            newField = fluxField.__class__(newName, "Calibrated magnitude from %s (%s)" %
+                                           (fluxField.getName(), fluxField.getDoc()), "mag")
+        else:
+            newField = fluxField.__class__(newName, "Calibrated magnitude from %s (%s)" %
+                                           (fluxField.getName(), fluxField.getDoc()), "mag",
+                                           fluxField.getElementCount())
         newFluxKeys[newName] = mapper.addMapping(fluxKeys[name], newField)
         if name in errKeys:
             errField = catalog.schema.find(name + ".err").field
-            newErrField = errField.__class__(newName + ".err",
-                                          "Calibrated magnitude error from %s (%s)" %
-                                          (errField.getName(), errField.getDoc()),
-                                          "mag")
+            if errField.getElementCount() == 1:
+                newErrField = errField.__class__(newName + ".err",
+                                                 "Calibrated magnitude error from %s (%s)" %
+                                                 (errField.getName(), errField.getDoc()),
+                                                 "mag")
+            else:
+                newErrField = errField.__class__(newName + ".err",
+                                                 "Calibrated magnitude error from %s (%s)" %
+                                                 (errField.getName(), errField.getDoc()),
+                                                 "mag",
+                                                 errField.getElementCount())
             newErrKeys[newName] = mapper.addMapping(errKeys[name], newErrField)
 
     calib.setThrowOnNegativeFlux(False)
 
     newCatalog = afwTable.SourceCatalog(mapper.getOutputSchema())
+    #for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
+    #    getattr(newCatalog, "define" + slot)(getattr(catalog, "get" + slot + "Definition")())
+    newCatalog.definePsfFlux('mag.psf')
+    newCatalog.defineApFlux('mag.sinc')
+    newCatalog.defineCentroid('centroid.sdss')
     newCatalog.extend(catalog, mapper=mapper)
 
     for name, key in newFluxKeys.items():
