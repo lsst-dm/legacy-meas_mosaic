@@ -127,6 +127,10 @@ class MosaicConfig(pexConfig.Config):
     doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
     commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
 
+def setCatFlux(m, f, key):
+    m.first.set(key, f)
+    return m
+
 class MosaicTask(pipeBase.CmdLineTask):
 
     RunnerClass = MosaicRunner
@@ -251,28 +255,19 @@ class MosaicTask(pipeBase.CmdLineTask):
                     table.defineInstFlux('flux.gaussian')
                     table.defineCentroid('centroid.sdss')
                     table.defineShape('shape.sdss')
-                mm = list()
-                for m in matches:
-                    if m.first != None:
-                        mm.append(m)
-                matches = mm
+                matches = [m for m in matches if m.first != None]
                 if ct != None and len(matches) != 0:
                     refSchema = matches[0].first.schema
                     key_p = refSchema.find(ct.primary).key
                     key_s = refSchema.find(ct.secondary).key
                     key_f = refSchema.find("flux").key
-                    for m in matches:
-                        if m.first != None:
-                            refFlux1 = m.first.get(key_p)
-                            refFlux2 = m.first.get(key_s)
-                            refMag1 = -2.5*math.log10(refFlux1)
-                            refMag2 = -2.5*math.log10(refFlux2)
-                            refMag = ct.transformMags(filterName, refMag1, refMag2)
-                            refFlux = math.pow(10.0, -0.4*refMag)
-                            if refFlux == refFlux:
-                                m.first.set(key_f, refFlux)
-                            else:
-                                m.first = None
+                    refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
+                    refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
+                    refMag1 = -2.5*numpy.log10(refFlux1)
+                    refMag2 = -2.5*numpy.log10(refFlux2)
+                    refMag = ct.transformMags(filterName, refMag1, refMag2)
+                    refFlux = numpy.power(10.0, -0.4*refMag)
+                    matches = [setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
 
             selSources = self.selectStars(sources)
             selMatches = self.selectStars(matches)
@@ -295,6 +290,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         mlVisit = dict()
         dataRefListUsed = list()
         for dataRef in dataRefList:
+            #self.log.info('%d %d' % (dataRef.dataId['visit'], dataRef.dataId['ccd']))
             sources, matches, wcs = self.getAllForCcd(dataRef, astrom, ct)
             if sources != None:
                 if len(matches) > self.config.minNumMatch:
@@ -1011,6 +1007,8 @@ class MosaicTask(pipeBase.CmdLineTask):
             visit_ref = visits[j]
             for i in range(j+1, len(visits)):
                 visit_targ = visits[i]
+                refs = list()
+                targs = list()
                 mref  = list()
                 mtarg = list()
                 for mm in allMat:
@@ -1022,8 +1020,10 @@ class MosaicTask(pipeBase.CmdLineTask):
                         elif mm[k].getExp() == visit_targ:
                             j_targ = k
                     if j_ref != -1 and j_targ != -1 and mm[j_ref].getFlux() > 0 and mm[j_targ].getFlux() > 0:
-                        mref.append(-2.5*math.log10(mm[j_ref].getFlux()))
-                        mtarg.append(-2.5*math.log10(mm[j_targ].getFlux()))
+                        refs.append(mm[j_ref])
+                        targs.append(mm[j_targ])
+                        mref.append(mm[j_ref].getFlux())
+                        mtarg.append(mm[j_targ].getFlux())
                 for ss in allSource:
                     j_ref = -1
                     j_targ = -1
@@ -1033,15 +1033,18 @@ class MosaicTask(pipeBase.CmdLineTask):
                         elif ss[k].getExp() == visit_targ:
                             j_targ = k
                     if j_ref != -1 and j_targ != -1 and ss[j_ref].getFlux() > 0 and ss[j_targ].getFlux() > 0:
-                        mref.append(-2.5*math.log10(ss[j_ref].getFlux()))
-                        mtarg.append(-2.5*math.log10(ss[j_targ].getFlux()))
-                mref = numpy.array(mref)
-                mtarg = numpy.array(mtarg)
+                        refs.append(ss[j_ref])
+                        targs.append(ss[j_targ])
+                        mref.append(ss[j_ref].getFlux())
+                        mtarg.append(ss[j_targ].getFlux())
 
                 # There is no overlapping sources
                 if len(mref) < 10:
                     print '%d %d' % (visit_ref, visit_targ)
                     continue
+
+                mref = -2.5*numpy.log10(mref)
+                mtarg = -2.5*numpy.log10(mtarg)
 
                 dm = mtarg - mref
                 med = numpy.median(dm)
@@ -1049,43 +1052,26 @@ class MosaicTask(pipeBase.CmdLineTask):
                 Q3 = numpy.percentile(dm, 90)
                 SIQR = 0.5 * (Q3 - Q1)
 
+                #del mref
+                #del mtarg
+                del dm
+
                 ngood = 0
                 nbad  = 0
-                for mm in allMat:
-                    j_ref = -1
-                    j_targ = -1
-                    for k in range(1, len(mm)):
-                        if mm[k].getExp() == visit_ref:
-                            j_ref = k
-                        elif mm[k].getExp() == visit_targ:
-                            j_targ = k
-                    if j_ref != -1 and j_targ != -1 and mm[j_ref].getFlux() > 0 and mm[j_targ].getFlux() > 0:
-                        mref = -2.5*math.log10(mm[j_ref].getFlux())
-                        mtarg = -2.5*math.log10(mm[j_targ].getFlux())
-                        if math.fabs(mtarg-mref-med) > 3.0 * SIQR:
-                            mm[j_ref].setFlux(-9999)
-                            mm[j_targ].setFlux(-9999)
-                            nbad += 1
-                        else:
-                            ngood += 1
-                for ss in allSource:
-                    j_ref = -1
-                    j_targ = -1
-                    for k in range(1, len(ss)):
-                        if ss[k].getExp() == visit_ref:
-                            j_ref = k
-                        elif ss[k].getExp() == visit_targ:
-                            j_targ = k
-                    if j_ref != -1 and j_targ != -1 and ss[j_ref].getFlux() > 0 and ss[j_targ].getFlux() > 0:
-                        mref = -2.5*math.log10(ss[j_ref].getFlux())
-                        mtarg = -2.5*math.log10(ss[j_targ].getFlux())
-                        if math.fabs(mtarg-mref-med) > 3.0 * SIQR:
-                            ss[j_ref].setFlux(-9999)
-                            ss[j_targ].setFlux(-9999)
-                            nbad += 1
-                        else:
-                            ngood += 1
+                for mr, mt, ref, targ in zip(mref, mtarg, refs, targs):
+                    if math.fabs(mt-mr-med) > 3.0 * SIQR:
+                        ref.setFlux(-9999)
+                        targ.setFlux(-9999)
+                        nbad += 1
+                    else:
+                        ngood += 1
+
                 print '%d %d %6.3f %5.3f %5d %5d' % (visit_ref, visit_targ, med, SIQR, ngood, nbad)
+
+                del mref
+                del mtarg
+                del refs
+                del targs
 
     def mosaic(self, dataRefList, ct=None, debug=False, verbose=False):
 
@@ -1129,8 +1115,10 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         allMat, allSource =self.mergeCatalog(sourceSet, matchList, ccdSet, d_lim)
 
+        self.log.info("Flag suspect objects")
         self.flagSuspect(allMat, allSource, wcsDic)
 
+        self.log.info("Make obsVec")
         nmatch  = allMat.size()
         nsource = allSource.size()
         matchVec  = measMosaic.obsVecFromSourceGroup(allMat,    wcsDic, ccdSet)
