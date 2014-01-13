@@ -1116,7 +1116,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         allMat, allSource =self.mergeCatalog(sourceSet, matchList, ccdSet, d_lim)
 
         self.log.info("Flag suspect objects")
-        self.flagSuspect(allMat, allSource, wcsDic)
+        #self.flagSuspect(allMat, allSource, wcsDic)
+        measMosaic.flagSuspect(allMat, allSource, wcsDic)
 
         self.log.info("Make obsVec")
         nmatch  = allMat.size()

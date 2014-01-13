@@ -1911,6 +1911,97 @@ double calcChi2_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, CoeffSe
     return chi2;
 }
 
+int lsst::meas::mosaic::flagSuspect(SourceGroup &allMat,
+				    SourceGroup &allSource,
+				    WcsDic &wcsDic)
+{
+    std::vector<int> visits;
+    for (WcsDic::iterator it = wcsDic.begin(); it != wcsDic.end(); it++) {
+	visits.push_back(it->first);
+    }
+
+    for (size_t j = 0; j < visits.size()-1; j++) {
+	int visit_ref = visits[j];
+	for (size_t i = j+1; i < visits.size(); i++) {
+	    int visit_targ = visits[i];
+	    std::vector<PTR(Source)> refs;
+	    std::vector<PTR(Source)> targs;
+	    std::vector<double> mref;
+	    std::vector<double> mtarg;
+	    for (size_t l = 0; l < allMat.size(); l++) {
+		std::vector<PTR(Source)> mm = allMat[l];
+		int j_ref = -1;
+		int j_targ = -1;
+		for (size_t k = 1; k < mm.size(); k++) {
+		    if (mm[k]->getExp() == visit_ref) {
+			j_ref = k;
+		    } else if (mm[k]->getExp() == visit_targ) {
+			j_targ = k;
+		    }
+		}
+		if (j_ref != -1 && j_targ != -1 &&
+		    mm[j_ref]->getFlux() > 0.0 &&
+		    mm[j_targ]->getFlux() > 0.0) {
+		    refs.push_back(mm[j_ref]);
+		    targs.push_back(mm[j_targ]);
+		    mref.push_back(-2.5*log10(mm[j_ref]->getFlux()));
+		    mtarg.push_back(-2.5*log10(mm[j_targ]->getFlux()));
+		}
+	    }
+	    for (size_t l = 0; l < allSource.size(); l++) {
+		std::vector<PTR(Source)> ss = allSource[l];
+		int j_ref = -1;
+		int j_targ = -1;
+		for (size_t k = 1; k < ss.size(); k++) {
+		    if (ss[k]->getExp() == visit_ref) {
+			j_ref = k;
+		    } else if (ss[k]->getExp() == visit_targ) {
+			j_targ = k;
+		    }
+		}
+		if (j_ref != -1 && j_targ != -1 &&
+		    ss[j_ref]->getFlux() > 0.0 &&
+		    ss[j_targ]->getFlux() > 0.0) {
+		    refs.push_back(ss[j_ref]);
+		    targs.push_back(ss[j_targ]);
+		    mref.push_back(-2.5*log10(ss[j_ref]->getFlux()));
+		    mtarg.push_back(-2.5*log10(ss[j_targ]->getFlux()));
+		}
+	    }
+
+	    if (mref.size() < 10) {
+		printf("%d %d\n", visit_ref, visit_targ);
+		continue;
+	    }
+
+	    std::vector<double> dm;
+	    for (size_t k = 0; k < mref.size(); k++) {
+		dm.push_back(mtarg[k] - mref[k]);
+	    }
+	    std::sort(dm.begin(), dm.end());
+	    double med = dm[dm.size()/2];
+	    double Q1 = dm[dm.size()/10];
+	    double Q3 = dm[dm.size()*9/10];
+	    double SIQR = 0.5 * (Q3 - Q1);
+
+	    int ngood = 0;
+	    int nbad = 0;
+	    for (size_t k = 0; k < mref.size(); k++) {
+		if (fabs(mtarg[k]-mref[k]-med) > 3.0 * SIQR) {
+		    refs[k]->setFlux(-9999);
+		    targs[k]->setFlux(-9999);
+		    nbad += 1;
+		} else {
+		    ngood += 1;
+		}
+	    }
+	    printf("%d %d %6.3f %5.3f %5d %5d\n", visit_ref, visit_targ, med, SIQR, ngood, nbad);
+	}
+    }
+
+    return 0;
+}
+
 ObsVec
 lsst::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 					  WcsDic &wcsDic,

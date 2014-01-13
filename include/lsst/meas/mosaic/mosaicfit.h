@@ -258,6 +258,10 @@ namespace lsst {
 	    typedef std::map<int, Coeff::Ptr> CoeffSet;
 	    typedef std::vector<Obs::Ptr> ObsVec;
 
+	    int flagSuspect(SourceGroup &allMat,
+			    SourceGroup &allSource,
+			    WcsDic &wcsDic);
+
 	    KDTree::Ptr kdtreeMat(SourceMatchGroup &matchList);
 	    KDTree::Ptr kdtreeSource(SourceGroup const &sourceSet,
 				     KDTree::Ptr rootMat,
