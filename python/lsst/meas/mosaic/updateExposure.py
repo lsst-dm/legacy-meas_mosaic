@@ -153,11 +153,10 @@ def applyCalib(catalog, calib):
     calib.setThrowOnNegativeFlux(False)
 
     newCatalog = afwTable.SourceCatalog(mapper.getOutputSchema())
-    #for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
-    #    getattr(newCatalog, "define" + slot)(getattr(catalog, "get" + slot + "Definition")())
-    newCatalog.definePsfFlux('mag.psf')
-    newCatalog.defineApFlux('mag.sinc')
-    newCatalog.defineCentroid('centroid.sdss')
+    for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
+        oldColumn = getattr(catalog, "get" + slot + "Definition")()
+        newColumn = oldColumn.replace("flux", "mag", 1) if oldColumn.startswith("flux.") else oldColumn
+        getattr(newCatalog, "define" + slot)(newColumn)
     newCatalog.extend(catalog, mapper=mapper)
 
     for name, key in newFluxKeys.items():
