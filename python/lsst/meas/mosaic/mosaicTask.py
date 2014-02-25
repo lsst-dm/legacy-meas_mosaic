@@ -239,11 +239,9 @@ class MosaicTask(pipeBase.CmdLineTask):
             if False:
                 matches = measAstrom.readMatches(dataRef.getButler(), dataRef.dataId, config=self.config.astrom)
             else:
-                if False:
-                    icSrces = dataRef.get('icSrc', immediate=True)
-                    packedMatches = dataRef.get('icMatch', immediate=True)
-                    matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
-                else:
+                if dataRef.datasetExists('icMatchFull'):
+                    self.log.info("Reading matches from icMatchFull files for %s" % dataRef.dataId)
+                                  
                     matchFull = dataRef.get('icMatchFull', immediate=True)
                     matches = measMosaic.matchesFromCatalog(matchFull)
                     #for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
@@ -255,6 +253,12 @@ class MosaicTask(pipeBase.CmdLineTask):
                     table.defineInstFlux('flux.gaussian')
                     table.defineCentroid('centroid.sdss')
                     table.defineShape('shape.sdss')
+                else:
+                    self.log.info("Reading matches from icSrc files for %s" % dataRef.dataId)
+                    icSrces = dataRef.get('icSrc', immediate=True)
+                    packedMatches = dataRef.get('icMatch', immediate=True)
+                    matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
+
                 matches = [m for m in matches if m.first != None]
                 if ct != None and len(matches) != 0:
                     refSchema = matches[0].first.schema
