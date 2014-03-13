@@ -33,7 +33,6 @@ class CheckMosaicTask(MosaicTask):
     def _getConfigName(self):
         return None
 
-
     def makeDiffPosFlux(self, allMat, allSource, wcsDic, calibDic, ffpDic):
         dx_m = list()
         dy_m = list()
@@ -57,8 +56,10 @@ class CheckMosaicTask(MosaicTask):
                     dy_m.append((dec - dec_cat) * 3600)
                     mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
                     mcor = ffpDic[iexp][ichip].eval(x,y)
+                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
                     m0_m.append(mag_cat)
-                    dm_m.append(mag+mcor-mag_cat)
+                    dm_m.append(mag+mcor+jcor-mag_cat)
+
             if len(ss) > 2:
                 n = 0
                 ra_cat = 0.0
@@ -83,11 +84,12 @@ class CheckMosaicTask(MosaicTask):
                         mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
                         err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
                         mcor = ffpDic[iexp][ichip].eval(x,y)
-                        mag_source.append(mag+mcor)
-                        Sx += (mag+mcor) / (err*err)
+                        jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
+                        mag_source.append(mag+mcor+jcor)
+                        Sx += (mag+mcor+jcor) / (err*err)
                         S  += 1. / (err*err)
 
-                if n != 0:
+                if n != 0 and S != 0:
                     ra_cat /= n
                     dec_cat /= n
                     mag_cat = Sx / S
@@ -100,7 +102,7 @@ class CheckMosaicTask(MosaicTask):
         dx_m = numpy.array(dx_m)
         dy_m = numpy.array(dy_m)
         m0_m = numpy.array(m0_m)
-        dm_m   = numpy.array(dm_m)
+        dm_m = numpy.array(dm_m)
 
         for ss in allSource:
             n = 0
@@ -126,8 +128,9 @@ class CheckMosaicTask(MosaicTask):
                     mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
                     err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
                     mcor = ffpDic[iexp][ichip].eval(x,y)
-                    mag_source.append(mag+mcor)
-                    Sx += (mag+mcor) / (err*err)
+                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
+                    mag_source.append(mag+mcor+jcor)
+                    Sx += (mag+mcor+jcor) / (err*err)
                     S  += 1. / (err*err)
 
             if n != 0:
@@ -143,11 +146,11 @@ class CheckMosaicTask(MosaicTask):
         dx_s = numpy.array(dx_s)
         dy_s = numpy.array(dy_s)
         m0_s = numpy.array(m0_s)
-        dm_s   = numpy.array(dm_s)
+        dm_s = numpy.array(dm_s)
 
         return dx_m, dy_m, dx_s, dy_s, m0_m, dm_m, m0_s, dm_s
 
-    def makeFluxStat(self, allMat, allSource, calibDic, ffpDic):
+    def makeFluxStat(self, allMat, allSource, calibDic, ffpDic, wcsDic):
 
         x = list()
         y = list()
@@ -167,9 +170,11 @@ class CheckMosaicTask(MosaicTask):
                     if ss[j].getFlux() > 0.0:
                         mag = calibDic[iexp][ichip].getMagnitude(ss[j].getFlux())
                         err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
-                        mcor = ffpDic[iexp][ichip].eval(ss[j].getX(), ss[j].getY())
-                        Sxx += (mag+mcor)*(mag+mcor) / (err*err)
-                        Sx  += (mag+mcor) / (err*err)
+                        xs, ys = ss[j].getX(), ss[j].getY()
+                        mcor = ffpDic[iexp][ichip].eval(xs, ys)
+                        jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(xs, ys)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
+                        Sxx += (mag+mcor+jcor)*(mag+mcor+jcor) / (err*err)
+                        Sx  += (mag+mcor+jcor) / (err*err)
                         S   += 1. / (err*err)
                         Sr += ss[j].getRa().asDegrees()
                         Sd += ss[j].getDec().asDegrees()
@@ -193,9 +198,11 @@ class CheckMosaicTask(MosaicTask):
                 if calibDic[iexp][ichip].getFluxMag0()[0] > 0 and ss[j].getFlux() > 0.0:
                     mag = calibDic[iexp][ichip].getMagnitude(ss[j].getFlux())
                     err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
-                    mcor = ffpDic[iexp][ichip].eval(ss[j].getX(), ss[j].getY())
-                    Sxx += (mag+mcor)*(mag+mcor) / (err*err)
-                    Sx  += (mag+mcor) / (err*err)
+                    xs, ys = ss[j].getX(), ss[j].getY()
+                    mcor = ffpDic[iexp][ichip].eval(xs, ys)
+                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(xs, ys)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
+                    Sxx += (mag+mcor+jcor)*(mag+mcor+jcor) / (err*err)
+                    Sx  += (mag+mcor+jcor) / (err*err)
                     S   += 1. / (err*err)
                     Sr += ss[j].getRa().asDegrees()
                     Sd += ss[j].getDec().asDegrees()
@@ -398,13 +405,14 @@ class CheckMosaicTask(MosaicTask):
                 fluxMag0 = calibDic[iexp][ichip].getFluxMag0()[0]
                 flux = src.getFlux()
                 if flux > 0 and fluxMag0 > 0:
-                    corr = ffpDic[iexp][ichip].eval(x, y)
-                    outData.mag[i] = -2.5*math.log10(flux/fluxMag0) + corr
+                    mcor = ffpDic[iexp][ichip].eval(x, y)
+                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
+                    outData.mag[i] = -2.5*math.log10(flux/fluxMag0) + mcor + jcor
                     outData.err[i] = 2.5/math.log(10) * src.getFluxErr() / flux
-                    outData.corr[i] = corr
+                    outData.corr[i] = mcor + jcor
                     i += 1
 
-        outHdu.writeto("catalog.fits", clobber=True)
+        outHdu.writeto("catalog_check.fits", clobber=True)
 
 
     def check(self, dataRefList, ct=None, debug=False, verbose=False):
@@ -435,12 +443,18 @@ class CheckMosaicTask(MosaicTask):
                 if not dataRef.datasetExists('wcs'):
                     raise RuntimeError("no data for wcs %s" % (dataRef.dataId))
 
+                if not dataRef.datasetExists('fcr'):
+                    raise RuntimeError("no data for fcr %s" % (dataRef.dataId))
+
                 md = dataRef.get('wcs_md')
                 wcs = afwImage.makeWcs(md)
-                calib = afwImage.Calib(md)
+
+                md = dataRef.get('calexp_md')
+                filterName = afwImage.Filter(md).getName()
 
                 md = dataRef.get('fcr_md')
                 ffp = measMosaic.FluxFitParams(md)
+                calib = afwImage.Calib(md)
 
                 sources = dataRef.get('src',
                               flags=afwTable.SOURCE_IO_NO_FOOTPRINTS,
@@ -452,12 +466,8 @@ class CheckMosaicTask(MosaicTask):
                 packedMatches = dataRef.get('icMatch')
                 matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
 
-                mm = list()
-                for m in matches:
-                    if m.first != None:
-                        mm.append(m)
-                matches = mm
-                if ct != None:
+                matches = [m for m in matches if m.first != None]
+                if ct != None and len(matches) != 0:
                     refSchema = matches[0].first.schema
                     key_p = refSchema.find(ct.primary).key
                     key_s = refSchema.find(ct.secondary).key
@@ -467,13 +477,12 @@ class CheckMosaicTask(MosaicTask):
                         refFlux2 = m.first.get(key_s)
                         refMag1 = -2.5*math.log10(refFlux1)
                         refMag2 = -2.5*math.log10(refFlux2)
-                        refMag = ct.transformMags(ct.primary, refMag1, refMag2)
+                        refMag = ct.transformMags(filterName, refMag1, refMag2)
                         refFlux = math.pow(10.0, -0.4*refMag)
                         if refFlux == refFlux:
                             m.first.set(key_f, refFlux)
                         else:
                             m.first = None
-                            print 'refFlux ', refFlux
                 sources = self.selectStars(sources)
                 matches = self.selectStars(matches, True)
             except Exception, e:
@@ -511,7 +520,7 @@ class CheckMosaicTask(MosaicTask):
  
         dx_m, dy_m, dx_s, dy_s, m0_m, dm_m, m0_s, dm_s  = self.makeDiffPosFlux(allMat, allSource, wcsDic, calibDic, ffpDic)
         self.plotFlux(m0_m, dm_m, m0_s, dm_s)
-        self.makeFluxStat(allMat, allSource, calibDic, ffpDic)
+        self.makeFluxStat(allMat, allSource, calibDic, ffpDic, wcsDic)
         self.plotPos(dx_m, dy_m, dx_s, dy_s)
         self.plotPosAsMag(m0_s, dx_s, dy_s)
         self.writeCatalog(allSource, wcsDic, calibDic, ffpDic)
@@ -528,9 +537,9 @@ class CheckMosaicTask(MosaicTask):
             from lsst.obs.suprimecam.colorterms import colortermsData
             Colorterm.setColorterms(colortermsData)
             Colorterm.setActiveDevice("Hamamatsu")
-        elif camera == 'hscSim':
+        elif camera == 'hsc':
             from lsst.meas.photocal.colorterms import Colorterm
-            from lsst.obs.hscSim.colorterms import colortermsData
+            from lsst.obs.hsc.colorterms import colortermsData
             Colorterm.setColorterms(colortermsData)
             Colorterm.setActiveDevice("Hamamatsu")
 
