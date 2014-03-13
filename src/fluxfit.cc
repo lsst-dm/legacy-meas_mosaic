@@ -1656,6 +1656,9 @@ void fluxFitRelative(ObsVec& matchVec,
 
     for (int k = 0; k < 3; k++) {
 	Eigen::VectorXd fsol;
+	for (WcsDic::iterator it = wcsDic.begin(); it != wcsDic.end(); it++) {
+	    ffpSet[it->first]->coeff[0] = 0.0;
+	}
 	if (common) {
 	    fsol = fluxFit_rel1(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffpSet, solveCcd);
 	} else {
@@ -1698,6 +1701,11 @@ void fluxFitRelative(ObsVec& matchVec,
 	printf(" %8d", it->first);
     }
     printf("\n");
+    printf("FFP:   ");
+    for (FfpSet::iterator it = ffpSet.begin(); it != ffpSet.end(); it++) {
+	printf(" %8.5f", ffpSet[it->first]->eval(0,0));
+    }
+    printf("\n");
     FluxFitParams::Ptr ffp = ffpSet[ffpSet.begin()->first];
     for (int i = 0; i < ffp->ncoeff; i++) {
 	printf("FFP: %2d", i);
@@ -1729,6 +1737,9 @@ void fluxFitAbsolute(ObsVec& matchVec,
 
     for (int k = 0; k < 3; k++) {
 	Eigen::VectorXd fsol;
+	for (WcsDic::iterator it = wcsDic.begin(); it != wcsDic.end(); it++) {
+	    ffpSet[it->first]->coeff[0] = 0.0;
+	}
 	if (common) {
 	    fsol = fluxFit_abs1(matchVec, nmatch, sourceVec, nsource, nexp, nchip, ffpSet, solveCcd);
 	} else {
@@ -1769,6 +1780,11 @@ void fluxFitAbsolute(ObsVec& matchVec,
     printf("FFP:   ");
     for (FfpSet::iterator it = ffpSet.begin(); it != ffpSet.end(); it++) {
 	printf(" %8d", it->first);
+    }
+    printf("\n");
+    printf("FFP:   ");
+    for (FfpSet::iterator it = ffpSet.begin(); it != ffpSet.end(); it++) {
+	printf(" %8.5f", ffpSet[it->first]->eval(0,0));
     }
     printf("\n");
     FluxFitParams::Ptr ffp = ffpSet[ffpSet.begin()->first];
