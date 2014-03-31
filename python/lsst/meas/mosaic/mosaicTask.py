@@ -417,7 +417,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         return u_max, v_max
 
-    def plotCcd(self, coeffx0, coeffy0):
+    def plotCcd(self, coeffx0=0, coeffy0=0):
         for ccd in self.ccdSet.values():
             w = ccd.getAllPixels(True).getWidth()
             h = ccd.getAllPixels(True).getHeight()
@@ -1371,10 +1371,13 @@ class MosaicTask(pipeBase.CmdLineTask):
             return None
 
         if self.config.doColorTerms:
-            ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
-            self.log.info('color term: '+str(ct))
+            ct = Colorterm.getColorterm(butler.mapper.filters.get(filters[0]))
         else:
             ct = None
+
+        if ct is None:
             self.log.info("Not applying color term")
+        else:
+            self.log.info('color term: '+str(ct))
 
         return self.mosaic(dataRefList, ct, debug, verbose)
