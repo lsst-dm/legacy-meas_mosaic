@@ -1,3 +1,4 @@
+import re
 import numpy
 
 from .mosaicLib import getFCorImg, FluxFitParams, getJImg
@@ -175,11 +176,11 @@ def applyCalib(catalog, calib):
 def getFluxKeys(schema):
     """Retrieve the flux and flux error keys from a schema
 
-    Both are returned as dicts indexed on the flux name (e.g., "flux.psf").
+    Both are returned as dicts indexed on the flux name (e.g. "flux.psf" or "cmodel.flux").
     """
     schemaKeys = dict((s.field.getName(), s.key) for s in schema)
-    fluxKeys = dict((name, key) for name, key in schemaKeys.items() if name.startswith("flux.") and
-                    name.count(".") == 1)
+    fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
+                    re.search(r"^(flux\.\w+|\w+\.flux)$", name))
     errKeys = dict((name, schemaKeys[name + ".err"]) for name in fluxKeys.keys() if
                    name + ".err" in schemaKeys)
     return fluxKeys, errKeys
