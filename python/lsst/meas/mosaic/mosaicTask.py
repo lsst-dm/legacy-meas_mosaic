@@ -956,7 +956,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.log.info("Output Diagnostic Figures...")
 
         if not os.path.isdir(self.outputDir):
-            os.mkdir(self.outputDir)
+            os.makedirs(self.outputDir)
 
         f = open(os.path.join(self.outputDir, "coeffs.dat"), "wt")
         for iexp in self.coeffSet.keys():
@@ -986,7 +986,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.log.info("Output Diagnostic Figures...")
 
         if not os.path.isdir(self.outputDir):
-            os.mkdir(self.outputDir)
+            os.makedirs(self.outputDir)
 
         for iexp in self.wcsDic.keys():
             self.plotFCorCont(iexp)
@@ -1083,7 +1083,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         if ((self.config.outputDiag or self.config.outputSnapshots)
             and not os.path.isdir(self.config.outputDir)):
-            os.mkdir(self.config.outputDir)
+            os.makedirs(self.config.outputDir)
 
         if self.config.nBrightest != 0:
             self.log.fatal('Config paremeter nBrightest is deprecated.')
