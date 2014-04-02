@@ -1,6 +1,7 @@
 from lsst.pipe.base import CmdLineTask, ArgumentParser
 from lsst.pex.config import Config, Field
 from .updateExposure import applyMosaicResultsExposure, applyMosaicResultsCatalog, applyCalib
+from .dataIds import PerTractRawDataIdContainer
 
 class CalibrateCatalogConfig(Config):
     doApplyCalib = Field(dtype=bool, default=True, doc="Calibrate fluxes to magnitudes?")
@@ -12,7 +13,8 @@ class CalibrateCatalogTask(CmdLineTask):
     @classmethod
     def _makeArgumentParser(cls):
         parser = ArgumentParser(name=cls._DefaultName)
-        parser.add_id_argument(name="--id", datasetType="src", help="data ID, e.g. --id visit=12345 ccd=1,2")
+        parser.add_id_argument("--id", "wcs", help="data ID, with raw CCD keys + tract",
+                               ContainerClass=PerTractRawDataIdContainer)
         return parser
 
     def run(self, dataRef):
@@ -38,12 +40,13 @@ class CalibrateExposureTask(CmdLineTask):
     @classmethod
     def _makeArgumentParser(cls):
         parser = ArgumentParser(name=cls._DefaultName)
-        parser.add_id_argument(name="--id", datasetType="calexp", help="data ID, e.g. --id visit=12345 ccd=6")
+        parser.add_id_argument("--id", "wcs", help="data ID, with raw CCD keys + tract",
+                               ContainerClass=PerTractRawDataIdContainer)
         return parser
 
     def run(self, dataRef):
-        calexp = applyMosaicResultsExposure(dataRef)
-        dataRef.put(results.catalog, "calibrated_exp")
+        results = applyMosaicResultsExposure(dataRef)
+        dataRef.put(results.exposure, "calibrated_exp")
 
     def writeConfig(self, *args, **kwargs):
         pass
