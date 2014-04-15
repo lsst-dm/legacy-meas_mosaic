@@ -22,6 +22,8 @@ import lsst.meas.mosaic.mosaicLib       as measMosaic
 import lsst.meas.astrom.astrom          as measAstrom
 from lsst.meas.photocal.colorterms import Colorterm
 
+from .dataIds import PerTractRawDataIdContainer
+
 class MosaicRunner(pipeBase.TaskRunner):
     """Subclass of TaskRunner for MosaicTask
 
@@ -37,11 +39,17 @@ class MosaicRunner(pipeBase.TaskRunner):
 
     @staticmethod
     def getTargetList(parsedCmd, **kwargs):
+        # organize data IDs by tract
+        refListDict = {}
+        for ref in parsedCmd.id.refList:
+            refListDict.setdefault(ref.dataId["tract"], []).append(ref)
+        # we call run() once with each tract
         return [(parsedCmd.butler.mapper.getCameraName(),
                  parsedCmd.butler,
-                 list(parsedCmd.id.refList),
+                 tract,
+                 refListDict[tract],
                  parsedCmd.debug
-                 )]
+                 ) for tract in sorted(refListDict.keys())]
 
     def __call__(self, args):
         task = self.TaskClass(config=self.config, log=self.log)
@@ -121,6 +129,10 @@ class MosaicConfig(pexConfig.Config):
         doc="Minimum number of sources to be merged.",
         dtype=int,
         default=2, min=0)
+    requireTractOverlap = pexConfig.Field(
+        doc="If True, ignore CCDs that don't overlap the current tract",
+        dtype=bool,
+        default=True)
     astrom = pexConfig.ConfigField(dtype=measAstrom.MeasAstromConfig, doc="Configuration for readMatches")
     doColorTerms = pexConfig.Field(dtype=bool, default=True, doc="Apply color terms as part of solution?")
     doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
@@ -137,6 +149,13 @@ class MosaicTask(pipeBase.CmdLineTask):
     canMultiprocess = False
     ConfigClass = MosaicConfig
     _DefaultName = "Mosaic"
+
+    @classmethod
+    def _makeArgumentParser(cls):
+        parser = pipeBase.ArgumentParser(name=cls._DefaultName)
+        parser.add_id_argument("--id", "wcs", help="data ID, with raw CCD keys + tract",
+                               ContainerClass=PerTractRawDataIdContainer)
+        return parser
 
     def readCcd(self, dataRefList):
         self.log.info("Reading CCD info ...")
@@ -224,8 +243,9 @@ class MosaicTask(pipeBase.CmdLineTask):
                 stars.append(includeSource)
         return stars
 
-    def getAllForCcd(self, dataRef, astrom, ct=None):
-
+    def getAllForCcd(self, dataRef, astrom, tractInfo, ct=None):
+        tractBBox = afwGeom.Box2D(tractInfo.getBBox())
+        tractWcs = tractInfo.getWcs()
         try:
             if not dataRef.datasetExists('src'):
                 raise RuntimeError("no data for src %s" % (dataRef.dataId))
@@ -234,6 +254,16 @@ class MosaicTask(pipeBase.CmdLineTask):
             md = dataRef.get('calexp_md', immediate=True)
             wcs = afwImage.makeWcs(md)
             filterName = afwImage.Filter(md).getName()
+
+            if self.config.requireTractOverlap:
+                naxis1, naxis2 = md.get('NAXIS1'), md.get('NAXIS2')
+                bbox = afwGeom.Box2D(afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2)))
+                for corner in bbox.getCorners():
+                    if tractBBox.contains(tractWcs.skyToPixel(wcs.pixelToSky(corner))):
+                        break
+                else:  # when there's no break i.e. no corner was in the tract
+                    self.log.warn("Image %s does not overlap tract %s" % (dataRef.dataId, tractInfo.getId()))
+                    return None, None, None
 
             sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
             if False:
@@ -283,7 +313,7 @@ class MosaicTask(pipeBase.CmdLineTask):
     
         return selSources, selMatches, wcs
 
-    def readCatalog(self, dataRefList, ct=None):
+    def readCatalog(self, dataRefList, tractInfo, ct=None):
         self.log.info("Reading catalogs ...")
 
         sourceSet = measMosaic.SourceGroup()
@@ -295,7 +325,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         dataRefListUsed = list()
         for dataRef in dataRefList:
             #self.log.info('%d %d' % (dataRef.dataId['visit'], dataRef.dataId['ccd']))
-            sources, matches, wcs = self.getAllForCcd(dataRef, astrom, ct)
+            sources, matches, wcs = self.getAllForCcd(dataRef, astrom, tractInfo, ct)
             if sources != None:
                 if len(matches) > self.config.minNumMatch:
                     if not dataRef.dataId['visit'] in ssVisit.keys():
@@ -1077,13 +1107,15 @@ class MosaicTask(pipeBase.CmdLineTask):
                 del refs
                 del targs
 
-    def mosaic(self, dataRefList, ct=None, debug=False, verbose=False):
+    def mosaic(self, dataRefList, tractInfo, ct=None, debug=False, verbose=False):
 
         self.log.info(str(self.config))
 
+        self.outputDir = os.path.join(self.config.outputDir, "%04d" % tractInfo.getId())
+
         if ((self.config.outputDiag or self.config.outputSnapshots)
-            and not os.path.isdir(self.config.outputDir)):
-            os.makedirs(self.config.outputDir)
+            and not os.path.isdir(self.outputDir)):
+            os.makedirs(self.outputDir)
 
         if self.config.nBrightest != 0:
             self.log.fatal('Config paremeter nBrightest is deprecated.')
@@ -1091,7 +1123,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.log.fatal('Exiting ...')
             return []
 
-        sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefList, ct)
+        sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefList, tractInfo, ct)
 
         ccdSet = self.readCcd(dataRefListUsed)
 
@@ -1149,7 +1181,6 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.log.info("solveCcd : %r " % solveCcd)
             self.log.info("allowRotation : %r" % allowRotation)
 
-        self.outputDir = self.config.outputDir
         self.matchVec = matchVec
         self.sourceVec = sourceVec
         self.wcsDic = wcsDic
@@ -1163,13 +1194,13 @@ class MosaicTask(pipeBase.CmdLineTask):
                                                       wcsDic, ccdSet, #ffpSet, fexp, fchip,
                                                       solveCcd, allowRotation, #solveCcdScale,
                                                       verbose, catRMS,
-                                                      self.config.outputSnapshots, self.config.outputDir)
+                                                      self.config.outputSnapshots, self.outputDir)
             else:
                 coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
                                                            wcsDic, ccdSet, #ffpSet, fexp, fchip,
                                                            solveCcd, allowRotation, #solveCcdScale,
                                                            verbose, catRMS,
-                                                           self.config.outputSnapshots, self.config.outputDir)
+                                                           self.config.outputSnapshots, self.outputDir)
 
             self.coeffSet = coeffSet
 
@@ -1240,7 +1271,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         if self.config.outputDiag and self.config.doSolveWcs and self.config.doSolveFlux:
             if sourceVec.size() != 0:
                 self.writeCatalog(matchVec, sourceVec, coeffSet,
-                                  os.path.join(self.config.outputDir, "catalog.fits"))
+                                  os.path.join(self.outputDir, "catalog.fits"))
 
         return wcsDic.keys()
 
@@ -1359,7 +1390,10 @@ class MosaicTask(pipeBase.CmdLineTask):
         catalog.writeFits(name)
 
 
-    def run(self, camera, butler, dataRefList, debug, verbose=False):
+    def run(self, camera, butler, tract, dataRefList, debug, verbose=False):
+        self.log.info("Running self-calibration for tract %d" % tract)
+        skyMap = butler.get("deepCoadd_skyMap", immediate=True)
+        tractInfo = skyMap[tract]
 
         filters = list()
         for dataRef in dataRefList:
@@ -1380,4 +1414,4 @@ class MosaicTask(pipeBase.CmdLineTask):
         else:
             self.log.info('color term: '+str(ct))
 
-        return self.mosaic(dataRefList, ct, debug, verbose)
+        return self.mosaic(dataRefList, tractInfo, ct, debug, verbose)
