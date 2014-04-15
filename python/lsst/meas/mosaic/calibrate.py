@@ -42,8 +42,8 @@ class CalibrateExposureTask(CmdLineTask):
         return parser
 
     def run(self, dataRef):
-        calexp = applyMosaicResultsExposure(dataRef)
-        dataRef.put(results.catalog, "calibrated_exp")
+        results = applyMosaicResultsExposure(dataRef)
+        dataRef.put(results.exposure, "calibrated_exp")
 
     def writeConfig(self, *args, **kwargs):
         pass
