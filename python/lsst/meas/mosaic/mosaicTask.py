@@ -1111,9 +1111,11 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         self.log.info(str(self.config))
 
+        self.outputDir = os.path.join(self.config.outputDir, "%04d" % tractInfo.getId())
+
         if ((self.config.outputDiag or self.config.outputSnapshots)
-            and not os.path.isdir(self.config.outputDir)):
-            os.mkdir(self.config.outputDir)
+            and not os.path.isdir(self.outputDir)):
+            os.makedirs(self.outputDir)
 
         if self.config.nBrightest != 0:
             self.log.fatal('Config paremeter nBrightest is deprecated.')
@@ -1179,7 +1181,6 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.log.info("solveCcd : %r " % solveCcd)
             self.log.info("allowRotation : %r" % allowRotation)
 
-        self.outputDir = self.config.outputDir
         self.matchVec = matchVec
         self.sourceVec = sourceVec
         self.wcsDic = wcsDic
@@ -1193,13 +1194,13 @@ class MosaicTask(pipeBase.CmdLineTask):
                                                       wcsDic, ccdSet, #ffpSet, fexp, fchip,
                                                       solveCcd, allowRotation, #solveCcdScale,
                                                       verbose, catRMS,
-                                                      self.config.outputSnapshots, self.config.outputDir)
+                                                      self.config.outputSnapshots, self.outputDir)
             else:
                 coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
                                                            wcsDic, ccdSet, #ffpSet, fexp, fchip,
                                                            solveCcd, allowRotation, #solveCcdScale,
                                                            verbose, catRMS,
-                                                           self.config.outputSnapshots, self.config.outputDir)
+                                                           self.config.outputSnapshots, self.outputDir)
 
             self.coeffSet = coeffSet
 
@@ -1270,7 +1271,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         if self.config.outputDiag and self.config.doSolveWcs and self.config.doSolveFlux:
             if sourceVec.size() != 0:
                 self.writeCatalog(matchVec, sourceVec, coeffSet,
-                                  os.path.join(self.config.outputDir, "catalog.fits"))
+                                  os.path.join(self.outputDir, "catalog.fits"))
 
         return wcsDic.keys()
 
