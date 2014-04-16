@@ -20,7 +20,7 @@ import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
 import lsst.meas.mosaic.mosaicLib       as measMosaic
 import lsst.meas.astrom.astrom          as measAstrom
-from lsst.meas.photocal.colorterms import Colorterm
+from lsst.meas.photocal.colorterms import ColortermLibraryConfig
 
 class MosaicRunner(pipeBase.TaskRunner):
     """Subclass of TaskRunner for MosaicTask
@@ -126,6 +126,7 @@ class MosaicConfig(pexConfig.Config):
     doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
     doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
     commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
+    colorterms = pexConfig.ConfigField(dtype=ColortermLibraryConfig, doc="Color term library")
 
 def setCatFlux(m, f, key):
     m.first.set(key, f)
@@ -269,7 +270,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                     refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
                     refMag1 = -2.5*numpy.log10(refFlux1)
                     refMag2 = -2.5*numpy.log10(refFlux2)
-                    refMag = ct.transformMags(filterName, refMag1, refMag2)
+                    refMag = ct.transformMags(refMag1, refMag2)
                     refFlux = numpy.power(10.0, -0.4*refMag)
                     matches = [setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
 
@@ -1371,7 +1372,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             return None
 
         if self.config.doColorTerms:
-            ct = Colorterm.getColorterm(butler.mapper.filters.get(filters[0]))
+            ct = self.config.colorterms.selectColorTerm(filters[0])
         else:
             ct = None
 

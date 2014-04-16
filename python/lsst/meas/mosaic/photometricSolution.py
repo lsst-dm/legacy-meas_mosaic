@@ -6,7 +6,6 @@ import lsst.afw.cameraGeom.utils        as cameraGeomUtils
 import lsst.afw.geom                    as afwGeom
 import lsst.afw.image                   as afwImage
 from lsst.meas.photocal import PhotoCalTask
-from lsst.meas.photocal.colorterms import Colorterm
 
 class PhotometricSolutionConfig(PhotoCalTask.ConfigClass):
     fluxFitOrder = pexConfig.Field(
@@ -56,7 +55,7 @@ class PhotometricSolutionTask(PhotoCalTask):
     def run(self, matchLists, filterName, wcsList, butler):
 
         if self.config.applyColorTerms:
-            ct = Colorterm.getColorterm(filterName)
+            ct = self.config.colorterms.selectColorTerm(filterName)
         else:
             ct = None
 
@@ -83,7 +82,7 @@ class PhotometricSolutionTask(PhotoCalTask):
                 refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
                 refMag1 = -2.5*numpy.log10(refFlux1)
                 refMag2 = -2.5*numpy.log10(refFlux2)
-                refMag = ct.transformMags(filterName, refMag1, refMag2)
+                refMag = ct.transformMags(refMag1, refMag2)
                 refFlux = numpy.power(10.0, -0.4*refMag)
                 matches = [self.setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
 
