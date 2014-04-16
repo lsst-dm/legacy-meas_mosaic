@@ -1058,8 +1058,8 @@ Eigen::VectorXd fluxFit_abs(std::vector<Obs::Ptr> &m,
 	    a_data(nexp+s[i]->jchip, nexp+nchip+ncoeff*nFfp+s[i]->jstar) += is2;
 
 	    for (int j = 0; j < ncoeff; j++) {
-		a_data(nexp+nchip+j, s[i]->jexp) -= pu(j) * pv(j) * is2;
-		a_data(nexp+nchip+j, nexp+s[i]->jchip) -= pu(j) * pv(j) * is2;
+		a_data(nexp+nchip+ncoeff*s[i]->jexp+j, s[i]->jexp) -= pu(j) * pv(j) * is2;
+		a_data(nexp+nchip+ncoeff*s[i]->jexp+j, nexp+s[i]->jchip) -= pu(j) * pv(j) * is2;
 		for (int k = 0; k < ncoeff; k++) {
 		    a_data(nexp+nchip+ncoeff*s[i]->jexp+j, nexp+nchip+ncoeff*s[i]->jexp+k) -= pu(j) * pv(j) * pu(k) * pv(k) * is2;
 		}
