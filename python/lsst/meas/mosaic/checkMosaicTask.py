@@ -1,3 +1,4 @@
+import os
 import math
 import numpy
 
@@ -16,6 +17,8 @@ import lsst.meas.astrom.astrom          as measAstrom
 import lsst.afw.image                   as afwImage
 import lsst.afw.geom                    as afwGeom
 import lsst.afw.table                   as afwTable
+
+from lsst.meas.photocal.colorterms import ColortermLibraryConfig
 
 class CheckMosaicConfig(MosaicConfig):
     maxMag = pexConfig.Field(
@@ -477,7 +480,7 @@ class CheckMosaicTask(MosaicTask):
                         refFlux2 = m.first.get(key_s)
                         refMag1 = -2.5*math.log10(refFlux1)
                         refMag2 = -2.5*math.log10(refFlux2)
-                        refMag = ct.transformMags(filterName, refMag1, refMag2)
+                        refMag = ct.transformMags(refMag1, refMag2)
                         refFlux = math.pow(10.0, -0.4*refMag)
                         if refFlux == refFlux:
                             m.first.set(key_f, refFlux)
@@ -527,21 +530,10 @@ class CheckMosaicTask(MosaicTask):
 
     def run(self, camera, butler, dataRefList, debug):
 
-        if camera == 'suprimecam-mit':
-            from lsst.meas.photocal.colorterms import Colorterm
-            from lsst.obs.suprimecam.colorterms import colortermsData
-            Colorterm.setColorterms(colortermsData)
-            Colorterm.setActiveDevice("MIT")
-        elif camera == 'suprimecam':
-            from lsst.meas.photocal.colorterms import Colorterm
-            from lsst.obs.suprimecam.colorterms import colortermsData
-            Colorterm.setColorterms(colortermsData)
-            Colorterm.setActiveDevice("Hamamatsu")
-        elif camera == 'hsc':
-            from lsst.meas.photocal.colorterms import Colorterm
-            from lsst.obs.hsc.colorterms import colortermsData
-            Colorterm.setColorterms(colortermsData)
-            Colorterm.setActiveDevice("Hamamatsu")
+        colorterms = ColortermLibraryConfig()
+        name = os.path.join(os.environ["OBS_SUBARU_DIR"], "config", camera, "colorterms.py")
+        if os.path.exists(name):
+            colorterms.load(name)
 
         filters = list()
         for dataRef in dataRefList:
@@ -552,7 +544,7 @@ class CheckMosaicTask(MosaicTask):
             self.log.fatal("There are %d filters in input frames" % len(filters))
             return None
 
-        ct = Colorterm.getColorterm(butler.mapper.filters[filters[0]])
+        ct = colorterms.selectColorTerm(butler.mapper.filters[filters[0]])
 
         return self.check(dataRefList, ct, debug)
 
