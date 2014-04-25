@@ -244,9 +244,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 stars.append(includeSource)
         return stars
 
-    def getAllForCcd(self, dataRef, astrom, tractInfo, ct=None):
-        tractBBox = afwGeom.Box2D(tractInfo.getBBox())
-        tractWcs = tractInfo.getWcs()
+    def getAllForCcd(self, dataRef, astrom, ct=None, verbose=False):
         try:
             if not dataRef.datasetExists('src'):
                 raise RuntimeError("no data for src %s" % (dataRef.dataId))
@@ -256,22 +254,13 @@ class MosaicTask(pipeBase.CmdLineTask):
             wcs = afwImage.makeWcs(md)
             filterName = afwImage.Filter(md).getName()
 
-            if self.config.requireTractOverlap:
-                naxis1, naxis2 = md.get('NAXIS1'), md.get('NAXIS2')
-                bbox = afwGeom.Box2D(afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2)))
-                for corner in bbox.getCorners():
-                    if tractBBox.contains(tractWcs.skyToPixel(wcs.pixelToSky(corner))):
-                        break
-                else:  # when there's no break i.e. no corner was in the tract
-                    self.log.warn("Image %s does not overlap tract %s" % (dataRef.dataId, tractInfo.getId()))
-                    return None, None, None
-
             sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
             if False:
                 matches = measAstrom.readMatches(dataRef.getButler(), dataRef.dataId, config=self.config.astrom)
             else:
                 if dataRef.datasetExists('icMatchFull'):
-                    self.log.info("Reading matches from icMatchFull files for %s" % dataRef.dataId)
+                    if verbose:
+                        self.log.info("Reading matches from icMatchFull files for %s" % dataRef.dataId)
                                   
                     matchFull = dataRef.get('icMatchFull', immediate=True)
                     matches = measMosaic.matchesFromCatalog(matchFull)
@@ -285,7 +274,8 @@ class MosaicTask(pipeBase.CmdLineTask):
                     table.defineCentroid('centroid.sdss')
                     table.defineShape('shape.sdss')
                 else:
-                    self.log.info("Reading matches from icSrc files for %s" % dataRef.dataId)
+                    if verbose:
+                        self.log.info("Reading matches from icSrc files for %s" % dataRef.dataId)
                     icSrces = dataRef.get('icSrc', immediate=True)
                     packedMatches = dataRef.get('icMatch', immediate=True)
                     matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
@@ -314,7 +304,7 @@ class MosaicTask(pipeBase.CmdLineTask):
     
         return selSources, selMatches, wcs
 
-    def readCatalog(self, dataRefList, tractInfo, ct=None):
+    def readCatalog(self, dataRefList, ct=None, verbose=False):
         self.log.info("Reading catalogs ...")
 
         sourceSet = measMosaic.SourceGroup()
@@ -326,7 +316,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         dataRefListUsed = list()
         for dataRef in dataRefList:
             #self.log.info('%d %d' % (dataRef.dataId['visit'], dataRef.dataId['ccd']))
-            sources, matches, wcs = self.getAllForCcd(dataRef, astrom, tractInfo, ct)
+            sources, matches, wcs = self.getAllForCcd(dataRef, astrom, ct, verbose)
             if sources != None:
                 if len(matches) > self.config.minNumMatch:
                     if not dataRef.dataId['visit'] in ssVisit.keys():
@@ -1108,6 +1098,44 @@ class MosaicTask(pipeBase.CmdLineTask):
                 del refs
                 del targs
 
+    def checkOverlapWithTract(self, tractInfo, dataRefList, verbose=False):
+        dataRefListExists = list()
+        dataRefListOverlapWithTract = list()
+        tractBBox = afwGeom.Box2D(tractInfo.getBBox())
+        tractWcs = tractInfo.getWcs()
+        for dataRef in dataRefList:
+            if not dataRef.datasetExists('calexp_md'):
+                raise RuntimeError("no data for calexp_md %s" % (dataRef.dataId))
+            md = dataRef.get('calexp_md', immediate=True)
+            wcs = afwImage.makeWcs(md)
+
+            dataRefListExists.append(dataRef)
+
+            if self.config.requireTractOverlap:
+                naxis1, naxis2 = md.get('NAXIS1'), md.get('NAXIS2')
+                bbox = afwGeom.Box2D(afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2)))
+                overlap = False
+                for corner in bbox.getCorners():
+                    if tractBBox.contains(tractWcs.skyToPixel(wcs.pixelToSky(corner))):
+                        overlap = True
+                        break
+                if overlap:
+                    dataRefListOverlapWithTract.append(dataRef)
+                else:  # when there's no break i.e. no corner was in the tract
+                    if verbose:
+                        self.log.warn("Image %s does not overlap tract %s" % (dataRef.dataId, tractInfo.getId()))
+            else:
+                dataRefListOverlapWithTract.append(dataRef)
+
+        visitListOverlapWithTract = list(set([d.dataId['visit'] for d in dataRefListOverlapWithTract]))
+
+        dataRefListToUse = list()
+        for dataRef in dataRefListExists:
+            if dataRef.dataId['visit'] in visitListOverlapWithTract:
+                dataRefListToUse.append(dataRef)
+
+        return dataRefListOverlapWithTract, dataRefListToUse
+
     def mosaic(self, dataRefList, tractInfo, ct=None, debug=False, verbose=False):
 
         self.log.info(str(self.config))
@@ -1124,7 +1152,11 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.log.fatal('Exiting ...')
             return []
 
-        sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefList, tractInfo, ct)
+        dataRefListOverlapWithTract, dataRefListToUse = self.checkOverlapWithTract(tractInfo, dataRefList)
+
+        sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefListToUse, ct, verbose)
+
+        dataRefListToOutput = list(set(dataRefListUsed) & set(dataRefListOverlapWithTract))
 
         ccdSet = self.readCcd(dataRefListUsed)
 
@@ -1205,7 +1237,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
             self.coeffSet = coeffSet
 
-            self.writeNewWcs(dataRefListUsed)
+            self.writeNewWcs(dataRefListToOutput)
 
             if self.config.outputDiag:
                 self.outputDiagWcs()
@@ -1264,7 +1296,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.fexp = fexp
             self.fchip = fchip
 
-            self.writeFcr(dataRefListUsed)
+            self.writeFcr(dataRefListToOutput)
 
             if self.config.outputDiag:
                 self.outputDiagFlux()
