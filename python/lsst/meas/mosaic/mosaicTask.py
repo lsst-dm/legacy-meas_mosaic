@@ -1104,28 +1104,31 @@ class MosaicTask(pipeBase.CmdLineTask):
         tractBBox = afwGeom.Box2D(tractInfo.getBBox())
         tractWcs = tractInfo.getWcs()
         for dataRef in dataRefList:
-            if not dataRef.datasetExists('calexp_md'):
-                raise RuntimeError("no data for calexp_md %s" % (dataRef.dataId))
-            md = dataRef.get('calexp_md', immediate=True)
-            wcs = afwImage.makeWcs(md)
+            try:
+                if not dataRef.datasetExists('calexp_md'):
+                    raise RuntimeError("no data for calexp_md %s" % (dataRef.dataId))
+                md = dataRef.get('calexp_md', immediate=True)
+                wcs = afwImage.makeWcs(md)
 
-            dataRefListExists.append(dataRef)
+                dataRefListExists.append(dataRef)
 
-            if self.config.requireTractOverlap:
-                naxis1, naxis2 = md.get('NAXIS1'), md.get('NAXIS2')
-                bbox = afwGeom.Box2D(afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2)))
-                overlap = False
-                for corner in bbox.getCorners():
-                    if tractBBox.contains(tractWcs.skyToPixel(wcs.pixelToSky(corner))):
-                        overlap = True
-                        break
-                if overlap:
+                if self.config.requireTractOverlap:
+                    naxis1, naxis2 = md.get('NAXIS1'), md.get('NAXIS2')
+                    bbox = afwGeom.Box2D(afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2)))
+                    overlap = False
+                    for corner in bbox.getCorners():
+                        if tractBBox.contains(tractWcs.skyToPixel(wcs.pixelToSky(corner))):
+                            overlap = True
+                            break
+                    if overlap:
+                        dataRefListOverlapWithTract.append(dataRef)
+                    else:  # when there's no break i.e. no corner was in the tract
+                        if verbose:
+                            self.log.warn("Image %s does not overlap tract %s" % (dataRef.dataId, tractInfo.getId()))
+                else:
                     dataRefListOverlapWithTract.append(dataRef)
-                else:  # when there's no break i.e. no corner was in the tract
-                    if verbose:
-                        self.log.warn("Image %s does not overlap tract %s" % (dataRef.dataId, tractInfo.getId()))
-            else:
-                dataRefListOverlapWithTract.append(dataRef)
+            except Exception, e:
+                print e
 
         visitListOverlapWithTract = list(set([d.dataId['visit'] for d in dataRefListOverlapWithTract]))
 
