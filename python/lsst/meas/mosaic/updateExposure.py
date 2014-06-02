@@ -24,13 +24,25 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
     updated in-place.
     """
     if calexp is None:
-        calexp = dataRef.get("calexp", immediate=True)
+        try:
+            calexp = dataRef.get("calexp", immediate=True)
+        except Exception, e:
+            print "Failed to read: %s for %s" % (e, dataRef.dataId)
+            calexp = None
 
-    mosaic = getMosaicResults(dataRef, calexp.getDimensions())
-    calexp.setWcs(mosaic.wcs)
-    calexp.setCalib(mosaic.calib)
-    mi = calexp.getMaskedImage()
-    mi *= mosaic.fcor
+    if calexp is not None:
+        mosaic = getMosaicResults(dataRef, calexp.getDimensions())
+        calexp.setWcs(mosaic.wcs)
+        calexp.setCalib(mosaic.calib)
+        mi = calexp.getMaskedImage()
+        if mosaic.fcor is not None:
+            mi *= mosaic.fcor
+        else:
+            calexp = None
+    else:
+        mosaic = None
+        #mosaic = Struct(wcs=None, calib=None, fcor=None)
+
     return Struct(exposure=calexp, mosaic=mosaic)
 
 def getMosaicResults(dataRef, dims=None):
@@ -38,22 +50,41 @@ def getMosaicResults(dataRef, dims=None):
 
     If None, the dims will be determined from the calexp header.
     """
-    wcsHeader = dataRef.get("wcs_md", immediate=True)
-    wcs = afwImage.makeWcs(wcsHeader)
-    ffpHeader = dataRef.get("fcr_md", immediate=True)
-    calib = afwImage.Calib(ffpHeader)
-    ffp = FluxFitParams(ffpHeader)
+    try:
+        wcsHeader = dataRef.get("wcs_md", immediate=True)
+        wcs = afwImage.makeWcs(wcsHeader)
+    except Exception, e:
+        print "Failed to read: %s for %s" % (e, dataRef.dataId)
+        wcs = None
+    try:
+        ffpHeader = dataRef.get("fcr_md", immediate=True)
+        calib = afwImage.Calib(ffpHeader)
+        ffp = FluxFitParams(ffpHeader)
+    except Exception, e:
+        print "Failed to read: %s for %s" % (e, dataRef.dataId)
+        calib = None
+        ffp = None
 
     if dims is None:
-        calexpHeader = dataRef.get("calexp_md", immediate=True)
-        width, height = calexpHeader.get("NAXIS1"), calexpHeader.get("NAXIS2")
+        try:
+            calexpHeader = dataRef.get("calexp_md", immediate=True)
+            width, height = calexpHeader.get("NAXIS1"), calexpHeader.get("NAXIS2")
+        except Exception, e:
+            print "Failed to read: %s for %s" % (e, dataRef.dataId)
+            width, height = None, None 
+
     else:
         width, height = dims
-    fcor = getFCorImg(ffp, width, height)
-    jcor = getJImg(wcs, width, height)
-    fcor *= jcor
-    del jcor
 
+    if ffp and width > 0 and height > 0:
+        fcor = getFCorImg(ffp, width, height)
+        if wcs:
+            jcor = getJImg(wcs, width, height)
+            fcor *= jcor
+            del jcor
+    else:
+        fcor = None
+        
     return Struct(wcs=wcs, calib=calib, fcor=fcor)
 
 
