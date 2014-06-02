@@ -29,7 +29,12 @@ class CalibrateCatalogTask(CmdLineTask):
             catalog = results.catalog
             if self.config.doApplyCalib:
                 catalog = applyCalib(catalog, results.mosaic.calib)
-            dataRef.put(catalog, "calibrated_src")
+                if catalog is not None:
+                    try:
+                        dataRef.put(catalog, "calibrated_src")
+                    except Exception, e:
+                        print "Failed to write: %s for %s" % (e, dataRef.dataId)
+
 
     def writeConfig(self, *args, **kwargs):
         pass
@@ -53,7 +58,11 @@ class CalibrateExposureTask(CmdLineTask):
     def run(self, dataRef):
         results = applyMosaicResultsExposure(dataRef)
         if results.exposure is not None: 
-            dataRef.put(results.exposure, "calibrated_exp")
+            try:
+                dataRef.put(results.exposure, "calibrated_exp")
+            except Exception, e:
+                print "Failed to write: %s for %s" % (e, dataRef.dataId)
+
 
     def writeConfig(self, *args, **kwargs):
         pass
