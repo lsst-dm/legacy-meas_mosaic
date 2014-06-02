@@ -29,11 +29,12 @@ class CalibrateCatalogTask(CmdLineTask):
             catalog = results.catalog
             if self.config.doApplyCalib:
                 catalog = applyCalib(catalog, results.mosaic.calib)
-                if catalog is not None:
-                    try:
-                        dataRef.put(catalog, "calibrated_src")
-                    except Exception, e:
-                        print "Failed to write: %s for %s" % (e, dataRef.dataId)
+
+        if catalog is not None:
+            try:
+                dataRef.put(catalog, "calibrated_src")
+            except Exception, e:
+                print "Failed to write: %s for %s" % (e, dataRef.dataId)
 
 
     def writeConfig(self, *args, **kwargs):
