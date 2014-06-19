@@ -1,5 +1,6 @@
 #include <ctime>
 #include <strings.h>
+#include <dlfcn.h>
 #include "fitsio.h"
 
 #include "lsst/utils/ieee.h"
@@ -16,12 +17,9 @@
 
 using namespace lsst::meas::mosaic;
 
-#ifdef USE_MKL
-#include <mkl_lapack.h>
-#else
 #include "Eigen/Core"
 #include "Eigen/LU"
-#endif
+
 Eigen::VectorXd solveMatrix(long size, Eigen::MatrixXd &a_data, Eigen::VectorXd &b_data);
 
 static void decodeSipHeader(CONST_PTR(lsst::daf::base::PropertySet) const& fitsMetadata,
@@ -1018,17 +1016,59 @@ double calEta_D(double a, double d, double A, double D) {
     return -pow(cos(D)*sin(d)-sin(D)*cos(d)*cos(a-A),2.)/pow(sin(D)*sin(d)+cos(D)*cos(d)*cos(a-A),2.)-1.;
 }
 
-#ifdef USE_MKL
+namespace {
+    // import MKL dynamically (if possible)
+    // MKL must not be linked from a shared object
+    // that is imported with dlopen:
+    //   (some program) => dlopen => (some shared obj) => link => MKL: Bang!
+    //
+    // If the shared object is imported with dlopen, MKL must also be imported with dlopen.
+    //   (some program) => dlopen => (some shared obj) => dlopen => MKL: okay
+    //
+    #ifdef MKL_ILP64
+	typedef int64_t  MKL_INT;
+    #else
+	typedef int      MKL_INT;
+    #endif
+
+    typedef void (*dgesv_t)(MKL_INT*, MKL_INT*, double*, MKL_INT*, MKL_INT*, double*, MKL_INT*, MKL_INT*);
+    dgesv_t dgesv = NULL;
+
+    bool loadMKL() {
+	bool isOK = (
+	    dlopen("libiomp5.so", RTLD_LAZY | RTLD_GLOBAL) &&
+	    dlopen("libmkl_core.so", RTLD_LAZY | RTLD_GLOBAL) &&
+	    dlopen("libmkl_intel_thread.so", RTLD_LAZY | RTLD_GLOBAL) &&
+	#ifdef MKL_ILP64
+	    dlopen("libmkl_intel_ilp64.so", RTLD_LAZY | RTLD_GLOBAL) &&
+	#else
+	    dlopen("libmkl_intel_lp64.so", RTLD_LAZY | RTLD_GLOBAL) &&
+	#endif
+	    true
+	);
+
+	if(isOK){
+	    dgesv = (dgesv_t)dlsym(RTLD_DEFAULT, "dgesv");
+	    isOK = !!dgesv;
+	}
+
+	return isOK;
+    }
+
+    bool const g_isMKLAvailable = loadMKL();
+
+} // anonymous namespace
+
 Eigen::VectorXd solveMatrix_MKL(long size, Eigen::MatrixXd &a_data, Eigen::VectorXd &b_data) {
     //char L = 'L';
     MKL_INT n = size;
     MKL_INT nrhs = 1;
     MKL_INT lda = size;
-    MKL_INT *ipiv = new MKL_INT[size];
+    std::vector<MKL_INT> ipiv(size);
     MKL_INT ldb = size;
     MKL_INT info = 0;
 
-    dgesv(&n, &nrhs, &a_data(0), &lda, ipiv, &b_data(0), &ldb, &info);
+    dgesv(&n, &nrhs, &a_data(0), &lda, ipiv.data(), &b_data(0), &ldb, &info);
     //dposv(&L, &n, &nrhs, &a_data(0), &lda, &b_data(0), &ldb, &info);
 
     Eigen::VectorXd c_data(size);
@@ -1036,23 +1076,21 @@ Eigen::VectorXd solveMatrix_MKL(long size, Eigen::MatrixXd &a_data, Eigen::Vecto
 	c_data(i) = b_data(i);
     }
 
-    delete [] ipiv;
-
     return c_data;
 }
-#else
+
 Eigen::VectorXd solveMatrix_Eigen(long size, Eigen::MatrixXd &a, Eigen::VectorXd &b) {
     Eigen::PartialPivLU<Eigen::MatrixXd> lu(a);
     return lu.solve(b);
 }
-#endif
 
 Eigen::VectorXd solveMatrix(long size, Eigen::MatrixXd &a_data, Eigen::VectorXd &b_data) {
-#ifdef USE_MKL
-    return solveMatrix_MKL(size, a_data, b_data);
-#else
-    return solveMatrix_Eigen(size, a_data, b_data);
-#endif
+    if(g_isMKLAvailable) {
+	return solveMatrix_MKL(size, a_data, b_data);
+    }
+    else {
+	return solveMatrix_Eigen(size, a_data, b_data);
+    }
 }
 
 Eigen::VectorXd solveForCoeff(std::vector<Obs::Ptr>& objList, Poly::Ptr p) {
