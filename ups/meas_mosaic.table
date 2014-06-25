@@ -1,7 +1,7 @@
 setupRequired(afw)
 setupRequired(numpy)
 setupRequired(pex_config)
-setupRequired(pipe_base)
+setupRequired(pipe_tasks)
 setupRequired(meas_astrom)
 setupRequired(minuit2)
 
