@@ -22,7 +22,7 @@ import lsst.meas.mosaic.mosaicLib       as measMosaic
 import lsst.meas.astrom.astrom          as measAstrom
 from lsst.meas.photocal.colorterms import ColortermLibraryConfig
 
-from .dataIds import PerTractRawDataIdContainer
+from lsst.pipe.tasks.dataIds import PerTractCcdDataIdContainer
 
 class MosaicRunner(pipeBase.TaskRunner):
     """Subclass of TaskRunner for MosaicTask
@@ -155,7 +155,7 @@ class MosaicTask(pipeBase.CmdLineTask):
     def _makeArgumentParser(cls):
         parser = pipeBase.ArgumentParser(name=cls._DefaultName)
         parser.add_id_argument("--id", "wcs", help="data ID, with raw CCD keys + tract",
-                               ContainerClass=PerTractRawDataIdContainer)
+                               ContainerClass=PerTractCcdDataIdContainer)
         return parser
 
     def readCcd(self, dataRefList):
