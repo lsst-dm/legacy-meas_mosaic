@@ -24,13 +24,27 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
     updated in-place.
     """
     if calexp is None:
-        calexp = dataRef.get("calexp", immediate=True)
+        try:
+            calexp = dataRef.get("calexp", immediate=True)
+        except Exception, e:
+            print "Failed to read: %s for %s" % (e, dataRef.dataId)
+            calexp = None
 
-    mosaic = getMosaicResults(dataRef, calexp.getDimensions())
-    calexp.setWcs(mosaic.wcs)
-    calexp.setCalib(mosaic.calib)
-    mi = calexp.getMaskedImage()
-    mi *= mosaic.fcor
+    if calexp is not None:
+        try:
+            mosaic = getMosaicResults(dataRef, calexp.getDimensions())
+            calexp.setWcs(mosaic.wcs)
+            calexp.setCalib(mosaic.calib)
+            mi = calexp.getMaskedImage()
+            mi *= mosaic.fcor
+        except Exception, e:
+            print "Failed to applyMosaicResultsExposure: %s for %s" % (e, dataRef.dataId)
+            mosaic = None
+            calexp = None
+    else:
+        mosaic = None
+        #mosaic = Struct(wcs=None, calib=None, fcor=None)
+
     return Struct(exposure=calexp, mosaic=mosaic)
 
 def getMosaicResults(dataRef, dims=None):
@@ -38,22 +52,41 @@ def getMosaicResults(dataRef, dims=None):
 
     If None, the dims will be determined from the calexp header.
     """
-    wcsHeader = dataRef.get("wcs_md", immediate=True)
-    wcs = afwImage.makeWcs(wcsHeader)
-    ffpHeader = dataRef.get("fcr_md", immediate=True)
-    calib = afwImage.Calib(ffpHeader)
-    ffp = FluxFitParams(ffpHeader)
+    try:
+        wcsHeader = dataRef.get("wcs_md", immediate=True)
+        wcs = afwImage.makeWcs(wcsHeader)
+    except Exception, e:
+        print "Failed to read: %s for %s" % (e, dataRef.dataId)
+        wcs = None
+    try:
+        ffpHeader = dataRef.get("fcr_md", immediate=True)
+        calib = afwImage.Calib(ffpHeader)
+        ffp = FluxFitParams(ffpHeader)
+    except Exception, e:
+        print "Failed to read: %s for %s" % (e, dataRef.dataId)
+        calib = None
+        ffp = None
 
     if dims is None:
-        calexpHeader = dataRef.get("calexp_md", immediate=True)
-        width, height = calexpHeader.get("NAXIS1"), calexpHeader.get("NAXIS2")
+        try:
+            calexpHeader = dataRef.get("calexp_md", immediate=True)
+            width, height = calexpHeader.get("NAXIS1"), calexpHeader.get("NAXIS2")
+        except Exception, e:
+            print "Failed to read: %s for %s" % (e, dataRef.dataId)
+            width, height = None, None 
+
     else:
         width, height = dims
-    fcor = getFCorImg(ffp, width, height)
-    jcor = getJImg(wcs, width, height)
-    fcor *= jcor
-    del jcor
 
+    if ffp and width > 0 and height > 0:
+        fcor = getFCorImg(ffp, width, height)
+        if wcs:
+            jcor = getJImg(wcs, width, height)
+            fcor *= jcor
+            del jcor
+    else:
+        fcor = None
+        
     return Struct(wcs=wcs, calib=calib, fcor=fcor)
 
 
@@ -63,47 +96,52 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     The coordinates and all fluxes are updated in-place with the
     meas_mosaic solution.
     """
-    mosaic = getMosaicResults(dataRef)
+    try:
+        mosaic = getMosaicResults(dataRef)
+        ffpArray = mosaic.fcor.getArray()
+        num = len(catalog)
+        zeros = numpy.zeros(num)
+        x, y = catalog.getX(), catalog.getY()
+        x = numpy.where(numpy.isnan(x), zeros, x + 0.5).astype(int)
+        y = numpy.where(numpy.isnan(y), zeros, y + 0.5).astype(int)
+        corr = ffpArray[y, x]
 
-    ffpArray = mosaic.fcor.getArray()
-    num = len(catalog)
-    zeros = numpy.zeros(num)
-    x, y = catalog.getX(), catalog.getY()
-    x = numpy.where(numpy.isnan(x), zeros, x + 0.5).astype(int)
-    y = numpy.where(numpy.isnan(y), zeros, y + 0.5).astype(int)
-    corr = ffpArray[y, x]
+        if addCorrection:
+            mapper = afwTable.SchemaMapper(catalog.schema)
+            for s in catalog.schema:
+                mapper.addMapping(s.key)
+            corrField = afwTable.Field[float]("mosaic.corr", "Magnitude correction from meas_mosaic")
+            corrKey = mapper.addOutputField(corrField)
+            outCatalog = type(catalog)(mapper.getOutputSchema())
+            for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
+                getattr(outCatalog, "define" + slot)(getattr(catalog, "get" + slot + "Definition")())
 
-    if addCorrection:
-        mapper = afwTable.SchemaMapper(catalog.schema)
-        for s in catalog.schema:
-            mapper.addMapping(s.key)
-        corrField = afwTable.Field[float]("mosaic.corr", "Magnitude correction from meas_mosaic")
-        corrKey = mapper.addOutputField(corrField)
-        outCatalog = type(catalog)(mapper.getOutputSchema())
-        for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
-            getattr(outCatalog, "define" + slot)(getattr(catalog, "get" + slot + "Definition")())
+            outCatalog.extend(catalog, mapper=mapper)
 
-        outCatalog.extend(catalog, mapper=mapper)
+            outCatalog[corrKey][:] = corr
+            catalog = outCatalog
 
-        outCatalog[corrKey][:] = corr
-        catalog = outCatalog
-
-    fluxKeys, errKeys = getFluxKeys(catalog.schema)
-    for name, key in fluxKeys.items():
-        if key.getElementCount() == 1:
-            catalog[key][:] *= corr
-        else:
-            for i in range(key.getElementCount()):
-                catalog[key][:,i] *= corr
-        if name in errKeys:
+        fluxKeys, errKeys = getFluxKeys(catalog.schema)
+        for name, key in fluxKeys.items():
             if key.getElementCount() == 1:
-                catalog[errKeys[name]][:] *= corr
+                catalog[key][:] *= corr
             else:
                 for i in range(key.getElementCount()):
-                    catalog[errKeys[name]][:,i] *= corr
+                    catalog[key][:,i] *= corr
+            if name in errKeys:
+                if key.getElementCount() == 1:
+                    catalog[errKeys[name]][:] *= corr
+                else:
+                    for i in range(key.getElementCount()):
+                        catalog[errKeys[name]][:,i] *= corr
 
-    for rec in catalog:
-        rec.updateCoord(mosaic.wcs)
+        for rec in catalog:
+            rec.updateCoord(mosaic.wcs)
+
+    except Exception, e:
+        print "Failed to applyMosaicResultsCatalog: %s for %s" % (e, dataRef.dataId)
+        catalog = None
+        mosaic = None  
 
     return Struct(catalog=catalog, mosaic=mosaic)
 
