@@ -1,7 +1,7 @@
 from lsst.pipe.base import CmdLineTask, ArgumentParser
 from lsst.pex.config import Config, Field
 from .updateExposure import applyMosaicResultsExposure, applyMosaicResultsCatalog, applyCalib
-from .dataIds import PerTractRawDataIdContainer
+from lsst.pipe.tasks.dataIds import PerTractCcdDataIdContainer
 
 class CalibrateCatalogConfig(Config):
     doApplyCalib = Field(dtype=bool, default=True, doc="Calibrate fluxes to magnitudes?")
@@ -14,7 +14,7 @@ class CalibrateCatalogTask(CmdLineTask):
     def _makeArgumentParser(cls):
         parser = ArgumentParser(name=cls._DefaultName)
         parser.add_id_argument("--id", "wcs", help="data ID, with raw CCD keys + tract",
-                               ContainerClass=PerTractRawDataIdContainer)
+                               ContainerClass=PerTractCcdDataIdContainer)
         return parser
 
     def run(self, dataRef):
@@ -41,7 +41,7 @@ class CalibrateExposureTask(CmdLineTask):
     def _makeArgumentParser(cls):
         parser = ArgumentParser(name=cls._DefaultName)
         parser.add_id_argument("--id", "wcs", help="data ID, with raw CCD keys + tract",
-                               ContainerClass=PerTractRawDataIdContainer)
+                               ContainerClass=PerTractCcdDataIdContainer)
         return parser
 
     def run(self, dataRef):
