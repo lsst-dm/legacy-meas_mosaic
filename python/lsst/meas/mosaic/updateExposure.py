@@ -28,7 +28,7 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
 
     mosaic = getMosaicResults(dataRef, calexp.getDimensions())
     calexp.setWcs(mosaic.wcs)
-    calexp.setCalib(mosaic.calib)
+    calexp.getCalib().setFluxMag0(mosaic.calib.getFluxMag0())
     mi = calexp.getMaskedImage()
     mi *= mosaic.fcor
     return Struct(exposure=calexp, mosaic=mosaic)
