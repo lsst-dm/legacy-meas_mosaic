@@ -6,6 +6,7 @@ setupRequired(meas_astrom)
 setupRequired(minuit2)
 
 setupOptional(mkl)
+setupOptional(openblas)
 
 envPrepend(LD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)
 envPrepend(DYLD_LIBRARY_PATH, ${PRODUCT_DIR}/lib)

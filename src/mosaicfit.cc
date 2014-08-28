@@ -1,6 +1,5 @@
 #include <ctime>
 #include <strings.h>
-#include <dlfcn.h>
 #include "fitsio.h"
 
 #include "lsst/utils/ieee.h"
@@ -11,6 +10,8 @@
 #include "boost/make_shared.hpp"
 #include "boost/format.hpp"
 #include "boost/filesystem/path.hpp"
+
+#include "dynamic_lapack.h"
 
 #define D2R (M_PI/180.)
 #define R2D (180./M_PI)
@@ -1016,60 +1017,17 @@ double calEta_D(double a, double d, double A, double D) {
     return -pow(cos(D)*sin(d)-sin(D)*cos(d)*cos(a-A),2.)/pow(sin(D)*sin(d)+cos(D)*cos(d)*cos(a-A),2.)-1.;
 }
 
-namespace {
-    // import MKL dynamically (if possible)
-    // MKL must not be linked from a shared object
-    // that is imported with dlopen:
-    //   (some program) => dlopen => (some shared obj) => link => MKL: Bang!
-    //
-    // If the shared object is imported with dlopen, MKL must also be imported with dlopen.
-    //   (some program) => dlopen => (some shared obj) => dlopen => MKL: okay
-    //
-    #ifdef MKL_ILP64
-	typedef int64_t  MKL_INT;
-    #else
-	typedef int      MKL_INT;
-    #endif
-
-    typedef void (*dgesv_t)(MKL_INT*, MKL_INT*, double*, MKL_INT*, MKL_INT*, double*, MKL_INT*, MKL_INT*);
-    dgesv_t dgesv = NULL;
-
-    bool loadMKL() {
-	bool isOK = (
-	    dlopen("libiomp5.so", RTLD_LAZY | RTLD_GLOBAL) &&
-	    dlopen("libmkl_core.so", RTLD_LAZY | RTLD_GLOBAL) &&
-	    dlopen("libmkl_intel_thread.so", RTLD_LAZY | RTLD_GLOBAL) &&
-	#ifdef MKL_ILP64
-	    dlopen("libmkl_intel_ilp64.so", RTLD_LAZY | RTLD_GLOBAL) &&
-	#else
-	    dlopen("libmkl_intel_lp64.so", RTLD_LAZY | RTLD_GLOBAL) &&
-	#endif
-	    true
-	);
-
-	if(isOK){
-	    dgesv = (dgesv_t)dlsym(RTLD_DEFAULT, "dgesv");
-	    isOK = !!dgesv;
-	}
-
-	return isOK;
-    }
-
-    bool const g_isMKLAvailable = loadMKL();
-
-} // anonymous namespace
-
 Eigen::VectorXd solveMatrix_MKL(long size, Eigen::MatrixXd &a_data, Eigen::VectorXd &b_data) {
     //char L = 'L';
-    MKL_INT n = size;
-    MKL_INT nrhs = 1;
-    MKL_INT lda = size;
-    std::vector<MKL_INT> ipiv(size);
-    MKL_INT ldb = size;
-    MKL_INT info = 0;
+    lapack::MKL_INT n = size;
+    lapack::MKL_INT nrhs = 1;
+    lapack::MKL_INT lda = size;
+    std::vector<lapack::MKL_INT> ipiv(size);
+    lapack::MKL_INT ldb = size;
+    lapack::MKL_INT info = 0;
 
-    dgesv(&n, &nrhs, &a_data(0), &lda, ipiv.data(), &b_data(0), &ldb, &info);
-    //dposv(&L, &n, &nrhs, &a_data(0), &lda, &b_data(0), &ldb, &info);
+    lapack::dgesv(&n, &nrhs, &a_data(0), &lda, ipiv.data(), &b_data(0), &ldb, &info);
+    //lapack::dposv(&L, &n, &nrhs, &a_data(0), &lda, &b_data(0), &ldb, &info);
 
     Eigen::VectorXd c_data(size);
     for (int i = 0; i < size; i++) {
@@ -1085,7 +1043,7 @@ Eigen::VectorXd solveMatrix_Eigen(long size, Eigen::MatrixXd &a, Eigen::VectorXd
 }
 
 Eigen::VectorXd solveMatrix(long size, Eigen::MatrixXd &a_data, Eigen::VectorXd &b_data) {
-    if(g_isMKLAvailable) {
+    if(lapack::isLapackAvailable) {
 	return solveMatrix_MKL(size, a_data, b_data);
     }
     else {
