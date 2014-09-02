@@ -19,8 +19,14 @@ namespace lsst { namespace meas { namespace mosaic {
 	    }
 	    std::string fieldDoc = item.field.getDoc();
 	    std::string fieldUnits = item.field.getUnits();
+	    std::string typeStr = item.field.getTypeString();
 	    //std::cout << keyName << "," << keyNameFix << "," << typeStr << "," << fieldDoc << "," << fieldUnits << std::endl;
-	    target->addField<T>(keyNameFix, fieldDoc, fieldUnits);
+	    if (typeStr.find("Array") != 0) {
+		target->addField<T>(keyNameFix, fieldDoc, fieldUnits);
+	    } else {
+		int size = item.field.getElementCount();
+		target->addField<T>(keyNameFix, fieldDoc, fieldUnits, afw::table::FieldBase<T>(size));
+	    }
 	  }
 	}
 
