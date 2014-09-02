@@ -258,7 +258,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             if False:
                 matches = measAstrom.readMatches(dataRef.getButler(), dataRef.dataId, config=self.config.astrom)
             else:
-                if dataRef.datasetExists('icMatchFull'):
+                if False: #dataRef.datasetExists('icMatchFull'):
                     if verbose:
                         self.log.info("Reading matches from icMatchFull files for %s" % dataRef.dataId)
                                   
@@ -278,7 +278,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                         self.log.info("Reading matches from icSrc files for %s" % dataRef.dataId)
                     icSrces = dataRef.get('icSrc', immediate=True)
                     packedMatches = dataRef.get('icMatch', immediate=True)
-                    matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces, True)
+                    matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces)
 
                 matches = [m for m in matches if m.first != None]
                 if ct != None and len(matches) != 0:
