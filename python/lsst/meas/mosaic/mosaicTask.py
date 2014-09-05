@@ -404,6 +404,20 @@ class MosaicTask(pipeBase.CmdLineTask):
 
     def writeFcr(self, dataRefList):
         self.log.info("Write Fcr ...")
+        M_LN10 = math.log(10)
+        dmag = list()
+        for m in self.matchVec:
+            if (m.good == True and m.mag != -9999 and m.jstar != -1 and
+                m.mag0 != -9999 and m.mag_cat != -9999):
+                mag = m.mag
+                mag0 = m.mag0
+                mag_cat = m.mag_cat
+                exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
+                chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
+                gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
+                mag_cor = mag + exp_cor + chip_cor + gain_cor
+                dmag.append(mag_cor - mag_cat)
+        std, mean, n  = self.clippedStd(numpy.array(dmag), 3)
         for dataRef in dataRefList:
             iexp = dataRef.dataId['visit']
             ichip = dataRef.dataId['ccd']
@@ -420,7 +434,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             exp.getMetadata().combine(metadata)
             scale = self.fexp[iexp] * self.fchip[ichip]
             calib = afwImage.Calib()
-            calib.setFluxMag0(1.0/scale)
+            calib.setFluxMag0(1.0/scale, 1.0/scale*std*M_LN10*0.4)
             exp.setCalib(calib)
             try:
                 dataRef.put(exp, 'fcr')
