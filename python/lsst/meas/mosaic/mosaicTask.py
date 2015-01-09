@@ -133,6 +133,10 @@ class MosaicConfig(pexConfig.Config):
         doc="If True, ignore CCDs that don't overlap the current tract",
         dtype=bool,
         default=True)
+    clipSourcesOutsideTract = pexConfig.Field(
+        doc="If True, unmatched sources outside of tract will not be used as constraints",
+        dtype=bool,
+        default=True)
     astrom = pexConfig.ConfigField(dtype=measAstrom.MeasAstromConfig, doc="Configuration for readMatches")
     doColorTerms = pexConfig.Field(dtype=bool, default=True, doc="Apply color terms as part of solution?")
     doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
@@ -1204,6 +1208,14 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.log.info("Flag suspect objects")
         #self.flagSuspect(allMat, allSource, wcsDic)
         measMosaic.flagSuspect(allMat, allSource, wcsDic)
+
+        if self.config.clipSourcesOutsideTract:
+            tractBBox = afwGeom.Box2D(tractInfo.getBBox())
+            tractWcs = tractInfo.getWcs()
+            allSourceClipped = measMosaic.SourceGroup([ss for ss in allSource if tractBBox.contains(tractWcs.skyToPixel(ss[0].getSky()))])
+            self.log.info("Num of allSources: %d" % (len(allSource)))
+            self.log.info("Num of clipped allSources: %d" % (len(allSourceClipped)))
+            allSource = allSourceClipped
 
         self.log.info("Make obsVec")
         nmatch  = allMat.size()
