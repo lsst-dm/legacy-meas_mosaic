@@ -73,3 +73,38 @@ def __reduce__(self):
   )
 %}
 }
+
+%extend std::pair<PTR(lsst::meas::mosaic::Source), PTR(lsst::meas::mosaic::Source)> {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (self.first, self.second)
+%}
+}
+
+%extend std::vector<PTR(lsst::meas::mosaic::Source)> {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (), {}, iter(self)
+%}
+}
+
+%extend std::vector<std::vector<PTR(lsst::meas::mosaic::Source)> > {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (), {}, iter(self)
+%}
+}
+
+%extend std::vector<lsst::meas::mosaic::SourceMatch> {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (), {}, iter(self)
+%}
+}
+
+%extend std::vector<std::vector<lsst::meas::mosaic::SourceMatch> > {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (), {}, iter(self)
+%}
+}
