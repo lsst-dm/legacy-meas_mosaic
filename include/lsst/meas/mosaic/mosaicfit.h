@@ -53,6 +53,21 @@ namespace lsst {
                     _yerr(std::numeric_limits<double>::quiet_NaN()),
                     _astromBad(false) {}
 
+		// This ctor is for python pickling
+		Source(IdType id, ChipType chip, ExpType exp,
+		    double ra, double dec,
+		    double x, double xerr, double y, double yerr,
+		    double flux, double fluxerr,
+		    bool astromBad
+		):
+		    _id(id), _chip(chip), _exp(exp),
+		    _sky(lsst::afw::geom::Angle(ra, lsst::afw::geom::degrees), lsst::afw::geom::Angle(dec, lsst::afw::geom::degrees)),
+		    _pixels(x, y),
+		    _flux(flux), _err(fluxerr),
+		    _xerr(xerr), _yerr(yerr),
+		    _astromBad(astromBad)
+		{}
+
                 IdType getId() const { return _id; }
                 ChipType getChip() const { return _chip; }
                 ExpType getExp() const { return _exp; }
@@ -71,7 +86,7 @@ namespace lsst {
                 void setChip(ChipType chip) { _chip = chip; }
                 void setExp(ExpType exp) { _exp = exp; }
                 void setFlux(double value) { _flux = value; }
-                
+
             private:
                 IdType _id;                       // Identifier
                 ChipType _chip;                   // Chip identifier
@@ -125,7 +140,7 @@ namespace lsst {
 		double D;
 		double x0;
 		double y0;
-		
+
 		Coeff(int order);
 		Coeff(Poly::Ptr const & p);
 		~Coeff(void);

@@ -60,3 +60,16 @@
 %template(CoeffSet) std::map<int, lsst::meas::mosaic::Coeff::Ptr>;
 %template(ObsVec) std::vector<lsst::meas::mosaic::Obs::Ptr>;
 %template(FfpSet) std::map<int, lsst::meas::mosaic::FluxFitParams::Ptr>;
+
+%extend lsst::meas::mosaic::Source {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (
+    self.getId(), self.getChip(), self.getExp(),
+    self.getRa().asDegrees(), self.getDec().asDegrees(),
+    self.getX(), self.getXErr(), self.getY(), self.getYErr(),
+    self.getFlux(), self.getFluxErr(),
+    self.getAstromBad(),
+  )
+%}
+}
