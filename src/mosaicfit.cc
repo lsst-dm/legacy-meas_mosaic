@@ -135,7 +135,7 @@ void Coeff::show(void) {
     printf("%12.5e %12.5e\n", this->A, this->D);
     for (int k = 0; k < this->p->ncoeff; k++) {
 	printf("%12.5e %12.5e %12.5e %12.5e\n",
-	       this->a[k], this->b[k], 
+	       this->a[k], this->b[k],
 	       this->ap[k], this->bp[k]);
     }
 }
@@ -246,7 +246,7 @@ Obs::Obs(int id_, double ra_, double dec_, double x_, double y_, int ichip_, int
     eta_A(std::numeric_limits<double>::quiet_NaN()),
     eta_D(std::numeric_limits<double>::quiet_NaN()),
     x(x_),
-    y(y_), 
+    y(y_),
     u(std::numeric_limits<double>::quiet_NaN()),
     v(std::numeric_limits<double>::quiet_NaN()),
     u0(std::numeric_limits<double>::quiet_NaN()),
@@ -257,7 +257,7 @@ Obs::Obs(int id_, double ra_, double dec_, double x_, double y_, int ichip_, int
     eta_fit(std::numeric_limits<double>::quiet_NaN()),
     u_fit(std::numeric_limits<double>::quiet_NaN()),
     v_fit(std::numeric_limits<double>::quiet_NaN()),
-    id(id_), 
+    id(id_),
     istar(-1),
     jstar(-2),
     iexp(iexp_),
@@ -284,7 +284,7 @@ Obs::Obs(int id_, double ra_, double dec_, int ichip_, int iexp_) :
     eta_A(std::numeric_limits<double>::quiet_NaN()),
     eta_D(std::numeric_limits<double>::quiet_NaN()),
     x(std::numeric_limits<double>::quiet_NaN()),
-    y(std::numeric_limits<double>::quiet_NaN()), 
+    y(std::numeric_limits<double>::quiet_NaN()),
     u(std::numeric_limits<double>::quiet_NaN()),
     v(std::numeric_limits<double>::quiet_NaN()),
     u0(std::numeric_limits<double>::quiet_NaN()),
@@ -295,7 +295,7 @@ Obs::Obs(int id_, double ra_, double dec_, int ichip_, int iexp_) :
     eta_fit(std::numeric_limits<double>::quiet_NaN()),
     u_fit(std::numeric_limits<double>::quiet_NaN()),
     v_fit(std::numeric_limits<double>::quiet_NaN()),
-    id(id_), 
+    id(id_),
     istar(-1),
     jstar(-2),
     iexp(iexp_),
@@ -413,7 +413,7 @@ void KDTree::_initializeSources(SourceSet& s, int depth)
 {
     this->depth = depth;
     this->axis = depth % 2;
-    
+
     if (s.size() == 1) {
 
 	this->location[0] = s[0]->getRa();
@@ -454,7 +454,7 @@ void KDTree::_initializeSources(SourceSet& s, int depth)
 	}
 
     }
-}    
+}
 
 
 void KDTree::_initializeMatches(SourceMatchSet &m, int depth) {
@@ -1028,6 +1028,9 @@ Eigen::VectorXd solveMatrix_MKL(long size, Eigen::MatrixXd &a_data, Eigen::Vecto
 
     lapack::dgesv(&n, &nrhs, &a_data(0), &lda, ipiv.data(), &b_data(0), &ldb, &info);
     //lapack::dposv(&L, &n, &nrhs, &a_data(0), &lda, &b_data(0), &ldb, &info);
+    if(info != 0){
+	throw std::runtime_error((boost::format("solving linear equation failed: dgesv returned %1%") % info).str());
+    }
 
     Eigen::VectorXd c_data(size);
     for (int i = 0; i < size; i++) {
@@ -1668,7 +1671,7 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
 	    a_data(size0+s[i]->jstar*2  , size0+s[i]->jstar*2+1) += s[i]->xi_a * s[i]->xi_d * isx2 + s[i]->eta_a * s[i]->eta_d * isy2;
 	    a_data(size0+s[i]->jstar*2+1, size0+s[i]->jstar*2  ) += s[i]->xi_d * s[i]->xi_a * isx2 + s[i]->eta_d * s[i]->eta_a * isy2;
 	    a_data(size0+s[i]->jstar*2+1, size0+s[i]->jstar*2+1) += s[i]->xi_d * s[i]->xi_d * isx2 + s[i]->eta_d * s[i]->eta_d * isy2;
-	    
+
 	    b_data(ncoeff*2*nexp+s[i]->jchip*np  ) += Ax * Bx * isx2 + Ay * By * isy2;
 	    b_data(ncoeff*2*nexp+s[i]->jchip*np+1) += Ax * Cx * isx2 + Ay * Cy * isy2;
 	    if (allowRotation) {
@@ -2837,7 +2840,7 @@ lsst::meas::mosaic::wcsFromCoeff(Coeff::Ptr& coeff)
     cd << coeff->a[0], coeff->a[1], coeff->b[0], coeff->b[1];
     double D = cd(0,0) * cd(1,1) - cd(0,1) * cd(1,0);
     //std::cout << cd << std::endl;
-    
+
     Eigen::MatrixXd sipA = Eigen::MatrixXd::Zero(order+1,order+1);
     Eigen::MatrixXd sipB = Eigen::MatrixXd::Zero(order+1,order+1);
     for (int k = 2; k <= order; k++) {
@@ -3001,7 +3004,7 @@ lsst::meas::mosaic::getJImg(Coeff::Ptr& coeff,
 		interval = xend - x + 1;
 	    }
 
-        afw::geom::Point2D uv 
+        afw::geom::Point2D uv
             = ccd->getPositionFromPixel(afw::geom::Point2D(x, y)).getPixels(ccd->getPixelSize())
             + afw::geom::Extent2D(coeff->x0, coeff->y0);
 	    double val0 = coeff->detJ(uv.getX(), uv.getY()) * deg2pix * deg2pix;
