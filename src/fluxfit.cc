@@ -114,7 +114,7 @@ FluxFitParams::FluxFitParams(const FluxFitParams &p) {
     }
 }
 
-double FluxFitParams::eval(double u, double v) {
+double FluxFitParams::eval(double u, double v) const {
    double uu = (u + x0) / u_max;
    double vv = (v + y0) / v_max;
    double val = 0.0;
@@ -132,7 +132,7 @@ double FluxFitParams::eval(double u, double v) {
    return val;
 }
 
-int FluxFitParams::getIndex(int i, int j) {
+int FluxFitParams::getIndex(int i, int j) const {
     for (int k = 0; k < this->ncoeff; k++) {
 	if (xorder[k] == i &&
 	    yorder[k] == j) {

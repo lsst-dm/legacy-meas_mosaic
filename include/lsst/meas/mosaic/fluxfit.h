@@ -29,11 +29,11 @@ namespace lsst {
 		FluxFitParams(lsst::daf::base::PropertySet::Ptr& metadata);
 		~FluxFitParams();
 		FluxFitParams(const FluxFitParams &p);
-		double eval(double u, double v);
-		int getXorder(int i) { return xorder[i]; }
-		int getYorder(int i) { return yorder[i]; }
-		double getCoeff(int i) { return coeff[i]; }
-		int getIndex(int i, int j);
+		double eval(double u, double v) const;
+		int getXorder(int i) const { return xorder[i]; }
+		int getYorder(int i) const { return yorder[i]; }
+		double getCoeff(int i) const { return coeff[i]; }
+		int getIndex(int i, int j) const;
 	    };
 
 	    typedef std::map<int, FluxFitParams::Ptr> FfpSet;
