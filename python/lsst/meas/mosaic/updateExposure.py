@@ -33,28 +33,37 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
     mi *= mosaic.fcor
     return Struct(exposure=calexp, mosaic=mosaic)
 
+def getFluxFitParams(dataRef):
+    """Retrieve the flux correction parameters determined by meas_mosaic"""
+    ffpHeader = dataRef.get("fcr_md", immediate=True)
+    calib = afwImage.Calib(ffpHeader)
+    ffp = FluxFitParams(ffpHeader)
+    return Struct(ffp=ffp, calib=calib)
+
+def getWcs(dataRef):
+    """Retrieve the Wcs determined by meas_mosaic"""
+    wcsHeader = dataRef.get("wcs_md", immediate=True)
+    return afwImage.makeWcs(wcsHeader)
+
 def getMosaicResults(dataRef, dims=None):
     """Retrieve the results of meas_mosaic
 
     If None, the dims will be determined from the calexp header.
     """
-    wcsHeader = dataRef.get("wcs_md", immediate=True)
-    wcs = afwImage.makeWcs(wcsHeader)
-    ffpHeader = dataRef.get("fcr_md", immediate=True)
-    calib = afwImage.Calib(ffpHeader)
-    ffp = FluxFitParams(ffpHeader)
+    wcs = getWcs(dataRef)
+    ffp = getFluxFitParams(dataRef)
 
     if dims is None:
         calexpHeader = dataRef.get("calexp_md", immediate=True)
         width, height = calexpHeader.get("NAXIS1"), calexpHeader.get("NAXIS2")
     else:
         width, height = dims
-    fcor = getFCorImg(ffp, width, height)
+    fcor = getFCorImg(ffp.ffp, width, height)
     jcor = getJImg(wcs, width, height)
     fcor *= jcor
     del jcor
 
-    return Struct(wcs=wcs, calib=calib, fcor=fcor)
+    return Struct(wcs=wcs, calib=ffp.calib, fcor=fcor)
 
 
 def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
@@ -63,15 +72,8 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     The coordinates and all fluxes are updated in-place with the
     meas_mosaic solution.
     """
-    mosaic = getMosaicResults(dataRef)
-
-    ffpArray = mosaic.fcor.getArray()
-    num = len(catalog)
-    zeros = numpy.zeros(num)
-    x, y = catalog.getX(), catalog.getY()
-    x = numpy.where(numpy.isnan(x), zeros, x + 0.5).astype(int)
-    y = numpy.where(numpy.isnan(y), zeros, y + 0.5).astype(int)
-    corr = ffpArray[y, x]
+    ffp = getFluxFitParams(dataRef)
+    corr = ffp.ffp.eval(catalog.getX(), catalog.getY())
 
     if addCorrection:
         mapper = afwTable.SchemaMapper(catalog.schema)
@@ -102,10 +104,11 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
                 for i in range(key.getElementCount()):
                     catalog[errKeys[name]][:,i] *= corr
 
+    wcs = getWcs(dataRef)
     for rec in catalog:
-        rec.updateCoord(mosaic.wcs)
+        rec.updateCoord(wcs)
 
-    return Struct(catalog=catalog, mosaic=mosaic)
+    return Struct(catalog=catalog, wcs=wcs, ffp=ffp)
 
 
 def applyCalib(catalog, calib):

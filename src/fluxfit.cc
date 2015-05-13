@@ -1,3 +1,4 @@
+#include "ndarray.h"
 #include "lsst/meas/mosaic/mosaicfit.h"
 #include "lsst/meas/mosaic/fluxfit.h"
 
@@ -114,7 +115,7 @@ FluxFitParams::FluxFitParams(const FluxFitParams &p) {
     }
 }
 
-double FluxFitParams::eval(double u, double v) {
+double FluxFitParams::eval(double u, double v) const {
    double uu = (u + x0) / u_max;
    double vv = (v + y0) / v_max;
    double val = 0.0;
@@ -132,7 +133,26 @@ double FluxFitParams::eval(double u, double v) {
    return val;
 }
 
-int FluxFitParams::getIndex(int i, int j) {
+
+ndarray::Array<double, 1> FluxFitParams::eval(
+    ndarray::Array<double const, 1> const& x,
+    ndarray::Array<double const, 1> const& y
+    ) const
+{
+    int const num = x.getShape()[0];
+    if (y.getShape()[0] != num) {
+        throw LSST_EXCEPT(pex::exceptions::LengthErrorException,
+                          str(boost::format("Size mismatch: %d vs %d") % x.getShape()[0] % y.getShape()[0]));
+    }
+    ndarray::Array<double, 1> out = ndarray::allocate(ndarray::makeVector(num));
+    for (int i = 0; i < num; ++i) {
+        out[i] = eval(x[i], y[i]);
+    }
+    return out;
+}
+
+
+int FluxFitParams::getIndex(int i, int j) const {
     for (int k = 0; k < this->ncoeff; k++) {
 	if (xorder[k] == i &&
 	    yorder[k] == j) {

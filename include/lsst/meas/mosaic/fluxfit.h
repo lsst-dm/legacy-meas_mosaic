@@ -2,6 +2,7 @@
 #ifndef MEAS_MOSAIC_fluxfit_h_INCLUDED
 #define MEAS_MOSAIC_fluxfit_h_INCLUDED
 
+#include "ndarray_fwd.h"
 #include "lsst/meas/mosaic/mosaicfit.h"
 
 namespace lsst {
@@ -29,11 +30,15 @@ namespace lsst {
 		FluxFitParams(lsst::daf::base::PropertySet::Ptr& metadata);
 		~FluxFitParams();
 		FluxFitParams(const FluxFitParams &p);
-		double eval(double u, double v);
-		int getXorder(int i) { return xorder[i]; }
-		int getYorder(int i) { return yorder[i]; }
-		double getCoeff(int i) { return coeff[i]; }
-		int getIndex(int i, int j);
+		double eval(double u, double v) const;
+                ndarray::Array<double, 1> eval(
+                    ndarray::Array<double const, 1> const& x,
+                    ndarray::Array<double const, 1> const& y
+                    ) const;
+		int getXorder(int i) const { return xorder[i]; }
+		int getYorder(int i) const { return yorder[i]; }
+		double getCoeff(int i) const { return coeff[i]; }
+		int getIndex(int i, int j) const;
 	    };
 
 	    typedef std::map<int, FluxFitParams::Ptr> FfpSet;
