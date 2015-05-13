@@ -72,15 +72,8 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     The coordinates and all fluxes are updated in-place with the
     meas_mosaic solution.
     """
-    mosaic = getMosaicResults(dataRef)
-
-    ffpArray = mosaic.fcor.getArray()
-    num = len(catalog)
-    zeros = numpy.zeros(num)
-    x, y = catalog.getX(), catalog.getY()
-    x = numpy.where(numpy.isnan(x), zeros, x + 0.5).astype(int)
-    y = numpy.where(numpy.isnan(y), zeros, y + 0.5).astype(int)
-    corr = ffpArray[y, x]
+    ffp = getFluxFitParams(dataRef)
+    corr = ffp.ffp.eval(catalog.getX(), catalog.getY())
 
     if addCorrection:
         mapper = afwTable.SchemaMapper(catalog.schema)
