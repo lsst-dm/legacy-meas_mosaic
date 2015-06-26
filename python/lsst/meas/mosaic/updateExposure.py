@@ -73,7 +73,7 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     meas_mosaic solution.
     """
     ffp = getFluxFitParams(dataRef)
-    corr = ffp.ffp.eval(catalog.getX(), catalog.getY())
+    corr = numpy.power(10.0, -0.4*ffp.ffp.eval(catalog.getX(), catalog.getY()))
 
     if addCorrection:
         mapper = afwTable.SchemaMapper(catalog.schema)
