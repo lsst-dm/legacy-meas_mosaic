@@ -3126,7 +3126,7 @@ ndarray::Array<double, 1> lsst::meas::mosaic::calculateJacobian(
 {
     int const num = x.getShape()[0];
     if (y.getShape()[0] != num) {
-        throw LSST_EXCEPT(lsst::pex::exceptions::LengthErrorException,
+        throw LSST_EXCEPT(lsst::pex::exceptions::LengthError,
                           str(boost::format("Size mismatch: %d vs %d") % x.getShape()[0] % y.getShape()[0]));
     }
     std::vector<lsst::afw::geom::Point2D> points;
