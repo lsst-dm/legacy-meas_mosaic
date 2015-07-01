@@ -217,7 +217,7 @@ namespace lsst {
 
 		Obs(int id, double ra, double dec, double x, double y, int ichip, int iexp);
 		Obs(int id, double ra, double dec, int ichip, int iexp);
-		void setUV(lsst::afw::cameraGeom::Ccd::Ptr const &ccd, double x0=0, double y0=0);
+		void setUV(PTR(lsst::afw::cameraGeom::Detector) &ccd, double x0=0, double y0=0);
 		void setXiEta(double ra_c, double dec_c);
 		void setFitVal(Coeff::Ptr& c, Poly::Ptr p);
 		void setFitVal2(Coeff::Ptr& c, Poly::Ptr p);
@@ -269,7 +269,7 @@ namespace lsst {
                 void _initializeMatches(SourceMatchSet& m, int depth);
             };
 
-	    typedef std::map<int, lsst::afw::cameraGeom::Ccd::Ptr> CcdSet;
+	    typedef std::map<int, PTR(lsst::afw::cameraGeom::Detector)> CcdSet;
 	    typedef std::map<int, Coeff::Ptr> CoeffSet;
 	    typedef std::vector<Obs::Ptr> ObsVec;
 
@@ -314,7 +314,7 @@ namespace lsst {
                                      std::string const & snapshotDir = ".");
 
 	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff,
-				    lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+				    PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
 	    lsst::afw::image::TanWcs::Ptr wcsFromCoeff(Coeff::Ptr& coeff);
 
@@ -322,7 +322,7 @@ namespace lsst {
 
 	    lsst::afw::image::Image<float>::Ptr
 	      getJImg(Coeff::Ptr& coeff,
-		      lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
 	    lsst::afw::image::Image<float>::Ptr
 	      getJImg(lsst::afw::image::Wcs::Ptr& wcs,
@@ -330,7 +330,7 @@ namespace lsst {
 
 	    lsst::afw::image::Image<float>::Ptr
 	      getJImg(lsst::afw::image::Wcs::Ptr& wcs,
-		      lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
             //{
             // Calculate Jacobian correction
@@ -353,7 +353,6 @@ namespace lsst {
                 ndarray::Array<double const, 1> const& y  ///< y positions for correction
                 );
             //}
-
     }
   }
 }
