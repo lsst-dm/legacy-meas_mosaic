@@ -139,6 +139,10 @@ class MosaicConfig(pexConfig.Config):
     doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
     commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
     colorterms = pexConfig.ConfigField(dtype=ColortermLibrary, doc="Color term library")
+    photoCatName = pexConfig.Field(
+        doc="Name of photometric reference catalog; used to select a color term dict in colorterm library."
+        dtype=str,
+        optional=True)
     includeSaturated = pexConfig.Field(
         doc="If True, saturated objects will also be used for mosaicking.",
         dtype=bool,
@@ -1521,15 +1525,15 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.log.fatal("There are %d filters in input frames" % len(filters))
             return None
 
-        if self.config.doColorTerms:
-            ct = self.config.colorterms.getColorterm(filters[0])
+        if self.config.doColorTerms and self.config.photoCatName:
+            ct = self.config.colorterms.getColorterm(filters[0], self.config.photoCatName)
+            self.log.info('color term: '+str(ct))
+        elif self.config.doColorTerms:
+            ct = None
+            self.log.warn("Cannot apply color term: reference catalog not specified")
         else:
             ct = None
-
-        if ct is None:
             self.log.info("Not applying color term")
-        else:
-            self.log.info('color term: '+str(ct))
 
         return self.mosaic(dataRefList, tractInfo, ct, debug, diagDir, diagnostics, snapshots,
                            numCoresForReadSource, readTimeout, verbose)
