@@ -20,9 +20,10 @@ import lsst.afw.coord                   as afwCoord
 import lsst.afw.math                    as afwMath
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
-import lsst.meas.mosaic.mosaicLib       as measMosaic
+import lsst.meas.algorithms             as measAlg
 import lsst.meas.astrom                 as measAstrom
-from lsst.meas.photocal.colorterms import ColortermLibraryConfig
+import lsst.meas.mosaic.mosaicLib       as measMosaic
+from lsst.pipe.tasks.colorterms import ColortermLibrary
 
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 
@@ -137,7 +138,7 @@ class MosaicConfig(pexConfig.Config):
     doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
     doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
     commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
-    colorterms = pexConfig.ConfigField(dtype=ColortermLibraryConfig, doc="Color term library")
+    colorterms = pexConfig.ConfigField(dtype=ColortermLibrary, doc="Color term library")
     includeSaturated = pexConfig.Field(
         doc="If True, saturated objects will also be used for mosaicking.",
         dtype=bool,
@@ -287,7 +288,6 @@ class SourceReader(object):
 class Worker(object):
     """ Worker object for multiprocessing
     """
-
     def __init__(self, verbose=False):
         self.verbose = verbose
 
@@ -372,6 +372,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         for ichip in ccdSet.keys():
             if num[ichip] == 0:
                 ccdSet.erase(ichip)
+
     def readCatalog(self, dataRefList, ct=None, numCoresForReadSource=1, readTimeout=9999, verbose=False):
         self.log.info("Reading catalogs ...")
         self.log.info("Use %d cores for reading source catalog" % (numCoresForReadSource))
@@ -1521,7 +1522,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             return None
 
         if self.config.doColorTerms:
-            ct = self.config.colorterms.selectColorTerm(filters[0])
+            ct = self.config.colorterms.getColorterm(filters[0])
         else:
             ct = None
 
