@@ -48,7 +48,10 @@ class MosaicRunner(pipeBase.TaskRunner):
                  parsedCmd.butler,
                  tract,
                  refListDict[tract],
-                 parsedCmd.debug
+                 parsedCmd.debug,
+                 parsedCmd.diagDir,
+                 parsedCmd.diagnostics,
+                 parsedCmd.snapshots,
                  ) for tract in sorted(refListDict.keys())]
 
     def __call__(self, args):
@@ -109,18 +112,6 @@ class MosaicConfig(pexConfig.Config):
         doc="Solve for per CCD flux scale?",
         dtype=bool,
         default=False)
-    outputDir = pexConfig.Field(
-        doc="Output directory to write diagnostics plots",
-        dtype=str,
-        default=".")
-    outputDiag = pexConfig.Field(
-        doc="Output diagnostics plots",
-        dtype=bool,
-        default=False)
-    outputSnapshots = pexConfig.Field(
-        doc="Output FITS tables of ObsVecs during iteration",
-        dtype=bool,
-        default=False)
     minNumMatch = pexConfig.RangeField(
         doc="Minimum number of matches in CCD to be used.",
         dtype=int,
@@ -160,6 +151,11 @@ class MosaicTask(pipeBase.CmdLineTask):
         parser = pipeBase.ArgumentParser(name=cls._DefaultName)
         parser.add_id_argument("--id", "wcs", help="data ID, with raw CCD keys + tract",
                                ContainerClass=PerTractCcdDataIdContainer)
+        parser.add_argument("--diagDir", default=".", help="Directory in which to dump diagnostics")
+        parser.add_argument("--diagnostics", default=False, action="store_true",
+                            help="Save diagnostics plots?")
+        parser.add_argument("--snapshots", default=False, action="store_true",
+                            help="Save snapshots of ObsVecs during iteration?")
         return parser
 
     def readCcd(self, dataRefList):
@@ -1157,14 +1153,14 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         return dataRefListOverlapWithTract, dataRefListToUse
 
-    def mosaic(self, dataRefList, tractInfo, ct=None, debug=False, verbose=False):
+    def mosaic(self, dataRefList, tractInfo, ct=None, debug=False, diagDir=".",
+               diagnostics=False, snapshots=False, verbose=False):
 
         self.log.info(str(self.config))
 
-        self.outputDir = os.path.join(self.config.outputDir, "%04d" % tractInfo.getId())
+        self.outputDir = os.path.join(diagDir, "%04d" % tractInfo.getId())
 
-        if ((self.config.outputDiag or self.config.outputSnapshots)
-            and not os.path.isdir(self.outputDir)):
+        if ((diagnostics or snapshots) and not os.path.isdir(self.outputDir)):
             os.makedirs(self.outputDir)
 
         if self.config.nBrightest != 0:
@@ -1256,19 +1252,19 @@ class MosaicTask(pipeBase.CmdLineTask):
                                                       wcsDic, ccdSet, #ffpSet, fexp, fchip,
                                                       solveCcd, allowRotation, #solveCcdScale,
                                                       verbose, catRMS,
-                                                      self.config.outputSnapshots, self.outputDir)
+                                                      snapshots, self.outputDir)
             else:
                 coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
                                                            wcsDic, ccdSet, #ffpSet, fexp, fchip,
                                                            solveCcd, allowRotation, #solveCcdScale,
                                                            verbose, catRMS,
-                                                           self.config.outputSnapshots, self.outputDir)
+                                                           snapshots, self.outputDir)
 
             self.coeffSet = coeffSet
 
             self.writeNewWcs(dataRefListToOutput)
 
-            if self.config.outputDiag:
+            if diagnostics:
                 self.outputDiagWcs()
 
             for m in matchVec:
@@ -1327,10 +1323,10 @@ class MosaicTask(pipeBase.CmdLineTask):
 
             self.writeFcr(dataRefListToOutput)
 
-            if self.config.outputDiag:
+            if diagnostics:
                 self.outputDiagFlux()
 
-        if self.config.outputDiag and self.config.doSolveWcs and self.config.doSolveFlux:
+        if diagnostics and self.config.doSolveWcs and self.config.doSolveFlux:
             if sourceVec.size() != 0:
                 self.writeCatalog(matchVec, sourceVec, coeffSet,
                                   os.path.join(self.outputDir, "catalog.fits"))
@@ -1452,7 +1448,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         catalog.writeFits(name)
 
 
-    def run(self, camera, butler, tract, dataRefList, debug, verbose=False):
+    def run(self, camera, butler, tract, dataRefList, debug, diagDir=".",
+            diagnostics=False, snapshots=False, verbose=False):
         self.log.info("Running self-calibration for tract %d" % tract)
         skyMap = butler.get("deepCoadd_skyMap", immediate=True)
         tractInfo = skyMap[tract]
@@ -1476,4 +1473,4 @@ class MosaicTask(pipeBase.CmdLineTask):
         else:
             self.log.info('color term: '+str(ct))
 
-        return self.mosaic(dataRefList, tractInfo, ct, debug, verbose)
+        return self.mosaic(dataRefList, tractInfo, ct, debug, diagDir, diagnostics, snapshots, verbose)
