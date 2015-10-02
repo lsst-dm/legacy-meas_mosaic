@@ -1479,6 +1479,7 @@ solveLinApprox_Star(std::vector<Obs::Ptr>& o, std::vector<Obs::Ptr>& s, int nsta
     Eigen::MatrixXd a_data;
     try {
 	a_data = Eigen::MatrixXd::Zero(size, size);
+        fprintf(stderr, "Allocated %5.1f GB memory\n", size*size*sizeof(double)/double(1024*1024*1024));
     } catch (std::bad_alloc) {
 	std::cerr << "Memory allocation error: for a_data" << std::endl;
 	fprintf(stderr, "You need %5.1f GB memory\n", size*size*sizeof(double)/double(1024*1024*1024));
