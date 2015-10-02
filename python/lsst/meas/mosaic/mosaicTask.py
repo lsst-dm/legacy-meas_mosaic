@@ -8,6 +8,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
+import multiprocessing
+from lsst.pex.logging import getDefaultLog
 
 import lsst.afw.cameraGeom              as cameraGeom
 import lsst.afw.cameraGeom.utils        as cameraGeomUtils
@@ -134,10 +136,153 @@ class MosaicConfig(pexConfig.Config):
     doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
     commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
     colorterms = pexConfig.ConfigField(dtype=ColortermLibraryConfig, doc="Color term library")
+    numCores = pexConfig.Field(
+        doc="Number of cores to be used for reading source catalog",
+        dtype=int,
+        default=2)
 
 def setCatFlux(m, f, key):
     m.first.set(key, f)
     return m
+
+class SrcReader(object):
+    def __init__(self, cterm, config):
+        self.cterm  = cterm
+        self.config = config
+
+    def setCatFlux(self, m, f, key):
+        m.first.set(key, f)
+        return m
+
+    def selectStars(self, sources, includeSaturated=False):
+        if len(sources) == 0:
+            return []
+        if isinstance(sources, afwTable.SourceCatalog):
+            extended = sources.columns["classification.extendedness"]
+            saturated = sources.columns["flags.pixel.saturated.any"]
+            try:
+                nchild = sources.columns["deblend.nchild"]
+            except:
+                nchild = numpy.zeros(len(sources))
+            indices = numpy.where(numpy.logical_and(numpy.logical_and(extended < 0.5, saturated == False), nchild == 0))[0]
+            return [sources[int(i)] for i in indices]
+
+        psfKey = None                       # Table key for classification.psfstar
+        if isinstance(sources, afwTable.ReferenceMatchVector) or isinstance(sources[0], afwTable.ReferenceMatch):
+            sourceList = [s.second for s in sources]
+            psfKey = sourceList[0].schema.find("calib.psf.used").getKey()
+        else:
+            sourceList = sources
+
+        schema = sourceList[0].schema
+        extKey = schema.find("classification.extendedness").getKey()
+        satKey = schema.find("flags.pixel.saturated.any").getKey()
+
+        stars = []
+        for includeSource, checkSource in zip(sources, sourceList):
+            star = (psfKey is not None and checkSource.get(psfKey)) or checkSource.get(extKey) < 0.5
+            saturated = checkSource.get(satKey)
+            if star and (includeSaturated or not saturated):
+                stars.append(includeSource)
+        return stars
+
+    def readSrc(self, dataRef):
+
+        self.log = getDefaultLog()
+        #self.log.info('%s' % (dataRef.dataId))
+
+        dataId = dataRef.dataId
+
+        try:
+            if not dataRef.datasetExists('src'):
+                raise RuntimeError("no data for src %s" % (dataId))
+            if not dataRef.datasetExists('calexp_md'):
+                raise RuntimeError("no data for calexp_md %s" % (dataId))
+
+            calexp_md = dataRef.get('calexp_md', immediate=True)
+            wcs = afwImage.makeWcs(calexp_md)
+
+            sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
+
+            matchFull = dataRef.get('icMatchFull', immediate=True)
+            matches = measMosaic.matchesFromCatalog(matchFull)
+            table = matches[0].second.getTable()
+            table.definePsfFlux('flux.psf')
+            table.defineModelFlux('flux.gaussian')
+            table.defineApFlux('flux.sinc')
+            table.defineInstFlux('flux.gaussian')
+            table.defineCentroid('centroid.sdss')
+            table.defineShape('shape.sdss')
+            table.defineCalibFlux('flux.naive')
+
+            matches = [m for m in matches if m.first != None]
+            if self.cterm != None and len(matches) != 0:
+                refSchema = matches[0].first.schema
+                key_p = refSchema.find(self.cterm.primary).key
+                key_s = refSchema.find(self.cterm.secondary).key
+                key_f = refSchema.find("flux").key
+                refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
+                refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
+                refMag1 = -2.5*numpy.log10(refFlux1)
+                refMag2 = -2.5*numpy.log10(refFlux2)
+                refMag = self.cterm.transformMags(refMag1, refMag2)
+                refFlux = numpy.power(10.0, -0.4*refMag)
+                matches = [self.setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
+
+            selSources = self.selectStars(sources)
+            selMatches = self.selectStars(matches)
+
+            retSrc = list()
+            retMatch = list()
+
+            if len(selMatches) > self.config.minNumMatch:
+                naxis1, naxis2 = calexp_md.get('NAXIS1'), calexp_md.get('NAXIS2')
+                bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2))
+                cellSet = afwMath.SpatialCellSet(bbox, self.config.cellSize, self.config.cellSize)
+                for s in selSources:
+                    if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
+                        src = measMosaic.Source(s)
+                        src.setExp(dataId['visit'])
+                        src.setChip(dataId['ccd'])
+                        try:
+                            cellSet.insertCandidate(measMosaic.SpatialCellSource(src))
+                        except Exception, e:
+                            self.log.info('visit=%d ccd=%d x=%f y=%f' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], src.getX(), src.getY()) + ' bbox=' + str(bbox))
+                            #print 'visit=%d ccd=%d x=%f y=%f' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], src.getX(), src.getY()) + ' bbox=' + str(bbox)
+                for cell in cellSet.getCellList():
+                    cell.sortCandidates()
+                    for i, cand in enumerate(cell):
+                        cand = measMosaic.cast_SpatialCellSource(cand)
+                        src = cand.getSource()
+                        retSrc.append(src)
+                        if i == self.config.nStarPerCell-1:
+                            break
+                for m in selMatches:
+                    if m.first != None and m.second != None:
+                        match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs), measMosaic.Source(m.second))
+                        match.second.setExp(dataId['visit'])
+                        match.second.setChip(dataId['ccd'])
+                        retMatch.append(match)
+            else:
+                self.log.info('%8d %3d : %d/%d matches  Suspicious to wrong match. Ignore this CCD' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], len(selMatches), len(matches)))
+                #print '%8d %3d : %2d matches  Suspicious to wrong match. Ignore this CCD' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], len(matches))
+
+        except Exception, e:
+            self.log.warn("Failed to read %s: %s" % (dataId, e))
+            #print "Failed to read %s: %s" % (dataId, e)
+            return dataId, [None, None, None]
+
+        return dataId, [retSrc, retMatch, wcs]
+
+class Worker(object):
+
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+
+    def __call__(self, payload):
+        srcReader, dataRef = payload
+
+        return srcReader.readSrc(dataRef)
 
 class MosaicTask(pipeBase.CmdLineTask):
 
@@ -258,7 +403,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             if False:
                 matches = measAstrom.readMatches(dataRef.getButler(), dataRef.dataId, config=self.config.astrom)
             else:
-                if False: #dataRef.datasetExists('icMatchFull'):
+                if True: #dataRef.datasetExists('icMatchFull'):
                     if verbose:
                         self.log.info("Reading matches from icMatchFull files for %s" % dataRef.dataId)
                                   
@@ -273,6 +418,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                     table.defineInstFlux('flux.gaussian')
                     table.defineCentroid('centroid.sdss')
                     table.defineShape('shape.sdss')
+                    table.defineCalibFlux('flux.naive')
                 else:
                     if verbose:
                         self.log.info("Reading matches from icSrc files for %s" % dataRef.dataId)
@@ -304,7 +450,7 @@ class MosaicTask(pipeBase.CmdLineTask):
     
         return selSources, selMatches, wcs
 
-    def readCatalog(self, dataRefList, ct=None, verbose=False):
+    def readCatalogOld(self, dataRefList, ct=None, verbose=False):
         self.log.info("Reading catalogs ...")
 
         sourceSet = measMosaic.SourceGroup()
@@ -354,6 +500,57 @@ class MosaicTask(pipeBase.CmdLineTask):
                     dataRefListUsed.append(dataRef)
                 else:
                     self.log.info('%8d %3d : %2d matches  Suspicious to wrong match. Ignore this CCD' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], len(matches)))
+
+        for visit in ssVisit.keys():
+            sourceSet.push_back(ssVisit[visit])
+            matchList.push_back(mlVisit[visit])
+
+        return sourceSet, matchList, dataRefListUsed
+
+    def readCatalog(self, dataRefList, ct=None, verbose=False):
+        self.log.info("Reading catalogs ...")
+
+        sourceSet = measMosaic.SourceGroup()
+        matchList = measMosaic.SourceMatchGroup()
+
+        srcReader = SrcReader(ct, self.config)
+
+        params = list()
+        for dataRef in dataRefList:
+            params.append((srcReader, dataRef))
+
+        if self.config.numCores > 1:
+            pool = multiprocessing.Pool(processes=self.config.numCores)
+            worker = Worker()
+            resultList = pool.map_async(worker, params).get(9999)
+        else:
+            resultList = list()
+            for p in params:
+                srcReader, dataRef = p
+                resultList.append(srcReader.readSrc(dataRef))
+
+        #res = [pool.apply_async(butlerSrc.readSrc, args=p) for p in params]
+        #resultList = [p.get() for p in res]
+
+        ssVisit = dict()
+        mlVisit = dict()
+        dataRefListUsed = list()
+        for dataId, result in resultList:
+            sources, matches, wcs = result
+            if sources != None:
+                if not dataId['visit'] in ssVisit.keys():
+                    ssVisit[dataId['visit']] = list()
+                    mlVisit[dataId['visit']] = list()
+
+                for s in sources:
+                    ssVisit[dataId['visit']].append(s)
+
+                for m in matches:
+                    mlVisit[dataId['visit']].append(m)
+
+                for dataRef in dataRefList:
+                    if dataRef.dataId == dataId:
+                        dataRefListUsed.append(dataRef)
 
         for visit in ssVisit.keys():
             sourceSet.push_back(ssVisit[visit])
