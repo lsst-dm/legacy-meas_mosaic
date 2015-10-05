@@ -258,7 +258,7 @@ class SourceReader(object):
                         src.setChip(dataId['ccd'])
                         try:
                             cellSet.insertCandidate(measMosaic.SpatialCellSource(src))
-                        except Exception, e:
+                        except:
                             self.log.info('visit=%d ccd=%d x=%f y=%f' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], src.getX(), src.getY()) + ' bbox=' + str(bbox))
                 for cell in cellSet.getCellList():
                     cell.sortCandidates()
@@ -277,7 +277,7 @@ class SourceReader(object):
             else:
                 self.log.info('%8d %3d : %d/%d matches  Suspicious to wrong match. Ignore this CCD' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], len(selMatches), len(matches)))
 
-        except Exception, e:
+        except Exception as e:
             self.log.warn("Failed to read %s: %s" % (dataId, e))
             return dataId, [None, None, None]
 
@@ -332,7 +332,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         try:
             md = dataRef.get('calexp_md')
             return afwImage.makeWcs(md)
-        except Exception, e:
+        except Exception as e:
             print "Failed to read: %s for %s" % (e, dataRef.dataId)
             return None
 
@@ -457,7 +457,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             exp.setWcs(wcs)
             try:
                 dataRef.put(exp, 'wcs')
-            except Exception, e:
+            except Exception as e:
                 print "failed to write something: %s" % (e)
 
     def writeFcr(self, dataRefList):
@@ -482,7 +482,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             try:
                 x0 = self.coeffSet[iexp].x0
                 y0 = self.coeffSet[iexp].y0
-            except Exception, e:
+            except:
                 x0 = 0.0
                 y0 = 0.0
             newP = measMosaic.convertFluxFitParams(measMosaic.FluxFitParams(self.ffpSet[iexp]),
@@ -496,7 +496,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             exp.setCalib(calib)
             try:
                 dataRef.put(exp, 'fcr')
-            except Exception, e:
+            except Exception as e:
                 print "failed to write something: %s" % (e)
 
     def getExtent(self, matchVec):
@@ -581,7 +581,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         try:
             x0 = self.coeffSet[iexp].x0
             y0 = self.coeffSet[iexp].y0
-        except Exception, e:
+        except:
             x0 = 0.0
             y0 = 0.0
         self.plotCcd(x0, y0)
@@ -1196,7 +1196,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                             self.log.warn("Image %s does not overlap tract %s" % (dataRef.dataId, tractInfo.getId()))
                 else:
                     dataRefListOverlapWithTract.append(dataRef)
-            except Exception, e:
+            except Exception as e:
                 print e
 
         visitListOverlapWithTract = list(set([d.dataId['visit'] for d in dataRefListOverlapWithTract]))
