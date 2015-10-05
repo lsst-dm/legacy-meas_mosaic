@@ -54,6 +54,7 @@ class MosaicRunner(pipeBase.TaskRunner):
                  parsedCmd.diagDir,
                  parsedCmd.diagnostics,
                  parsedCmd.snapshots,
+                 parsedCmd.numCoresForReadSource,
                  ) for tract in sorted(refListDict.keys())]
 
     def __call__(self, args):
@@ -136,10 +137,6 @@ class MosaicConfig(pexConfig.Config):
     doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
     commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
     colorterms = pexConfig.ConfigField(dtype=ColortermLibraryConfig, doc="Color term library")
-    numCores = pexConfig.Field(
-        doc="Number of cores to be used for reading source catalog",
-        dtype=int,
-        default=2)
 
 def setCatFlux(m, f, key):
     m.first.set(key, f)
@@ -301,6 +298,8 @@ class MosaicTask(pipeBase.CmdLineTask):
                             help="Save diagnostics plots?")
         parser.add_argument("--snapshots", default=False, action="store_true",
                             help="Save snapshots of ObsVecs during iteration?")
+        parser.add_argument("--numCoresForReadSource", default=1, type=int,
+                            help="Number of cores to be used for reading source catalog")
         return parser
 
     def readCcd(self, dataRefList):
@@ -507,8 +506,9 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         return sourceSet, matchList, dataRefListUsed
 
-    def readCatalog(self, dataRefList, ct=None, verbose=False):
+    def readCatalog(self, dataRefList, ct=None, numCoresForReadSource=1, verbose=False):
         self.log.info("Reading catalogs ...")
+        self.log.info("Use %d cores for reading source catalog" % (numCoresForReadSource))
 
         sourceSet = measMosaic.SourceGroup()
         matchList = measMosaic.SourceMatchGroup()
@@ -519,8 +519,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         for dataRef in dataRefList:
             params.append((srcReader, dataRef))
 
-        if self.config.numCores > 1:
-            pool = multiprocessing.Pool(processes=self.config.numCores)
+        if numCoresForReadSource > 1:
+            pool = multiprocessing.Pool(processes=numCoresForReadSource)
             worker = Worker()
             resultList = pool.map_async(worker, params).get(9999)
         else:
@@ -1351,7 +1351,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         return dataRefListOverlapWithTract, dataRefListToUse
 
     def mosaic(self, dataRefList, tractInfo, ct=None, debug=False, diagDir=".",
-               diagnostics=False, snapshots=False, verbose=False):
+               diagnostics=False, snapshots=False, numCoresForReadSource=1, verbose=False):
 
         self.log.info(str(self.config))
 
@@ -1368,7 +1368,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         dataRefListOverlapWithTract, dataRefListToUse = self.checkOverlapWithTract(tractInfo, dataRefList)
 
-        sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefListToUse, ct, verbose)
+        sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefListToUse, ct, numCoresForReadSource, verbose)
 
         dataRefListToOutput = list(set(dataRefListUsed) & set(dataRefListOverlapWithTract))
 
@@ -1646,7 +1646,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
 
     def run(self, camera, butler, tract, dataRefList, debug, diagDir=".",
-            diagnostics=False, snapshots=False, verbose=False):
+            diagnostics=False, snapshots=False, numCoresForReadSource=1, verbose=False):
         self.log.info("Running self-calibration for tract %d" % tract)
         skyMap = butler.get("deepCoadd_skyMap", immediate=True)
         tractInfo = skyMap[tract]
@@ -1670,4 +1670,4 @@ class MosaicTask(pipeBase.CmdLineTask):
         else:
             self.log.info('color term: '+str(ct))
 
-        return self.mosaic(dataRefList, tractInfo, ct, debug, diagDir, diagnostics, snapshots, verbose)
+        return self.mosaic(dataRefList, tractInfo, ct, debug, diagDir, diagnostics, snapshots, numCoresForReadSource, verbose)
