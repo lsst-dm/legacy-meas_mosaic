@@ -158,7 +158,9 @@ def setCatFlux(m, f, key):
     m.first.set(key, f)
     return m
 
-class SrcReader(object):
+class SourceReader(object):
+    """ Object to read source catalog.
+    """
     def __init__(self, cterm, config):
         self.cterm  = cterm
         self.config = config
@@ -207,9 +209,16 @@ class SrcReader(object):
         return stars
 
     def readSrc(self, dataRef):
+        """ Read source catalog etc for input dataRef
+
+        The followings are returned
+        Source catalog, matched list, and wcs will be read from 'src', 'icMatchFull', and 'calexp_md', respectively.
+        If color transformation is given, it will be applied to reference flux of matched list.
+        Source catalog and matched list will be converted to measMosaic's Source and SourceMatch and returned.
+        The number of 'Source's in each cell defined by config.cellSize will be limited to brightest config.nStarPerCell.
+        """
 
         self.log = getDefaultLog()
-        #self.log.info('%s' % (dataRef.dataId))
 
         dataId = dataRef.dataId
 
@@ -290,14 +299,16 @@ class SrcReader(object):
         return dataId, [retSrc, retMatch, wcs]
 
 class Worker(object):
+    """ Worker object for multiprocessing
+    """
 
     def __init__(self, verbose=False):
         self.verbose = verbose
 
     def __call__(self, payload):
-        srcReader, dataRef = payload
+        sourceReader, dataRef = payload
 
-        return srcReader.readSrc(dataRef)
+        return sourceReader.readSrc(dataRef)
 
 class MosaicTask(pipeBase.CmdLineTask):
 
@@ -531,11 +542,11 @@ class MosaicTask(pipeBase.CmdLineTask):
         sourceSet = measMosaic.SourceGroup()
         matchList = measMosaic.SourceMatchGroup()
 
-        srcReader = SrcReader(ct, self.config)
+        sourceReader = SourceReader(ct, self.config)
 
         params = list()
         for dataRef in dataRefList:
-            params.append((srcReader, dataRef))
+            params.append((sourceReader, dataRef))
 
         if numCoresForReadSource > 1:
             pool = multiprocessing.Pool(processes=numCoresForReadSource)
@@ -544,8 +555,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         else:
             resultList = list()
             for p in params:
-                srcReader, dataRef = p
-                resultList.append(srcReader.readSrc(dataRef))
+                sourceReader, dataRef = p
+                resultList.append(sourceReader.readSrc(dataRef))
 
         #res = [pool.apply_async(butlerSrc.readSrc, args=p) for p in params]
         #resultList = [p.get() for p in res]
