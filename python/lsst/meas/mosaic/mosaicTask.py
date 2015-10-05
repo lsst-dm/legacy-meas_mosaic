@@ -137,6 +137,22 @@ class MosaicConfig(pexConfig.Config):
     doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
     commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
     colorterms = pexConfig.ConfigField(dtype=ColortermLibraryConfig, doc="Color term library")
+    includeSaturated = pexConfig.Field(
+        doc="If True, saturated objects will also be used for mosaicking.",
+        dtype=bool,
+        default=False)
+    extendednessForStarSelection = pexConfig.Field(
+        doc="Extendedness for star selection",
+        dtype=str,
+        default='classification.extendedness')
+    saturatedForStarSelection = pexConfig.Field(
+        doc="Saturated flag for star selection",
+        dtype=str,
+        default='flags.pixel.saturated.any')
+    psfStarForStarSelection = pexConfig.Field(
+        doc="PSF star flag for star selection",
+        dtype=str,
+        default='calib.psf.used')
 
 def setCatFlux(m, f, key):
     m.first.set(key, f)
@@ -152,6 +168,13 @@ class SrcReader(object):
         return m
 
     def selectStars(self, sources, includeSaturated=False):
+        """ Return a list of stellar like objects selected from input sources
+
+        Stellarity will be judged based mainly on extendedness (classification.extendedness).
+        If an object is used to determine PSF (calib.psf.used == True), it will be included.
+        Saturated objects (flags.pixel.saturated.any) will not be included as a default.
+        """
+
         if len(sources) == 0:
             return []
         if isinstance(sources, afwTable.SourceCatalog):
@@ -167,13 +190,13 @@ class SrcReader(object):
         psfKey = None                       # Table key for classification.psfstar
         if isinstance(sources, afwTable.ReferenceMatchVector) or isinstance(sources[0], afwTable.ReferenceMatch):
             sourceList = [s.second for s in sources]
-            psfKey = sourceList[0].schema.find("calib.psf.used").getKey()
+            psfKey = sourceList[0].schema.find(self.config.psfStarForStarSelection).getKey()
         else:
             sourceList = sources
 
         schema = sourceList[0].schema
-        extKey = schema.find("classification.extendedness").getKey()
-        satKey = schema.find("flags.pixel.saturated.any").getKey()
+        extKey = schema.find(self.config.extendednessForStarSelection).getKey()
+        satKey = schema.find(self.config.saturatedForStarSelection).getKey()
 
         stars = []
         for includeSource, checkSource in zip(sources, sourceList):
@@ -226,8 +249,8 @@ class SrcReader(object):
                 refFlux = numpy.power(10.0, -0.4*refMag)
                 matches = [self.setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
 
-            selSources = self.selectStars(sources)
-            selMatches = self.selectStars(matches)
+            selSources = self.selectStars(sources, self.config.includeSaturated)
+            selMatches = self.selectStars(matches, self.config.includeSaturated)
 
             retSrc = list()
             retMatch = list()
