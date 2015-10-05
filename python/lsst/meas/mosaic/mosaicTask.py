@@ -386,7 +386,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         if numCoresForReadSource > 1:
             pool = multiprocessing.Pool(processes=numCoresForReadSource)
             worker = Worker()
-            resultList = pool.map_async(worker, params).get(9999)
+            resultList = pool.map_async(worker, params).get()
         else:
             resultList = list()
             for p in params:
