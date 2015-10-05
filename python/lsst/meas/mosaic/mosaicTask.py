@@ -227,8 +227,8 @@ class SourceReader(object):
             for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape", "CalibFlux"):
                 getattr(matches[0].second.getTable(), "define" + slot)(getattr(icSrces, "get" + slot + "Definition")())
 
-            matches = [m for m in matches if m.first != None]
-            if self.cterm != None and len(matches) != 0:
+            matches = [m for m in matches if m.first is not None]
+            if self.cterm is not None and len(matches) != 0:
                 refSchema = matches[0].first.schema
                 key_p = refSchema.find(self.cterm.primary).key
                 key_s = refSchema.find(self.cterm.secondary).key
@@ -269,7 +269,7 @@ class SourceReader(object):
                         if i == self.config.nStarPerCell-1:
                             break
                 for m in selMatches:
-                    if m.first != None and m.second != None:
+                    if m.first is not None and m.second is not None:
                         match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs), measMosaic.Source(m.second))
                         match.second.setExp(dataId['visit'])
                         match.second.setChip(dataId['ccd'])
@@ -398,7 +398,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         dataRefListUsed = list()
         for dataId, result in resultList:
             sources, matches, wcs = result
-            if sources != None:
+            if sources is not None:
                 if not dataId['visit'] in ssVisit.keys():
                     ssVisit[dataId['visit']] = list()
                     mlVisit[dataId['visit']] = list()
