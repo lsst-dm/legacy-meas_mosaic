@@ -226,14 +226,9 @@ class SrcReader(object):
 
             matchFull = dataRef.get('icMatchFull', immediate=True)
             matches = measMosaic.matchesFromCatalog(matchFull)
-            table = matches[0].second.getTable()
-            table.definePsfFlux('flux.psf')
-            table.defineModelFlux('flux.gaussian')
-            table.defineApFlux('flux.sinc')
-            table.defineInstFlux('flux.gaussian')
-            table.defineCentroid('centroid.sdss')
-            table.defineShape('shape.sdss')
-            table.defineCalibFlux('flux.naive')
+            icSrces = dataRef.get('icSrc', immediate=True)
+            for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape", "CalibFlux"):
+                getattr(matches[0].second.getTable(), "define" + slot)(getattr(icSrces, "get" + slot + "Definition")())
 
             matches = [m for m in matches if m.first != None]
             if self.cterm != None and len(matches) != 0:
