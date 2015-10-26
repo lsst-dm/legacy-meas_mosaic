@@ -1,7 +1,7 @@
 import re
 import numpy
 
-from .mosaicLib import getFCorImg, FluxFitParams, getJImg
+from .mosaicLib import getFCorImg, FluxFitParams, getJImg, calculateJacobian
 from lsst.pipe.base import Struct
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
@@ -38,7 +38,7 @@ def getFluxFitParams(dataRef):
     ffpHeader = dataRef.get("fcr_md", immediate=True)
     calib = afwImage.Calib(ffpHeader)
     ffp = FluxFitParams(ffpHeader)
-    return Struct(ffp=ffp, calib=calib)
+    return Struct(ffp=ffp, calib=calib, wcs=getWcs(dataRef))
 
 def getWcs(dataRef):
     """Retrieve the Wcs determined by meas_mosaic"""
@@ -50,7 +50,6 @@ def getMosaicResults(dataRef, dims=None):
 
     If None, the dims will be determined from the calexp header.
     """
-    wcs = getWcs(dataRef)
     ffp = getFluxFitParams(dataRef)
 
     if dims is None:
@@ -59,7 +58,7 @@ def getMosaicResults(dataRef, dims=None):
     else:
         width, height = dims
     fcor = getFCorImg(ffp.ffp, width, height)
-    jcor = getJImg(wcs, width, height)
+    jcor = getJImg(ffp.wcs, width, height)
     fcor *= jcor
     del jcor
 
@@ -73,7 +72,8 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     meas_mosaic solution.
     """
     ffp = getFluxFitParams(dataRef)
-    corr = numpy.power(10.0, -0.4*ffp.ffp.eval(catalog.getX(), catalog.getY()))
+    xx, yy = catalog.getX(), catalog.getY()
+    corr = numpy.power(10.0, -0.4*ffp.ffp.eval(xx, yy))*calculateJacobian(ffp.wcs, xx, yy)
 
     if addCorrection:
         mapper = afwTable.SchemaMapper(catalog.schema)
