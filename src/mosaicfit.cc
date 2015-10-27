@@ -3090,3 +3090,49 @@ lsst::meas::mosaic::getJImg(lsst::afw::image::Wcs::Ptr& wcs,
 
     return getJImg(wcs, width, height);
 }
+
+double lsst::meas::mosaic::calculateJacobian(
+    lsst::afw::image::Wcs const& wcs,
+    lsst::afw::geom::Point2D const& point
+    )
+{
+    // Wcs::pixArea returns values in square degrees
+    double const scale = 1.0 / wcs.pixelScale().asDegrees();
+    return wcs.pixArea(point)*scale*scale;
+}
+
+ndarray::Array<double, 1> lsst::meas::mosaic::calculateJacobian(
+    lsst::afw::image::Wcs const& wcs,
+    std::vector<lsst::afw::geom::Point2D> const& points
+    )
+{
+    int const num = points.size();
+    ndarray::Array<double, 1> target = ndarray::allocate(ndarray::makeVector(num));
+    ndarray::Array<double, 1>::Iterator tt = target.begin();
+    double const scale = 1.0 / std::pow(wcs.pixelScale().asDegrees(), 2);
+    for (std::vector<lsst::afw::geom::Point2D>::const_iterator pp = points.begin();
+         pp != points.end(); ++pp, ++tt) {
+        *tt = scale*wcs.pixArea(*pp);
+    }
+    return target;
+}
+
+ndarray::Array<double, 1> lsst::meas::mosaic::calculateJacobian(
+    lsst::afw::image::Wcs const& wcs,
+    ndarray::Array<double const, 1> const& x,
+    ndarray::Array<double const, 1> const& y
+    )
+{
+    int const num = x.getShape()[0];
+    if (y.getShape()[0] != num) {
+        throw LSST_EXCEPT(lsst::pex::exceptions::LengthErrorException,
+                          str(boost::format("Size mismatch: %d vs %d") % x.getShape()[0] % y.getShape()[0]));
+    }
+    std::vector<lsst::afw::geom::Point2D> points;
+    points.reserve(num);
+    ndarray::Array<double const, 1>::Iterator xx = x.begin(), yy = y.begin();
+    for (; xx != x.end(); ++xx, ++yy) {
+        points.push_back(lsst::afw::geom::Point2D(*xx, *yy));
+    }
+    return lsst::meas::mosaic::calculateJacobian(wcs, points);
+}

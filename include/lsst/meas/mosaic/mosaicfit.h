@@ -316,6 +316,29 @@ namespace lsst {
 	    lsst::afw::image::Image<float>::Ptr
 	      getJImg(lsst::afw::image::Wcs::Ptr& wcs,
 		      lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+
+            //{
+            // Calculate Jacobian correction
+            //
+            // This needs to be included along with the flux correction
+            // when correcting the flux of objects. It corrects for the
+            // dimming of the flat-field due to optical scale variations
+            // over the field of view.
+            double calculateJacobian(
+                afw::image::Wcs const& wcs, ///< Astrometric solution
+                afw::geom::Point2D const& point ///< Position for correction
+                );
+            ndarray::Array<double, 1> calculateJacobian(
+                afw::image::Wcs const& wcs, ///< Astrometric solution
+                std::vector<afw::geom::Point2D> const& points ///< Positions for correction
+                );
+            ndarray::Array<double, 1> calculateJacobian(
+                afw::image::Wcs const& wcs, ///< Astrometric solution
+                ndarray::Array<double const, 1> const& x, ///< x positions for correction
+                ndarray::Array<double const, 1> const& y  ///< y positions for correction
+                );
+            //}
+
     }
   }
 }
