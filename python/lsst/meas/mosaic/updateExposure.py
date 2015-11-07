@@ -62,7 +62,7 @@ def getMosaicResults(dataRef, dims=None):
     fcor *= jcor
     del jcor
 
-    return Struct(wcs=wcs, calib=ffp.calib, fcor=fcor)
+    return Struct(wcs=ffp.wcs, calib=ffp.calib, fcor=fcor)
 
 
 def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
