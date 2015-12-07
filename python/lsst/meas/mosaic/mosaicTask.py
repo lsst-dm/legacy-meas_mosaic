@@ -55,6 +55,7 @@ class MosaicRunner(pipeBase.TaskRunner):
                  parsedCmd.diagnostics,
                  parsedCmd.snapshots,
                  parsedCmd.numCoresForReadSource,
+                 parsedCmd.readTimeout,
                  ) for tract in sorted(refListDict.keys())]
 
     def __call__(self, args):
@@ -314,6 +315,8 @@ class MosaicTask(pipeBase.CmdLineTask):
                             help="Save snapshots of ObsVecs during iteration?")
         parser.add_argument("--numCoresForReadSource", default=1, type=int,
                             help="Number of cores to be used for reading source catalog")
+        parser.add_argument("--readTimeout", default=9999, type=float,
+                            help="Timeout (sec) for reading inputs with multiple processes")
         return parser
 
     def readCcd(self, dataRefList):
@@ -370,7 +373,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             if num[ichip] == 0:
                 ccdSet.erase(ichip)
             
-    def readCatalog(self, dataRefList, ct=None, numCoresForReadSource=1, verbose=False):
+    def readCatalog(self, dataRefList, ct=None, numCoresForReadSource=1, readTimeout=9999, verbose=False):
         self.log.info("Reading catalogs ...")
         self.log.info("Use %d cores for reading source catalog" % (numCoresForReadSource))
 
@@ -386,7 +389,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         if numCoresForReadSource > 1:
             pool = multiprocessing.Pool(processes=numCoresForReadSource)
             worker = Worker()
-            resultList = pool.map_async(worker, params).get()
+            resultList = pool.map_async(worker, params).get(readTimeout)
         else:
             resultList = list()
             for p in params:
@@ -1209,7 +1212,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         return dataRefListOverlapWithTract, dataRefListToUse
 
     def mosaic(self, dataRefList, tractInfo, ct=None, debug=False, diagDir=".",
-               diagnostics=False, snapshots=False, numCoresForReadSource=1, verbose=False):
+               diagnostics=False, snapshots=False, numCoresForReadSource=1, readTimeout=9999, verbose=False):
 
         self.log.info(str(self.config))
 
@@ -1226,7 +1229,8 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         dataRefListOverlapWithTract, dataRefListToUse = self.checkOverlapWithTract(tractInfo, dataRefList)
 
-        sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefListToUse, ct, numCoresForReadSource, verbose)
+        sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefListToUse, ct, numCoresForReadSource,
+                                                                 readTimeout, verbose)
 
         dataRefListToOutput = list(set(dataRefListUsed) & set(dataRefListOverlapWithTract))
 
@@ -1503,7 +1507,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
 
     def run(self, camera, butler, tract, dataRefList, debug, diagDir=".",
-            diagnostics=False, snapshots=False, numCoresForReadSource=1, verbose=False):
+            diagnostics=False, snapshots=False, numCoresForReadSource=1, readTimeout=9999, verbose=False):
         self.log.info("Running self-calibration for tract %d" % tract)
         skyMap = butler.get("deepCoadd_skyMap", immediate=True)
         tractInfo = skyMap[tract]
@@ -1527,4 +1531,5 @@ class MosaicTask(pipeBase.CmdLineTask):
         else:
             self.log.info('color term: '+str(ct))
 
-        return self.mosaic(dataRefList, tractInfo, ct, debug, diagDir, diagnostics, snapshots, numCoresForReadSource, verbose)
+        return self.mosaic(dataRefList, tractInfo, ct, debug, diagDir, diagnostics, snapshots,
+                           numCoresForReadSource, readTimeout, verbose)
