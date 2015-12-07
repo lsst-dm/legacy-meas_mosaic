@@ -115,7 +115,7 @@ class MosaicConfig(pexConfig.Config):
     minNumMatch = pexConfig.RangeField(
         doc="Minimum number of matches in CCD to be used.",
         dtype=int,
-        default=15, min=0)
+        default=0, min=0)
     numSourceMerge = pexConfig.RangeField(
         doc="Minimum number of sources to be merged.",
         dtype=int,
