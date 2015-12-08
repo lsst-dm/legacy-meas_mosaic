@@ -60,3 +60,51 @@
 %template(CoeffSet) std::map<int, lsst::meas::mosaic::Coeff::Ptr>;
 %template(ObsVec) std::vector<lsst::meas::mosaic::Obs::Ptr>;
 %template(FfpSet) std::map<int, lsst::meas::mosaic::FluxFitParams::Ptr>;
+
+%extend lsst::meas::mosaic::Source {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (
+    self.getId(), self.getChip(), self.getExp(),
+    self.getRa().asDegrees(), self.getDec().asDegrees(),
+    self.getX(), self.getXErr(), self.getY(), self.getYErr(),
+    self.getFlux(), self.getFluxErr(),
+    self.getAstromBad(),
+  )
+%}
+}
+
+%extend std::pair<PTR(lsst::meas::mosaic::Source), PTR(lsst::meas::mosaic::Source)> {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (self.first, self.second)
+%}
+}
+
+%extend std::vector<PTR(lsst::meas::mosaic::Source)> {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (), {}, iter(self)
+%}
+}
+
+%extend std::vector<std::vector<PTR(lsst::meas::mosaic::Source)> > {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (), {}, iter(self)
+%}
+}
+
+%extend std::vector<lsst::meas::mosaic::SourceMatch> {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (), {}, iter(self)
+%}
+}
+
+%extend std::vector<std::vector<lsst::meas::mosaic::SourceMatch> > {
+%pythoncode %{
+def __reduce__(self):
+  return self.__class__, (), {}, iter(self)
+%}
+}
