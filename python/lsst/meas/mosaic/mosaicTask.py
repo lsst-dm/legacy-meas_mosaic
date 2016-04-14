@@ -50,7 +50,7 @@ class MosaicRunner(pipeBase.TaskRunner):
         for ref in parsedCmd.id.refList:
             refListDict.setdefault(ref.dataId["tract"], []).append(ref)
         # we call run() once with each tract
-        return [(parsedCmd.butler.mapper.getCameraName(),
+        return [(parsedCmd.camera,
                  parsedCmd.butler,
                  tract,
                  refListDict[tract],
