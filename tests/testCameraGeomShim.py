@@ -113,8 +113,8 @@ def suite():
     utilsTests.init()
 
     suites = []
-    suites += unittest.makeSuite(ShimCameraGeomTestCase)
-    suites += unittest.makeSuite(utilsTests.MemoryTestCase)
+    # suites += unittest.makeSuite(ShimCameraGeomTestCase)
+    # suites += unittest.makeSuite(utilsTests.MemoryTestCase)
 
     return unittest.TestSuite(suites)
 
