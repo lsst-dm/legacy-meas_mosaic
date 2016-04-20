@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 import multiprocessing
 
-import lsst.afw.cameraGeom              as cameraGeom
 import lsst.afw.geom                    as afwGeom
 import lsst.afw.image                   as afwImage
 import lsst.afw.table                   as afwTable
@@ -136,14 +135,30 @@ class MosaicConfig(pexConfig.Config):
         doc="If True, unmatched sources outside of tract will not be used as constraints",
         dtype=bool,
         default=True)
-    astrom = pexConfig.ConfigField(dtype=measAstrom.ANetBasicAstrometryConfig, doc="Configuration for readMatches")
-    doColorTerms = pexConfig.Field(dtype=bool, default=True, doc="Apply color terms as part of solution?")
-    doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
-    doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
-    commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
-    colorterms = pexConfig.ConfigField(dtype=ColortermLibrary, doc="Color term library")
+    astrom = pexConfig.ConfigField(
+        doc="Configuration for readMatches",
+        dtype=measAstrom.ANetBasicAstrometryConfig)
+    doColorTerms = pexConfig.Field(
+        doc="Apply color terms as part of solution?",
+        dtype=bool,
+        default=True)
+    doSolveWcs = pexConfig.Field(
+        doc="Solve distortion and wcs?",
+        dtype=bool,
+        default=True)
+    doSolveFlux = pexConfig.Field(
+        doc="Solve flux correction?",
+        dtype=bool,
+        default=True)
+    commonFluxCorr = pexConfig.Field(
+        doc="Is flux correction common between exposures?",
+        dtype=bool,
+        default=True)
+    colorterms = pexConfig.ConfigField(
+        doc="Color term library",
+        dtype=ColortermLibrary)
     photoCatName = pexConfig.Field(
-        doc="Name of photometric reference catalog; used to select a color term dict in colorterm library."
+        doc="Name of photometric reference catalog; used to select a color term dict in colorterm library.",
         dtype=str,
         optional=True)
     includeSaturated = pexConfig.Field(
@@ -188,7 +203,8 @@ class SourceReader(object):
             return []
 
         psfKey = None                       # Table key for classification.psfstar
-        if isinstance(sources, afwTable.ReferenceMatchVector) or isinstance(sources[0], afwTable.ReferenceMatch):
+        if (isinstance(sources, afwTable.ReferenceMatchVector) or
+            isinstance(sources[0], afwTable.ReferenceMatch)):
             sourceList = [s.second for s in sources]
             psfKey = sourceList[0].schema.find(self.config.psfStarForStarSelection).getKey()
         else:
@@ -213,11 +229,16 @@ class SourceReader(object):
     def readSrc(self, dataRef):
         """ Read source catalog etc for input dataRef
 
-        The followings are returned
-        Source catalog, matched list, and wcs will be read from 'src', 'srcMatch', and 'calexp_md', respectively.
+        The following are returned:
+        Source catalog, matched list, and wcs will be read from 'src', 'srcMatch', and 'calexp_md',
+        respectively.
+
         If color transformation is given, it will be applied to reference flux of matched list.
-        Source catalog and matched list will be converted to measMosaic's Source and SourceMatch and returned.
-        The number of 'Source's in each cell defined by config.cellSize will be limited to brightest config.nStarPerCell.
+        Source catalog and matched list will be converted to measMosaic's Source and SourceMatch and
+        returned.
+
+        The number of 'Source's in each cell defined by config.cellSize will be limited to brightest
+        config.nStarPerCell.
         """
 
         self.log = getDefaultLog()
@@ -234,13 +255,13 @@ class SourceReader(object):
             wcs = afwImage.makeWcs(calexp_md)
 
             sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
-
-            refObjLoader = measAstrom.LoadAstrometryNetObjectsTask(measAstrom.LoadAstrometryNetObjectsTask.ConfigClass())
+            refObjLoader = measAstrom.LoadAstrometryNetObjectsTask(
+                measAstrom.LoadAstrometryNetObjectsTask.ConfigClass())
             srcMatch = dataRef.get('srcMatch', immediate=True)
             matches = refObjLoader.joinMatchListWithCatalog(srcMatch, sources)
-
             matches = [m for m in matches if m.first is not None]
             refSchema = matches[0].first.schema if matches else None
+
             if self.cterm is not None and len(matches) != 0:
                 # Add a "flux" field to the input schema of the first element
                 # of the match and populate it with a colorterm correct flux.
@@ -289,7 +310,9 @@ class SourceReader(object):
                         try:
                             cellSet.insertCandidate(measMosaic.SpatialCellSource(src))
                         except:
-                            self.log.info('visit=%d ccd=%d x=%f y=%f' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], src.getX(), src.getY()) + ' bbox=' + str(bbox))
+                            self.log.info('visit=%d ccd=%d x=%f y=%f' %
+                                          (dataRef.dataId['visit'], dataRef.dataId['ccd'],
+                                           src.getX(), src.getY()) + ' bbox=' + str(bbox))
                 for cell in cellSet.getCellList():
                     cell.sortCandidates()
                     for i, cand in enumerate(cell):
@@ -300,12 +323,14 @@ class SourceReader(object):
                             break
                 for m in selMatches:
                     if m.first is not None and m.second is not None:
-                        match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs), measMosaic.Source(m.second))
+                        match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs),
+                                                       measMosaic.Source(m.second))
                         match.second.setExp(dataId['visit'])
                         match.second.setChip(dataId['ccd'])
                         retMatch.append(match)
             else:
-                self.log.info('%8d %3d : %d/%d matches  Suspicious to wrong match. Ignore this CCD' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], len(selMatches), len(matches)))
+                self.log.info('%8d %3d : %d/%d matches  Suspicious to wrong match. Ignore this CCD' %
+                              (dataRef.dataId['visit'], dataRef.dataId['ccd'], len(selMatches), len(matches)))
 
         except Exception as e:
             self.log.warn("Failed to read %s: %s" % (dataId, e))
@@ -355,11 +380,10 @@ class MosaicTask(pipeBase.CmdLineTask):
             if not dataRef.dataId['ccd'] in ccds.keys():
                 ccd = dataRef.get('camera')[int(dataRef.dataId['ccd'])]
                 ccds[dataRef.dataId['ccd']] = ccd
-        
-        return ccds
-        
-    def getWcsForCcd(self, dataRef):
 
+        return ccds
+
+    def getWcsForCcd(self, dataRef):
         try:
             md = dataRef.get('calexp_md')
             return afwImage.makeWcs(md)
@@ -368,7 +392,6 @@ class MosaicTask(pipeBase.CmdLineTask):
             return None
 
     def readWcs(self, dataRefList, ccdSet):
-        
         self.log.info("Reading WCS ...")
 
         wcsDic = measMosaic.WcsDic()
@@ -464,7 +487,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         allMat = rootMat.mergeMat()
         self.log.info("# of allMat : %d" % self.countObsInSourceGroup(allMat))
         self.log.info('len(allMat) = %d' % len(allMat))
-    
+
         self.log.info("Creating kd-tree for source catalog ...")
         self.log.info('len(sourceSet) = '+str(len(sourceSet))+" "+
                       str([len(sources) for sources in sourceSet]))
@@ -497,7 +520,6 @@ class MosaicTask(pipeBase.CmdLineTask):
             if (m.good == True and m.mag != -9999 and m.jstar != -1 and
                 m.mag0 != -9999 and m.mag_cat != -9999):
                 mag = m.mag
-                mag0 = m.mag0
                 mag_cat = m.mag_cat
                 exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
                 chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
@@ -614,7 +636,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             x0 = 0.0
             y0 = 0.0
         self.plotCcd(x0, y0)
-        
+
         plt.savefig(os.path.join(self.outputDir, "fcont_%d.png" % (iexp)), format='png')
 
     def plotResPosArrow2D(self, iexp):
@@ -681,7 +703,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         b = aa[numpy.fabs(aa-avg) < 2.1*std]
         avg = b.mean()
         std = b.std()
-            
+
         return [std, avg, len(b)]
 
     def plotResPosScatter(self):
@@ -774,12 +796,15 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.hist(d_eta_m, bins=bins, normed=False, orientation='horizontal', histtype='step')
         if self.sourceVec.size() != 0:
             plt.hist(d_eta_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
-        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes, color='blue')
-        plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (eta_std_m), rotation=270, transform=ax.transAxes, color='green')
+        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes,
+                 color='blue')
+        plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (eta_std_m), rotation=270, transform=ax.transAxes,
+                 color='green')
         y = mlab.normpdf(bins, eta_mean_m, eta_std_m)
         plt.plot(y*eta_n_m*0.01, bins, 'g:')
         if self.sourceVec.size() != 0:
-            plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (eta_std_s), rotation=270, transform=ax.transAxes, color='red')
+            plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (eta_std_s), rotation=270, transform=ax.transAxes,
+                     color='red')
             y = mlab.normpdf(bins, eta_mean_s, eta_std_s)
             plt.plot(y*eta_n_s*0.01, bins, 'r:')
         plt.xticks(rotation=270)
@@ -802,7 +827,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         _mag_cat_bad = []
         f = open(os.path.join(self.outputDir, 'dmag.dat'), 'wt')
         for m in self.matchVec:
-            if (m.good == True and m.mag != -9999 and m.jstar != -1 and m.mag0 != -9999 and m.mag_cat != -9999):
+            if (m.good == True and m.mag != -9999 and m.jstar != -1 and m.mag0 != -9999 and
+                m.mag_cat != -9999):
                 mag = m.mag
                 mag0 = m.mag0
                 mag_cat = m.mag_cat
@@ -902,13 +928,17 @@ class MosaicTask(pipeBase.CmdLineTask):
         if self.sourceVec.size() != 0:
             plt.hist(d_mag_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
         plt.hist(d_mag_cat_m, bins=bins2, normed=False, orientation='horizontal', histtype='step')
-        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (mag_std_a), rotation=270, transform=ax.transAxes, color='blue')
-        plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (mag_std_m), rotation=270, transform=ax.transAxes, color='green')
-        plt.text(0.7, 0.90, r"$\sigma=$%5.3f" % (mag_cat_std_m), rotation=270, transform=ax.transAxes, color='cyan')
+        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (mag_std_a), rotation=270, transform=ax.transAxes,
+                 color='blue')
+        plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (mag_std_m), rotation=270, transform=ax.transAxes,
+                 color='green')
+        plt.text(0.7, 0.90, r"$\sigma=$%5.3f" % (mag_cat_std_m), rotation=270, transform=ax.transAxes,
+                 color='cyan')
         y = mlab.normpdf(bins, mag_mean_m, mag_std_m)
         plt.plot(y*mag_n_m*0.005, bins, 'g:')
         if self.sourceVec.size() != 0:
-            plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes, color='red')
+            plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes,
+                     color='red')
             y = mlab.normpdf(bins, mag_mean_s, mag_std_s)
             plt.plot(y*mag_n_s*0.005, bins, 'r:')
         y = mlab.normpdf(bins, mag_cat_mean_m, mag_cat_std_m)
@@ -1057,8 +1087,6 @@ class MosaicTask(pipeBase.CmdLineTask):
         u = numpy.array(_u)
         v = numpy.array(_v)
 
-        s = numpy.absolute(d_mag) * 10
-
         u1 = [u[i] for i in range(len(d_mag)) if d_mag[i] > 0]
         v1 = [v[i] for i in range(len(d_mag)) if d_mag[i] > 0]
         s1 = [math.fabs(d_mag[i])*20 for i in range(len(d_mag)) if d_mag[i] > 0]
@@ -1087,7 +1115,8 @@ class MosaicTask(pipeBase.CmdLineTask):
             f.write("%ld %12.5e %12.5e\n" % (iexp, c.A,  c.D));
             f.write("%ld %12.5f %12.5f\n" % (iexp, c.x0, c.y0));
             for k in range(c.getNcoeff()):
-                f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" % (iexp, c.get_a(k), c.get_b(k), c.get_ap(k), c.get_bp(k)));
+                f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" %
+                        (iexp, c.get_a(k), c.get_b(k), c.get_ap(k), c.get_bp(k)));
         f.close()
 
         f = open(os.path.join(self.outputDir, "ccd.dat"), "wt")
@@ -1223,7 +1252,8 @@ class MosaicTask(pipeBase.CmdLineTask):
                         dataRefListOverlapWithTract.append(dataRef)
                     else:  # when there's no break i.e. no corner was in the tract
                         if verbose:
-                            self.log.warn("Image %s does not overlap tract %s" % (dataRef.dataId, tractInfo.getId()))
+                            self.log.warn("Image %s does not overlap tract %s" %
+                                          (dataRef.dataId, tractInfo.getId()))
                 else:
                     dataRefListOverlapWithTract.append(dataRef)
             except Exception as e:
@@ -1293,7 +1323,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         if self.config.clipSourcesOutsideTract:
             tractBBox = afwGeom.Box2D(tractInfo.getBBox())
             tractWcs = tractInfo.getWcs()
-            allSourceClipped = measMosaic.SourceGroup([ss for ss in allSource if tractBBox.contains(tractWcs.skyToPixel(ss[0].getSky()))])
+            allSourceClipped = measMosaic.SourceGroup(
+                [ss for ss in allSource if tractBBox.contains(tractWcs.skyToPixel(ss[0].getSky()))])
             self.log.info("Num of allSources: %d" % (len(allSource)))
             self.log.info("Num of clipped allSources: %d" % (len(allSourceClipped)))
             allSource = allSourceClipped
@@ -1319,7 +1350,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             sourceVec = measMosaic.ObsVec()
 
         if debug:
-            self.log.info("order : %d" % ffp.order)
+            self.log.info("order : %d" % order)
             self.log.info("internal : %r" % internal)
             self.log.info("solveCcd : %r " % solveCcd)
             self.log.info("allowRotation : %r" % allowRotation)
@@ -1339,7 +1370,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                                                       verbose, catRMS,
                                                       snapshots, self.outputDir)
             else:
-                coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
+                coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec,
                                                            wcsDic, ccdSet,
                                                            solveCcd, allowRotation,
                                                            verbose, catRMS,
@@ -1399,8 +1430,8 @@ class MosaicTask(pipeBase.CmdLineTask):
             fexp = measMosaic.map_int_float()
             fchip = measMosaic.map_int_float()
 
-            measMosaic.fluxFit(absolute, self.config.commonFluxCorr, matchVec, nmatch, sourceVec, nsource, wcsDic, ccdSet,
-                               fexp, fchip, ffpSet, solveCcdScale)
+            measMosaic.fluxFit(absolute, self.config.commonFluxCorr, matchVec, nmatch, sourceVec,
+                               nsource, wcsDic, ccdSet, fexp, fchip, ffpSet, solveCcdScale)
 
             self.ffpSet = ffpSet
             self.fexp = fexp
