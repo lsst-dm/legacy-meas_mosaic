@@ -254,11 +254,10 @@ class SourceReader(object):
                     newMatch = table.makeRecord()
                     newMatch.assign(match.first, mapper)
                     match.first = newMatch
-
-                key_p = refSchema.find(self.cterm.primary).key
-                key_s = refSchema.find(self.cterm.secondary).key
-                refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
-                refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
+                primaryFluxKey = refSchema.find(refSchema.join(self.cterm.primary, "flux")).key
+                secondaryFluxKey = refSchema.find(refSchema.join(self.cterm.secondary, "flux")).key
+                refFlux1 = numpy.array([m.first.get(primaryFluxKey) for m in matches])
+                refFlux2 = numpy.array([m.first.get(secondaryFluxKey) for m in matches])
                 refMag1 = -2.5*numpy.log10(refFlux1)
                 refMag2 = -2.5*numpy.log10(refFlux2)
                 refMag = self.cterm.transformMags(refMag1, refMag2)
