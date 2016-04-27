@@ -1932,10 +1932,10 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 		interval = xend - x + 1;
 	    }
 
-        afw::geom::Point2D uv = detPxToFpPx(ccd, afw::geom::Point2D(x, y)) +
-                                afw::geom::Extent2D(coeff->x0, coeff->y0);
+            afw::geom::Point2D uv = detPxToFpPx(ccd, afw::geom::Point2D(x, y)) +
+                afw::geom::Extent2D(coeff->x0, coeff->y0);
 	    double val0 = p->eval(uv.getX(), uv.getY());
-        uv = detPxToFpPx(ccd, afw::geom::Point2D(xend, y)) + afw::geom::Extent2D(coeff->x0, coeff->y0);
+            uv = detPxToFpPx(ccd, afw::geom::Point2D(xend, y)) + afw::geom::Extent2D(coeff->x0, coeff->y0);
 	    double val1 = p->eval(uv.getX(), uv.getY());
 
 	    for (int i = 0; i < interval; i++) {
@@ -1947,9 +1947,7 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 	lsst::afw::image::Image<float>::x_iterator end   = img->row_end(y);
 
 	for (lsst::afw::image::Image<float>::x_iterator ptr = begin; ptr != end; ptr++) {
-
 	    int x = ptr - begin;
-
 	    *ptr = pow(10., -0.4*vals(x));
 	}
     }
@@ -1980,7 +1978,7 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p, int width, int height)
 	    double v = y;
 	    double val0 = p->eval(u, v);
 	    u = xend;
-	    v = y;
+            v = y;
 	    double val1 = p->eval(u, v);
 	    for (int i = 0; i < interval; i++) {
 		vals(x+i) = val0 + (val1 - val0) / interval * i;

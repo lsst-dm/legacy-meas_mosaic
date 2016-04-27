@@ -30,7 +30,7 @@ afw::geom::Point2D getCenterInDetectorPixels(CONST_PTR(afw::cameraGeom::Detector
 //    if ((getNQuarter(det) % 2) != 0) {
 //        return afw::geom::Point2D(center.getY(), center.getX());
 //    } else {
-        return center;
+    return center;
 //    }
 }
 
@@ -38,7 +38,7 @@ int getWidth(CONST_PTR(afw::cameraGeom::Detector) det) {
 //    if ((getNQuarter(det) % 2) != 0) {
 //        return det->getBBox().getHeight();
 //    } else {
-        return det->getBBox().getWidth();
+    return det->getBBox().getWidth();
 //    }
 }
 
@@ -46,7 +46,7 @@ int getHeight(CONST_PTR(afw::cameraGeom::Detector) det) {
 //    if ((getNQuarter(det) % 2) != 0) {
 //        return det->getBBox().getWidth();
 //    } else {
-        return det->getBBox().getHeight();
+    return det->getBBox().getHeight();
 //    }
 }
 
@@ -60,7 +60,7 @@ afw::geom::Point2D detPxToFpPx(CONST_PTR(afw::cameraGeom::Detector) det, afw::ge
 //    } else if (getNQuarter(det) == 1) {
 //        point = afw::geom::Point2D(detPt.getY(), det->getBBox().getHeight() - detPt.getX() - 1);
 //    } else {
-        point = detPt;
+    point = detPt;
 //    }
     auto scaling = makeScalingMmToPx(det->getPixelSize());
     return scaling(det->transform(det->makeCameraPoint(point, afw::cameraGeom::PIXELS),
