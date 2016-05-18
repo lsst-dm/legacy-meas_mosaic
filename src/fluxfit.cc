@@ -199,7 +199,7 @@ Eigen::VectorXd fluxFit_rel(std::vector<Obs::Ptr> &m,
     }
     delete [] num;
     int nstar = v_istar.size();
-    std::cout << "nstar: " << nstar << std::endl;
+    std::cout << "fluxFit_rel: nstar =  " << nstar << std::endl;
 
     for (int i = 0; i < nMobs; i++) {
 	std::vector<int>::iterator it = std::find(v_istar.begin(), v_istar.end(), m[i]->istar);
@@ -238,7 +238,7 @@ Eigen::VectorXd fluxFit_rel(std::vector<Obs::Ptr> &m,
     } else {
 	ndim = nexp + ncoeff * nFfp + nstar + 1;
     }
-    std::cout << "ndim: " << ndim << std::endl;
+    std::cout << "fluxFit_rel: ndim =  " << ndim << std::endl;
 
     Eigen::MatrixXd a_data = Eigen::MatrixXd::Zero(ndim, ndim);
     Eigen::VectorXd b_data = Eigen::VectorXd::Zero(ndim);
@@ -482,7 +482,7 @@ Eigen::VectorXd fluxFit_rel(std::vector<Obs::Ptr> &m,
     }
     double avg = Sx / S;
     double std = sqrt((Sxx-Sx*Sx/S)/S);
-    std::cout << avg << " " << std << std::endl;
+    std::cout << "fluxFit_rel: avg = " << avg << "  std = " << std << std::endl;
 
     for (int k = 0; k < 2; k++) {
 	S = Sx = Sxx = 0.;
@@ -495,7 +495,7 @@ Eigen::VectorXd fluxFit_rel(std::vector<Obs::Ptr> &m,
 	}
 	avg = Sx / S;
 	std = sqrt((Sxx-Sx*Sx/S)/S);
-	std::cout << avg << " " << std << std::endl;
+        std::cout << "fluxFit_rel: k = " << k << "  avg = " << avg << "  std = " << std << std::endl;
     }
 
     double dmag = avg;
@@ -586,7 +586,7 @@ Eigen::VectorXd fluxFit_rel1(std::vector<Obs::Ptr> &m,
     }
     delete [] num;
     int nstar = v_istar.size();
-    std::cout << "nstar: " << nstar << std::endl;
+    std::cout << "fluxFit_rel1: nstar = " << nstar << std::endl;
 
     for (int i = 0; i < nMobs; i++) {
 	std::vector<int>::iterator it = std::find(v_istar.begin(), v_istar.end(), m[i]->istar);
@@ -625,7 +625,7 @@ Eigen::VectorXd fluxFit_rel1(std::vector<Obs::Ptr> &m,
     } else {
 	ndim = nexp + ncoeff + nstar + 1;
     }
-    std::cout << "ndim: " << ndim << std::endl;
+    std::cout << "fluxFit_rel1: ndim =  " << ndim << std::endl;
 
     Eigen::MatrixXd a_data = Eigen::MatrixXd::Zero(ndim, ndim);
     Eigen::VectorXd b_data = Eigen::VectorXd::Zero(ndim);
@@ -869,7 +869,7 @@ Eigen::VectorXd fluxFit_rel1(std::vector<Obs::Ptr> &m,
     }
     double avg = Sx / S;
     double std = sqrt((Sxx-Sx*Sx/S)/S);
-    std::cout << avg << " " << std << std::endl;
+    std::cout << "fluxFit_rel1: avg = " << avg << " std = " << std << std::endl;
 
     for (int k = 0; k < 2; k++) {
 	S = Sx = Sxx = 0.;
@@ -882,7 +882,7 @@ Eigen::VectorXd fluxFit_rel1(std::vector<Obs::Ptr> &m,
 	}
 	avg = Sx / S;
 	std = sqrt((Sxx-Sx*Sx/S)/S);
-	std::cout << avg << " " << std << std::endl;
+        std::cout << "fluxFit_rel1: k = " << k << "  avg = " <<avg << "  std = " << std << std::endl;
     }
 
     double dmag = avg;
@@ -967,7 +967,7 @@ Eigen::VectorXd fluxFit_abs(std::vector<Obs::Ptr> &m,
     }
     delete [] num;
     int nstar = v_istar.size();
-    std::cout << "nstar: " << nstar << std::endl;
+    std::cout << "fluxFit_abs: nstar =  " << nstar << std::endl;
 
     for (int i = 0; i < nSobs; i++) {
 	std::vector<int>::iterator it = std::find(v_istar.begin(), v_istar.end(), s[i]->istar);
@@ -995,7 +995,7 @@ Eigen::VectorXd fluxFit_abs(std::vector<Obs::Ptr> &m,
     } else {
 	ndim = nexp + ncoeff * nFfp + nstar;
     }
-    std::cout << "ndim: " << ndim << std::endl;
+    std::cout << "fluxFit_abs: ndim =  " << ndim << std::endl;
 
     Eigen::MatrixXd a_data = Eigen::MatrixXd::Zero(ndim, ndim);
     Eigen::VectorXd b_data = Eigen::VectorXd::Zero(ndim);
@@ -1252,7 +1252,7 @@ Eigen::VectorXd fluxFit_abs1(std::vector<Obs::Ptr> &m,
     }
     delete [] num;
     int nstar = v_istar.size();
-    std::cout << "nstar: " << nstar << std::endl;
+    std::cout << "fluxFit_abs1: nstar =  " << nstar << std::endl;
 
     for (int i = 0; i < nSobs; i++) {
 	std::vector<int>::iterator it = std::find(v_istar.begin(), v_istar.end(), s[i]->istar);
@@ -1280,7 +1280,7 @@ Eigen::VectorXd fluxFit_abs1(std::vector<Obs::Ptr> &m,
     } else {
 	ndim = nexp + ncoeff + nstar;
     }
-    std::cout << "ndim: " << ndim << std::endl;
+    std::cout << "fluxFit_abs1: ndim = " << ndim << std::endl;
 
     Eigen::MatrixXd a_data = Eigen::MatrixXd::Zero(ndim, ndim);
     Eigen::VectorXd b_data = Eigen::VectorXd::Zero(ndim);
@@ -1615,7 +1615,7 @@ void flagObj_rel(std::vector<Obs::Ptr> &m,
 	}
     }
 
-    printf("nreject: %d\n", nreject);
+    printf("flagObj_rel: nreject = %d\n", nreject);
 }
 
 void flagObj_abs(std::vector<Obs::Ptr> &m,
@@ -1657,7 +1657,7 @@ void flagObj_abs(std::vector<Obs::Ptr> &m,
 	}
     }
 
-    printf("nreject: %d\n", nreject);
+    printf("flagObj_abs: nreject = %d\n", nreject);
 }
 
 void fluxFitRelative(ObsVec& matchVec,
@@ -1709,27 +1709,27 @@ void fluxFitRelative(ObsVec& matchVec,
 	    }
 	}
 	double chi2f = calcChi2_rel(matchVec, sourceVec, fexp, fchip, ffpSet);
-	printf("chi2f: %e\n", chi2f);
+	printf("fluxFitRelative: chi2f = %e\n", chi2f);
 	double e2f = calcChi2_rel(matchVec, sourceVec, fexp, fchip, ffpSet, true);
-	printf("err: %f (mag)\n", sqrt(e2f));
+	printf("fluxFitRelative: err = %f (mag)\n", sqrt(e2f));
 	//flagObj_rel(matchVec, sourceVec, 9.0, fexp, fchip, ffp);
 	if (k < 2)
 	    flagObj_rel(matchVec, sourceVec, 9.0*e2f, fexp, fchip, ffpSet);
     }
 
-    printf("FFP:   ");
+    printf("fluxFitRelative FFP:   ");
     for (FfpSet::iterator it = ffpSet.begin(); it != ffpSet.end(); it++) {
 	printf(" %8d", it->first);
     }
     printf("\n");
-    printf("FFP:   ");
+    printf("fluxFitRelative FFP:   ");
     for (FfpSet::iterator it = ffpSet.begin(); it != ffpSet.end(); it++) {
 	printf(" %8.5f", ffpSet[it->first]->eval(0,0));
     }
     printf("\n");
     FluxFitParams::Ptr ffp = ffpSet[ffpSet.begin()->first];
     for (int i = 0; i < ffp->ncoeff; i++) {
-	printf("FFP: %2d", i);
+	printf("fluxFitRelative FFP: %2d", i);
 	for (FfpSet::iterator it = ffpSet.begin(); it != ffpSet.end(); it++) {
 	    printf(" %8.5f", ffpSet[it->first]->coeff[i]);
 	}
@@ -1737,7 +1737,7 @@ void fluxFitRelative(ObsVec& matchVec,
     }
 
     for (std::map<int, float>::iterator it = fchip.begin(); it != fchip.end(); ++it) {
-        std::cout << "CCD " << it->first << ": " << it->second << std::endl;
+        std::cout << "fluxFitRelative CCD " << it->first << ": " << it->second << std::endl;
     }
 }
 
@@ -1790,27 +1790,27 @@ void fluxFitAbsolute(ObsVec& matchVec,
 	    }
 	}
 	double chi2f = calcChi2_abs(matchVec, sourceVec, fexp, fchip, ffpSet);
-	printf("chi2f: %e\n", chi2f);
+	printf("fluxFitAbsolute: chi2f = %e\n", chi2f);
 	double e2f = calcChi2_abs(matchVec, sourceVec, fexp, fchip, ffpSet, true);
-	printf("err: %f (mag)\n", sqrt(e2f));
+	printf("fluxFitAbsolute: err = %f (mag)\n", sqrt(e2f));
 	//flagObj_abs(matchVec, sourceVec, 9.0, fexp, fchip, ffp);
 	if (k < 2)
 	    flagObj_abs(matchVec, sourceVec, 9.0*e2f, fexp, fchip, ffpSet);
     }
 
-    printf("FFP:   ");
+    printf("fluxFitAbsolute FFP:   ");
     for (FfpSet::iterator it = ffpSet.begin(); it != ffpSet.end(); it++) {
 	printf(" %8d", it->first);
     }
     printf("\n");
-    printf("FFP:   ");
+    printf("fluxFitAbsolute FFP:   ");
     for (FfpSet::iterator it = ffpSet.begin(); it != ffpSet.end(); it++) {
 	printf(" %8.5f", ffpSet[it->first]->eval(0,0));
     }
     printf("\n");
     FluxFitParams::Ptr ffp = ffpSet[ffpSet.begin()->first];
     for (int i = 0; i < ffp->ncoeff; i++) {
-	printf("FFP: %2d", i);
+	printf("fluxFitAbsolute FFP: %2d", i);
 	for (FfpSet::iterator it = ffpSet.begin(); it != ffpSet.end(); it++) {
 	    printf(" %8.5f", ffpSet[it->first]->coeff[i]);
 	}
@@ -1818,7 +1818,7 @@ void fluxFitAbsolute(ObsVec& matchVec,
     }
 
     for (std::map<int, float>::iterator it = fchip.begin(); it != fchip.end(); ++it) {
-        std::cout << "CCD " << it->first << ": " << it->second << std::endl;
+        std::cout << "fluxFitAbsolute CCD " << it->first << ": " << it->second << std::endl;
     }
 }
 
