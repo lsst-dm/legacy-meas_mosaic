@@ -1,18 +1,19 @@
+#include <cmath>
 #include <ctime>
+#include <memory>
 #include <strings.h>
+
+#include "dynamic_lapack.h"
 #include "fitsio.h"
 
-#include "lsst/utils/ieee.h"
-#include "lsst/meas/mosaic/mosaicfit.h"
-#include "lsst/meas/mosaic/snapshot.h"
-#include "lsst/meas/mosaic/shimCameraGeom.h"
-#include "lsst/afw/coord/Coord.h"
-#include "lsst/afw/table/Match.h"
-#include "boost/make_shared.hpp"
 #include "boost/format.hpp"
 #include "boost/filesystem/path.hpp"
 
-#include "dynamic_lapack.h"
+#include "lsst/afw/coord/Coord.h"
+#include "lsst/afw/table/Match.h"
+#include "lsst/meas/mosaic/mosaicfit.h"
+#include "lsst/meas/mosaic/snapshot.h"
+#include "lsst/meas/mosaic/shimCameraGeom.h"
 
 #define D2R (M_PI/180.)
 #define R2D (180./M_PI)
@@ -2167,7 +2168,7 @@ lsst::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	    o->setUV(ccdSet[ichip]);
 	    o->xerr = ss[j]->getXErr();
 	    o->yerr = ss[j]->getYErr();
-	    if (lsst::utils::isnan(o->xerr) || lsst::utils::isnan(o->yerr))
+	    if (std::isnan(o->xerr) || std::isnan(o->yerr))
 		o->good = false;
 	    //printf("%d %e %e\n", o->good, o->xerr, o->yerr);
 	    o->istar = i;
@@ -2560,13 +2561,13 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
 
                     // Transform from pixels to focal plane has to be recalculated.
                     newTr[afw::cameraGeom::FOCAL_PLANE] =
-                        boost::make_shared<afw::geom::AffineXYTransform const>
+                        std::make_shared<afw::geom::AffineXYTransform const>
                         (newOrientation.makePixelFpTransform(pixelSize));
 
                     // We should not require any other transformations within meas_mosaic.
 
                     // Replace the old Detector with a shifted one.
-                    it->second = boost::make_shared<afw::cameraGeom::Detector>(
+                    it->second = std::make_shared<afw::cameraGeom::Detector>(
                         it->second->getName(),
                         it->second->getId(),
                         it->second->getType(),
@@ -2596,13 +2597,13 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
             afw::cameraGeom::CameraTransformMap::Transforms newTr;
 
             // Transform from pixels to focal plane has to be recalculated.
-            newTr[afw::cameraGeom::FOCAL_PLANE] = boost::make_shared<afw::geom::AffineXYTransform const>
+            newTr[afw::cameraGeom::FOCAL_PLANE] = std::make_shared<afw::geom::AffineXYTransform const>
                                                   (newOrientation.makePixelFpTransform(pixelSize));
 
             // We should not require any other transformations within meas_mosaic.
 
             // Replace the old Detector with a shifted one.
-            it->second = boost::make_shared<afw::cameraGeom::Detector>(
+            it->second = std::make_shared<afw::cameraGeom::Detector>(
                 it->second->getName(),
                 it->second->getId(),
                 it->second->getType(),
@@ -2775,13 +2776,13 @@ lsst::meas::mosaic::solveMosaic_CCD(int order,
             afw::cameraGeom::CameraTransformMap::Transforms newTr;
 
             // Transform from pixels to focal plane has to be recalculated.
-            newTr[afw::cameraGeom::FOCAL_PLANE] = boost::make_shared<afw::geom::AffineXYTransform const>
+            newTr[afw::cameraGeom::FOCAL_PLANE] = std::make_shared<afw::geom::AffineXYTransform const>
                                                   (newOrientation.makePixelFpTransform(pixelSize));
 
             // We should not require any other transformations within meas_mosaic.
 
             // Replace the old Detector with a shifted one.
-            it->second = boost::make_shared<afw::cameraGeom::Detector>(
+            it->second = std::make_shared<afw::cameraGeom::Detector>(
                 it->second->getName(),
                 it->second->getId(),
                 it->second->getType(),
@@ -2810,13 +2811,13 @@ lsst::meas::mosaic::solveMosaic_CCD(int order,
             afw::cameraGeom::CameraTransformMap::Transforms newTr;
 
             // Transform from pixels to focal plane has to be recalculated.
-            newTr[afw::cameraGeom::FOCAL_PLANE] = boost::make_shared<afw::geom::AffineXYTransform const>
+            newTr[afw::cameraGeom::FOCAL_PLANE] = std::make_shared<afw::geom::AffineXYTransform const>
                                                   (newOrientation.makePixelFpTransform(pixelSize));
 
             // We should not require any other transformations within meas_mosaic.
 
             // Replace the old Detector with a shifted one.
-            it->second = boost::make_shared<afw::cameraGeom::Detector>(
+            it->second = std::make_shared<afw::cameraGeom::Detector>(
                 it->second->getName(),
                 it->second->getId(),
                 it->second->getType(),

@@ -37,7 +37,7 @@ namespace lsst { namespace meas { namespace mosaic {
 			  ) {
 	  std::set<std::string> existing = target.getNames();
 	  ProcessSchema f = { &target, existing, targetPrefix, sourcePrefix };
-	  schema.forEach(boost::ref(f));
+	  schema.forEach(f);
 	}
 
 	afw::table::Schema *target;
@@ -91,7 +91,7 @@ namespace lsst { namespace meas { namespace mosaic {
 	    target.addNew();
 	  }
 	  ProcessSimpleCatalog f = { &target, targetSchema, catalog, targetPrefix, sourcePrefix };
-	  sourceSchema.forEach(boost::ref(f));
+	  sourceSchema.forEach(f);
 	}
 
 	afw::table::SimpleCatalog *target;
@@ -146,7 +146,7 @@ namespace lsst { namespace meas { namespace mosaic {
 	    target.addNew();
 	  }
 	  ProcessSourceCatalog f = { &target, targetSchema, catalog, targetPrefix, sourcePrefix };
-	  sourceSchema.forEach(boost::ref(f));
+	  sourceSchema.forEach(f);
 	}
 
 	afw::table::SourceCatalog *target;
