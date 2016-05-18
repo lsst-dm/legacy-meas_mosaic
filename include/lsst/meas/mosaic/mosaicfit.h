@@ -2,6 +2,7 @@
 #if !defined(HSC_MEAS_MOSAIC_H)
 #define HSC_MEAS_MOSAIC_H
 
+#include <memory>
 #include <vector>
 #include "lsst/pex/exceptions.h"
 #include "lsst/afw/image.h"
@@ -9,7 +10,6 @@
 #include "lsst/afw/cameraGeom.h"
 #include "lsst/afw/table.h"
 #include "lsst/utils/ieee.h"
-#include "boost/enable_shared_from_this.hpp"
 
 namespace lsst {
     namespace meas {
@@ -111,7 +111,7 @@ namespace lsst {
 
 	    class Poly {
 	    public:
-	        typedef boost::shared_ptr<Poly> Ptr;
+	        typedef std::shared_ptr<Poly> Ptr;
 
 		int order;
 		int ncoeff;
@@ -128,7 +128,7 @@ namespace lsst {
 
 	    class Coeff {
 	    public:
-		typedef boost::shared_ptr<Coeff> Ptr;
+		typedef std::shared_ptr<Coeff> Ptr;
 
 		Poly::Ptr p;
 		int iexp;
@@ -181,7 +181,7 @@ namespace lsst {
 
 	    class Obs {
 	    public:
-		typedef boost::shared_ptr<Obs> Ptr;
+		typedef std::shared_ptr<Obs> Ptr;
 
 		double ra, dec;
 		double xi, eta;
@@ -225,12 +225,12 @@ namespace lsst {
 
 	    class KDTree
 #if !defined(SWIG)
-	      : public boost::enable_shared_from_this<KDTree>
+	      : public std::enable_shared_from_this<KDTree>
 #endif
 	    {
 	    public:
-		typedef boost::shared_ptr<KDTree> Ptr;
-		typedef boost::shared_ptr<const KDTree> ConstPtr;
+		typedef std::shared_ptr<KDTree> Ptr;
+		typedef std::shared_ptr<const KDTree> ConstPtr;
 
 		int depth;
 		int axis;
