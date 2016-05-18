@@ -694,7 +694,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         return u_max, v_max
 
-    def plotCcd(self, coeffx0=0, coeffy0=0):
+    def plotCcd(self):
         for ccd in self.ccdSet.values():
             w = measMosaic.getWidth(ccd)
             h = measMosaic.getHeight(ccd)
@@ -717,15 +717,10 @@ class MosaicTask(pipeBase.CmdLineTask):
         scale = coeff.pixelScale()
         deg2pix = 1. / scale
 
-        delta = 300.
-        if (self.ccdSet.size() >= 100):
-            x = numpy.arange(-18000., 18000., delta)
-            y = numpy.arange(-18000., 18000., delta)
-            levels = numpy.linspace(0.81, 1.02, 36)
-        else:
-            x = numpy.arange(-6000., 6000., delta)
-            y = numpy.arange(-6000., 6000., delta)
-            levels = numpy.linspace(0.88, 1.02, 36)
+        delta = 250.0
+        x = numpy.arange(self.fpMin[0], self.fpMax[0], delta)
+        y = numpy.arange(self.fpMin[1], self.fpMax[1], delta)
+        levels = numpy.linspace(0.81, 1.02, 36)
         X, Y = numpy.meshgrid(x, y)
         Z = numpy.zeros((len(X),len(Y)))
 
@@ -743,15 +738,10 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.savefig(os.path.join(self.outputDir, "jcont_%d.png" % (iexp)), format='png')
 
     def plotFCorCont(self, iexp):
-        delta = 300.
-        if (self.ccdSet.size() > 10):
-            x = numpy.arange(-18000., 18000., delta)
-            y = numpy.arange(-18000., 18000., delta)
-            levels = numpy.linspace(0.72, 1.28, 36)
-        else:
-            x = numpy.arange(-6000., 6000., delta)
-            y = numpy.arange(-6000., 6000., delta)
-            levels = numpy.linspace(0.86, 1.14, 36)
+        delta = 250.0
+        x = numpy.arange(self.fpMin[0], self.fpMax[0], delta)
+        y = numpy.arange(self.fpMin[1], self.fpMax[1], delta)
+        levels = numpy.linspace(0.72, 1.28, 36)
         X, Y = numpy.meshgrid(x, y)
         Z = numpy.zeros((len(X),len(Y)))
 
@@ -772,7 +762,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         except:
             x0 = 0.0
             y0 = 0.0
-        self.plotCcd(x0, y0)
+        self.plotCcd()
 
         plt.savefig(os.path.join(self.outputDir, "fcont_%d.png" % (iexp)), format='png')
 
@@ -1492,6 +1482,20 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.sourceVec = sourceVec
         self.wcsDic = wcsDic
         self.ccdSet = ccdSet
+
+        if diagnostics:
+            xMinFp, xMaxFp = 18000, -18000
+            yMinFp, yMaxFp = 18000, -18000
+            for ichip in self.ccdSet.keys():
+                ccd = self.ccdSet[ichip]
+                center = measMosaic.getCenterInFpPixels(ccd)
+                if center[0] > xMaxFp: xMaxFp = center[0]
+                if center[0] < xMinFp: xMinFp = center[0]
+                if center[1] > yMaxFp: yMaxFp = center[1]
+                if center[1] < yMinFp: yMinFp = center[1]
+
+            self.fpMin = afwGeom.Point2D(round(xMinFp - 500.0, -3), round(yMinFp - 500.0, -3))
+            self.fpMax = afwGeom.Point2D(round(xMaxFp + 500.0, -3), round(yMaxFp + 500.0, -3))
 
         if self.config.doSolveWcs:
 
