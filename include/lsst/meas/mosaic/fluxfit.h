@@ -11,7 +11,7 @@ namespace lsst {
 
 	    class FluxFitParams {
 	    public:
-		typedef boost::shared_ptr<FluxFitParams> Ptr;
+		typedef std::shared_ptr<FluxFitParams> Ptr;
 
 		int order;
 		bool chebyshev;
