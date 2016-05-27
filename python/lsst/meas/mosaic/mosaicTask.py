@@ -221,8 +221,9 @@ class SourceReader(object):
                 stars.append(includeSource)
         return stars
 
-    def setCatFlux(self, m, f, key):
-        m.first.set(key, f)
+    def setCatFlux(self, m, flux, fluxKey, fluxSigma, fluxSigmaKey):
+        m.first.set(fluxKey, flux)
+        m.first.set(fluxSigmaKey, fluxSigma)
         return m
 
     def readSrc(self, dataRef):
@@ -267,22 +268,30 @@ class SourceReader(object):
                 mapper = afwTable.SchemaMapper(refSchema)
                 for key, field in refSchema:
                     mapper.addMapping(key)
-                key_f = mapper.editOutputSchema().addField("flux", type=float, doc="Reference flux")
+                fluxKey = mapper.editOutputSchema().addField("flux", type=float, doc="Reference flux")
+                fluxSigmaKey = mapper.editOutputSchema().addField("fluxSigma", type=float,
+                                                                  doc="Reference flux uncertainty")
                 table = afwTable.SimpleTable.make(mapper.getOutputSchema())
                 table.preallocate(len(matches))
                 for match in matches:
                     newMatch = table.makeRecord()
                     newMatch.assign(match.first, mapper)
                     match.first = newMatch
-                key_p = refSchema.find(self.cterm.primary+"_flux").key
-                key_s = refSchema.find(self.cterm.secondary+"_flux").key
-                refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
-                refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
+                primaryFluxKey = refSchema.find(self.cterm.primary + "_flux").key
+                secondaryFluxKey = refSchema.find(self.cterm.secondary + "_flux").key
+                primaryFluxSigmaKey = refSchema.find(self.cterm.primary + "_fluxSigma").key
+                secondaryFluxSigmaKey = refSchema.find(self.cterm.secondary + "_fluxSigma").key
+                refFlux1 = numpy.array([m.first.get(primaryFluxKey) for m in matches])
+                refFlux2 = numpy.array([m.first.get(secondaryFluxKey) for m in matches])
+                refFluxSigma1 = numpy.array([m.first.get(primaryFluxSigmaKey) for m in matches])
+                refFluxSigma2 = numpy.array([m.first.get(secondaryFluxSigmaKey) for m in matches])
                 refMag1 = -2.5*numpy.log10(refFlux1)
                 refMag2 = -2.5*numpy.log10(refFlux2)
                 refMag = self.cterm.transformMags(refMag1, refMag2)
                 refFlux = numpy.power(10.0, -0.4*refMag)
-                matches = [self.setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
+                refFluxSigma = self.cterm.propagateFluxErrors(refFluxSigma1, refFluxSigma2)
+                matches = [self.setCatFlux(m, flux, fluxKey, fluxSigma, fluxSigmaKey) for
+                           m, flux, fluxSigma in zip(matches, refFlux, refFluxSigma) if flux == flux]
             else:
                 filterName = afwImage.Filter(calexp_md).getName()
                 refFluxField = measAlg.getRefFluxField(refSchema, filterName)
@@ -293,7 +302,7 @@ class SourceReader(object):
                 JANSKYS_PER_AB_FLUX = 3631.0
                 for m in matches:
                     for k in m.first.schema.getNames():
-                        if "flux" in k:
+                        if "flux" in k or "fluxSigma" in k:
                             m.first[k] /= JANSKYS_PER_AB_FLUX
                 return matches
             matches = matchJanskyToDn(matches)
