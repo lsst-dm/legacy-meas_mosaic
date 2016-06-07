@@ -614,9 +614,9 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.clf()
         plt.contourf(X, Y, Z, levels=levels)
         plt.colorbar()
-        plt.title('%d' % (iexp))
+        plt.title('LSST: %d' % (iexp))
 
-        self.plotCcd(coeff.x0, coeff.y0)
+        self.plotCcd()
 
         plt.savefig(os.path.join(self.outputDir, "jcont_%d.png" % (iexp)), format='png')
 
@@ -642,7 +642,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.clf()
         plt.contourf(X, Y, Z, levels=levels)
         plt.colorbar()
-        plt.title('%d' % (iexp))
+        plt.title('LSST: %d' % (iexp))
 
         try:
             x0 = self.coeffSet[iexp].x0
@@ -696,9 +696,10 @@ class MosaicTask(pipeBase.CmdLineTask):
             plt.quiverkey(q, 0,  4500, 0.1, "0.1 arcsec", coordinates='data', color='black')
         plt.quiver(xs, ys, dxs, dys, units='inches', angles='xy', scale=1, color='red')
 
-        self.plotCcd(self.coeffSet[iexp].x0, self.coeffSet[iexp].y0)
+        self.plotCcd()
         plt.axes().set_aspect('equal')
 
+        plt.title('LSST: %d' % (iexp))
         plt.savefig(os.path.join(self.outputDir, "ResPosArrow2D_%d.png" % (iexp)), format='png')
 
     def clippedStd(self, a, n):
@@ -729,19 +730,20 @@ class MosaicTask(pipeBase.CmdLineTask):
         _xm = []
         _ym = []
         f = open(os.path.join(self.outputDir, "dpos.dat"), "wt")
+        f.write("#m/s  xi_fit   eta_fit       xi        eta           u              v    good=1\n")
         for m in self.matchVec:
             if (m.good == True):
                 _x.append((m.xi_fit - m.xi) * 3600)
                 _y.append((m.eta_fit - m.eta) * 3600)
                 _xm.append((m.xi_fit - m.xi) * 3600)
                 _ym.append((m.eta_fit - m.eta) * 3600)
-                f.write("m %f %f %f %f %f %f 1\n" % (m.xi_fit, m.eta_fit,
-                                                     m.xi, m.eta, m.u, m.v))
+                f.write("m %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 1\n" % (m.xi_fit, m.eta_fit,
+                                                                             m.xi, m.eta, m.u, m.v))
             else:
                 _xbad.append((m.xi_fit - m.xi) * 3600)
                 _ybad.append((m.eta_fit - m.eta) * 3600)
-                f.write("m %f %f %f %f %f %f 0\n" % (m.xi_fit, m.eta_fit,
-                                                     m.xi, m.eta, m.u, m.v))
+                f.write("m %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 0\n" % (m.xi_fit, m.eta_fit,
+                                                                             m.xi, m.eta, m.u, m.v))
         _xs = []
         _ys = []
         if (self.sourceVec.size() != 0):
@@ -751,13 +753,13 @@ class MosaicTask(pipeBase.CmdLineTask):
                     _y.append((s.eta_fit - s.eta) * 3600)
                     _xs.append((s.xi_fit - s.xi) * 3600)
                     _ys.append((s.eta_fit - s.eta) * 3600)
-                    f.write("s %f %f %f %f %f %f 1\n" % (s.xi_fit, s.eta_fit,
-                                                         s.xi, s.eta, s.u, s.v))
+                    f.write("s %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 1\n" % (s.xi_fit, s.eta_fit,
+                                                                                 s.xi, s.eta, s.u, s.v))
                 else:
                     _xbad.append((s.xi_fit - s.xi) * 3600)
                     _ybad.append((s.eta_fit - s.eta) * 3600)
-                    f.write("s %f %f %f %f %f %f 0\n" % (s.xi_fit, s.eta_fit,
-                                                         s.xi, s.eta, s.u, s.v))
+                    f.write("s %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 0\n" % (s.xi_fit, s.eta_fit,
+                                                                                 s.xi, s.eta, s.u, s.v))
         f.close()
 
         d_xi = numpy.array(_x)
@@ -826,6 +828,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.yticks(rotation=270)
         plt.ylim(-0.5, 0.5)
 
+        plt.title('LSST: ResPosScatter')
         plt.savefig(os.path.join(self.outputDir, "ResPosScatter.png"), format='png')
 
     def plotMdM(self):
@@ -841,66 +844,50 @@ class MosaicTask(pipeBase.CmdLineTask):
         _mag0_bad = []
         _mag_cat_bad = []
         f = open(os.path.join(self.outputDir, 'dmag.dat'), 'wt')
+        f.write("#m/s mag_cor   mag0    mag_cat         u             v       good=1\n")
         for m in self.matchVec:
+            mag = m.mag
+            mag0 = m.mag0
+            mag_cat = m.mag_cat
+            exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
+            chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
+            gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
+            mag_cor = mag + exp_cor + chip_cor + gain_cor
+            diff = mag_cor - mag0
             if (m.good == True and m.mag != -9999 and m.jstar != -1 and m.mag0 != -9999 and
                 m.mag_cat != -9999):
-                mag = m.mag
-                mag0 = m.mag0
-                mag_cat = m.mag_cat
-                exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
-                chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-                gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
-                mag_cor = mag + exp_cor + chip_cor + gain_cor
-                diff = mag_cor - mag0
                 _dmag_m.append(diff)
                 _dmag_a.append(diff)
                 _mag0_m.append(mag0)
                 _dmag_cat_m.append(mag_cor - mag_cat)
                 _mag_cat_m.append(mag_cat)
-                f.write("m %f %f %f %f %f 1\n" % (mag_cor, mag0, mag_cat,
-                                                  m.u, m.v))
+                f.write("m %9.6f %9.6f %9.6f %14.6f %14.6f 1\n" % (mag_cor, mag0, mag_cat, m.u, m.v))
             else:
-                mag = m.mag
-                mag0 = m.mag0
-                mag_cat = m.mag_cat
-                exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
-                chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-                gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
-                mag_cor = mag + exp_cor + chip_cor + gain_cor
-                diff = mag_cor - mag0
                 _dmag_bad.append(diff)
                 _mag0_bad.append(mag0)
                 _dmag_cat_bad.append(mag_cor - mag_cat)
                 _mag_cat_bad.append(mag_cat)
-                f.write("m %f %f %f %f %f 0\n" % (mag_cor, mag0, mag_cat,
-                                                  m.u, m.v))
+                f.write("m %9.6f %9.6f %9.6f %14.6f %14.6f 0\n" % (mag_cor, mag0, mag_cat, m.u, m.v))
+
         if self.sourceVec.size() != 0:
             for s in self.sourceVec:
+                mag = s.mag
+                mag0 = s.mag0
+                exp_cor = -2.5 * math.log10(self.fexp[s.iexp])
+                chip_cor = -2.5 * math.log10(self.fchip[s.ichip])
+                gain_cor = self.ffpSet[s.iexp].eval(s.u, s.v)
+                mag_cor = mag + exp_cor + chip_cor + gain_cor
+                diff = mag_cor - mag0
+
                 if (s.good == True and s.mag != -9999 and s.jstar != -1):
-                    mag = s.mag
-                    mag0 = s.mag0
-                    exp_cor = -2.5 * math.log10(self.fexp[s.iexp])
-                    chip_cor = -2.5 * math.log10(self.fchip[s.ichip])
-                    gain_cor = self.ffpSet[s.iexp].eval(s.u, s.v)
-                    mag_cor = mag + exp_cor + chip_cor + gain_cor
-                    diff = mag_cor - mag0
                     _dmag_s.append(diff)
                     _dmag_a.append(diff)
                     _mag0_s.append(mag0)
-                    f.write("s %f %f %f %f %f 1\n" % (mag_cor, mag0, -9999,
-                                                      s.u, s.v))
+                    f.write("s %9.6f %9.6f %9.6f %14.6f %14.6f 1\n" % (mag_cor, mag0, -9999, s.u, s.v))
                 else:
-                    mag = s.mag
-                    mag0 = s.mag0
-                    exp_cor = -2.5 * math.log10(self.fexp[s.iexp])
-                    chip_cor = -2.5 * math.log10(self.fchip[s.ichip])
-                    gain_cor = self.ffpSet[s.iexp].eval(s.u, s.v)
-                    mag_cor = mag + exp_cor + chip_cor + gain_cor
-                    diff = mag_cor - mag0
                     _dmag_bad.append(diff)
                     _mag0_bad.append(mag0)
-                    f.write("s %f %f %f %f %f 0\n" % (mag_cor, mag0, -9999,
-                                                      s.u, s.v))
+                    f.write("s %9.6f %9.6f %9.6f %14.6f %14.6f 0\n" % (mag_cor, mag0, -9999, s.u, s.v))
         f.close()
 
         d_mag_m = numpy.array(_dmag_m)
@@ -933,6 +920,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.xlim(15, 25)
         plt.ylim(-0.25, 0.25)
         plt.ylabel(r'$\Delta mag$ (mag)')
+        plt.title('LSST: MdM')
 
         bins = numpy.arange(-0.25, 0.25, 0.005) + 0.0025
         bins2 = numpy.arange(-0.25, 0.25, 0.05) + 0.025
@@ -961,7 +949,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.xticks(rotation=270)
         plt.yticks(rotation=270)
         plt.ylim(-0.25, 0.25)
-
+        plt.tight_layout()
         plt.savefig(os.path.join(self.outputDir, "MdM.png"), format='png')
 
     def plotPosDPos(self):
@@ -995,6 +983,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.plot(xi, d_xi, ',', markeredgewidth=0)
         plt.xlabel(r'$\xi$ (arcsec)')
         plt.ylabel(r'$\Delta\xi$ (arcsec)')
+        plt.title('LSST: PosDPos')
 
         plt.subplot(2, 2, 3)
         plt.plot(xi, d_eta, ',', markeredgewidth=0)
@@ -1010,7 +999,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.plot(eta, d_xi, ',', markeredgewidth=0)
         plt.xlabel(r'$\eta$ (arcsec)')
         plt.ylabel(r'$\Delta\eta$ (arcsec)')
-
+        plt.tight_layout()
         plt.savefig(os.path.join(self.outputDir, "PosDPos.png"), format='png')
 
     def plotResFlux(self):
@@ -1059,6 +1048,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.hist(d_mag, bins=100, normed=True, histtype='step')
         plt.text(0.1, 0.7, r"$\sigma=$%7.5f" % (mag_std), transform=ax.transAxes)
         plt.xlabel(r'$\Delta mag$ (mag)')
+        plt.title('LSST: ResFlux')
 
         ax = plt.subplot(2, 2, 2)
         plt.plot(r, dm, 'o')
@@ -1078,7 +1068,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.ylabel(r'$\Delta mag$ (mag)')
         plt.xlim(ichip.min()-1, ichip.max()+1)
         plt.ylim(-0.2, 0.2)
-
+        plt.tight_layout()
         plt.savefig(os.path.join(self.outputDir, "ResFlux.png"), format='png')
 
     def plotDFlux2D(self):
@@ -1115,30 +1105,34 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.scatter(u1, v1, s1, color='blue')
         plt.scatter(u2, v2, s2, color='red')
         plt.axes().set_aspect('equal')
-
+        plt.title('LSST: DFlux2D')
         plt.savefig(os.path.join(self.outputDir, "DFlux2D.png"), format='png')
 
     def outputDiagWcs(self):
-        self.log.info("Output Diagnostic Figures...")
+        self.log.info("Output WCS Diagnostic Figures...")
 
         if not os.path.isdir(self.outputDir):
             os.makedirs(self.outputDir)
 
         f = open(os.path.join(self.outputDir, "coeffs.dat"), "wt")
+        f.write("# iexp     c.A          c.D\n")
+        f.write("# iexp     c.x0         c.y0\n")
+        f.write("# iexp     c.a(k)       c.b(k)           c.ap(k)         c.bp(k)\n")
         for iexp in self.coeffSet.keys():
             c = self.coeffSet[iexp]
-            f.write("%ld %12.5e %12.5e\n" % (iexp, c.A,  c.D));
-            f.write("%ld %12.5f %12.5f\n" % (iexp, c.x0, c.y0));
+            f.write("%ld %12.5e %12.5e\n" % (iexp, c.A,  c.D))
+            f.write("%ld %12.5f %12.5f\n" % (iexp, c.x0, c.y0))
             for k in range(c.getNcoeff()):
                 f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" %
                         (iexp, c.get_a(k), c.get_b(k), c.get_ap(k), c.get_bp(k)));
         f.close()
 
         f = open(os.path.join(self.outputDir, "ccd.dat"), "wt")
+        f.write("#chip   centerXFp    centerYFp   yaw (rad)\n")
         for ichip in self.ccdSet.keys():
             ccd = self.ccdSet[ichip]
             center = measMosaic.getCenterInFpPixels(ccd)
-            f.write("%3ld %10.3f %10.3f %10.7f\n" % (ichip, center[0], center[1], measMosaic.getYaw(ccd)))
+            f.write("%4ld %12.4f %12.4f %10.7f\n" % (ichip, center[0], center[1], measMosaic.getYaw(ccd)))
         f.close()
 
         for iexp in self.coeffSet.keys():
@@ -1149,7 +1143,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.plotPosDPos()
 
     def outputDiagFlux(self):
-        self.log.info("Output Diagnostic Figures...")
+        self.log.info("Output Flux Diagnostic Figures...")
 
         if not os.path.isdir(self.outputDir):
             os.makedirs(self.outputDir)
@@ -1158,9 +1152,10 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.plotFCorCont(iexp)
 
         f = open(os.path.join(self.outputDir, "ccdScale.dat"), "wt")
+        f.write("#chip scale\n")
         for ichip in self.fchip.keys():
             scale = self.fchip[ichip]
-            f.write("%3ld %6.3f\n" % (ichip, scale))
+            f.write("%4ld %7.5f\n" % (ichip, scale))
         f.close()
 
         self.plotMdM()
@@ -1234,7 +1229,8 @@ class MosaicTask(pipeBase.CmdLineTask):
                     else:
                         ngood += 1
 
-                print '%d %d %6.3f %5.3f %5d %5d' % (visit_ref, visit_targ, med, SIQR, ngood, nbad)
+                print "visit_ref visit_targ med SIQR ngood nbad"
+                print '%10d %10d %6.3f %5.3f %5d %5d' % (visit_ref, visit_targ, med, SIQR, ngood, nbad)
 
                 del mref
                 del mtarg

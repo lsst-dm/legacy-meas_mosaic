@@ -2365,10 +2365,10 @@ initialFit(int nexp,
 	   CcdSet &ccdSet,
 	   Poly::Ptr &p) {
     int nMobs = matchVec.size();
+    printf("initialFit: nMobs: %d\n", nMobs);
 
     // Solve for polynomial coefficients and crvals for each exposure separately
     // These values will be used as initial guess for the subsequent fitting
-
     CoeffSet coeffVec;
 
     for (WcsDic::iterator it =  wcsDic.begin(); it != wcsDic.end(); it++) {
@@ -2386,14 +2386,14 @@ initialFit(int nexp,
 	Eigen::VectorXd a = solveForCoeff(obsVec_sub, p);
 
 	double chi2 = calcChi(obsVec_sub, a, p);
-	printf("visit: %d\n", iexp);
-	printf("calcChi: %e\n", chi2);
+	printf("initialFit: visit: %d\n", iexp);
+	printf("initialFit: calcChi (before flagging): %e\n", chi2);
 	double e2 = chi2/obsVec_sub.size();
 	flagObj(obsVec_sub, a, p, 9.0*e2);
 
 	a = solveForCoeff(obsVec_sub, p);
 	chi2 = calcChi(obsVec_sub, a, p);
-	printf("calcChi: %e\n", chi2);
+	printf("initialFit: calcChi (after flagging):  %e\n", chi2);
 
 	// Store solution into Coeff class
 	Coeff::Ptr c = Coeff::Ptr(new Coeff(p));
@@ -2425,7 +2425,7 @@ initialFit(int nexp,
 	    obsVec_sub[j]->setUV(ccdSet[obsVec_sub[j]->ichip], c->x0, c->y0);
 	}
 	chi2 = calcChi2(obsVec_sub, c, p);
-	printf("calcChi2: %e\n", chi2);
+	printf("initialFit: calcChi2: %e\n", chi2);
 
 //	setCRVALtoDetJPeak(c);
 
@@ -2447,7 +2447,7 @@ initialFit(int nexp,
 	    obsVec_sub[j]->setUV(ccdSet[obsVec_sub[j]->ichip], c->x0, c->y0);
 	}
 	chi2 = calcChi2(obsVec_sub, c, p);
-	printf("calcChi2: %e\n", chi2);
+	printf("initialFit: calcChi2: %e\n", chi2);
 
 	/////////////////////////////////////////////////////////////////////////////////
 	a = solveForCoeffWithOffset(obsVec_sub, c, p);
@@ -2464,7 +2464,7 @@ initialFit(int nexp,
 	    obsVec_sub[j]->setUV(ccdSet[obsVec_sub[j]->ichip], c->x0, c->y0);
 	}
 	chi2 = calcChi2(obsVec_sub, c, p);
-	printf("calcChi2: %e\n", chi2);
+	printf("initialFit: calcChi2: %e\n", chi2);
 	/////////////////////////////////////////////////////////////////////////////////
 
 	coeffVec.insert(std::map<int, Coeff::Ptr>::value_type(iexp, c));
@@ -2521,9 +2521,9 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
         writeObsVec((snapshotPath/"match-initial-1.fits").native(), matchVec);
     }
 
-    printf("Before fitting calcChi2: %e\n",
+    printf("solveMosaic_CCD_shot: Before fitting calcChi2: %e\n",
 	   calcChi2(matchVec, coeffVec, p));
-    printf("Before fitting matched: %5.3f (arcsec)\n",
+    printf("solveMosaic_CCD_shot: Before fitting matched: %5.3f (arcsec)\n",
 	   sqrt(calcChi2(matchVec, coeffVec, p, true))*3600.0);
 
     for (int k = 0; k < 3; k++) {
@@ -2627,8 +2627,9 @@ lsst::meas::mosaic::solveMosaic_CCD_shot(int order,
 	    writeObsVec((snapshotPath/(boost::format("match-iter-%d.fits") % k).str()).native(), matchVec);
 	}
 
-	printf("%dth iteration calcChi2: %e\n", (k + 1), calcChi2(matchVec, coeffVec, p));
-	printf("%dth iteration matched: %5.3f (arcsec)\n", (k + 1),
+	printf("solveMosaic_CCD_shot: %dth iteration calcChi2: %e\n", (k + 1),
+               calcChi2(matchVec, coeffVec, p));
+	printf("solveMosaic_CCD_shot: %dth iteration matched: %5.3f (arcsec)\n", (k + 1),
 	       sqrt(calcChi2(matchVec, coeffVec, p, true))*3600.0);
 	double drm = calcChi2(matchVec, coeffVec, p, true);
 	flagObj2(matchVec, coeffVec, p, 9.0*drm, catRMS);
@@ -2735,10 +2736,10 @@ lsst::meas::mosaic::solveMosaic_CCD(int order,
         writeObsVec((snapshotPath/"source-initial-1.fits").native(), sourceVec);
     }
 
-    printf("Before fitting calcChi2: %e %e\n",
+    printf("solveMosaic_CCD: Before fitting calcChi2: %e %e\n",
 	   calcChi2(matchVec, coeffVec, p),
 	   calcChi2_Star(matchVec, sourceVec, coeffVec, p));
-    printf("Before fitting matched: %5.3f (arcsec) sources: %5.3f (arcsec)\n",
+    printf("solveMosaic_CCD: Before fitting matched: %5.3f (arcsec) sources: %5.3f (arcsec)\n",
 	   sqrt(calcChi2(matchVec, coeffVec, p, true))*3600.0,
 	   sqrt(calcChi2(sourceVec, coeffVec, p, true))*3600.0);
 
@@ -2871,8 +2872,9 @@ lsst::meas::mosaic::solveMosaic_CCD(int order,
 	}
 
 	double chi2 = calcChi2_Star(matchVec, sourceVec, coeffVec, p);
-	printf("%dth iteration calcChi2: %e %e\n", (k+1), calcChi2(matchVec, coeffVec, p), chi2);
-	printf("%dth iteration matched: %5.3f (arcsec) sources: %5.3f (arcsec)\n", (k + 1),
+	printf("solveMosaic_CCD: %dth iteration calcChi2: %e %e\n", (k + 1),
+               calcChi2(matchVec, coeffVec, p), chi2);
+	printf("solveMosaic_CCD: %dth iteration matched: %5.3f (arcsec) sources: %5.3f (arcsec)\n", (k + 1),
 	       sqrt(calcChi2(matchVec, coeffVec, p, true))*3600.0,
 	       sqrt(calcChi2(sourceVec, coeffVec, p, true))*3600.0);
 	//flagObj2(matchVec, coeffVec, p, 9.0, catRMS);
