@@ -5,6 +5,7 @@ from .mosaicLib import getFCorImg, FluxFitParams, getJImg, calculateJacobian
 from lsst.pipe.base import Struct
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
+import lsst.afw.math as afwMath
 from lsst.afw.fits import FitsError
 
 __all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog",
@@ -27,14 +28,22 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
     if calexp is None:
         calexp = dataRef.get("calexp", immediate=True)
 
+    # meas_mosaic solution is done in coords assuming LLC is pixel 0,0, so rotate image
+    # to match that assumption before applying the wcs solution to it
+    nQuarter = calexp.getDetector().getOrientation().getNQuarter()
+    if nQuarter %4 != 0:
+        calexp.setMaskedImage(afwMath.rotateImageBy90(calexp.getMaskedImage(), nQuarter))
+
     mosaic = getMosaicResults(dataRef, calexp.getDimensions())
-    if mosaic.wcs is not None:
-        calexp.setWcs(mosaic.wcs)
     if mosaic.calib is not None:
         calexp.getCalib().setFluxMag0(mosaic.calib.getFluxMag0())
     if mosaic.fcor is not None:
         mi = calexp.getMaskedImage()
         mi *= mosaic.fcor
+
+    if mosaic.wcs is not None:
+        calexp.setWcs(mosaic.wcs)
+
     return Struct(exposure=calexp, mosaic=mosaic)
 
 def getFluxFitParams(dataRef):
