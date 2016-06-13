@@ -20,11 +20,11 @@ afw::geom::Angle getYaw(CONST_PTR(afw::cameraGeom::Detector));
 afw::geom::LinearTransform makeScalingMmToPx(afw::geom::Extent2D const pSize);
 
 // Return the position of the center of the detector in pixels on the focal
-// plane.
+// plane. [mimics HSC's camGeom: ccd.getCenter().getPixels(ccd.getPixelSize())]
 afw::geom::Point2D getCenterInFpPixels(CONST_PTR(afw::cameraGeom::Detector));
 
 // Return the position of the center of the detector in pixels on the
-// detector.
+// detector. [mimics HSC's camGeom: ccd.getCenterPixel()]
 afw::geom::Point2D getCenterInDetectorPixels(CONST_PTR(afw::cameraGeom::Detector));
 
 // Return the width of the detector in pixels.

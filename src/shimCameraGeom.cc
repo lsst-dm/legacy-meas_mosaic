@@ -33,11 +33,13 @@ afw::geom::LinearTransform makeScalingMmToPx(afw::geom::Extent2D const pSize) {
 }
 
 afw::geom::Point2D getCenterInFpPixels(CONST_PTR(afw::cameraGeom::Detector) det) {
+// [mimics HSC's camGeom: ccd.getCenter().getPixels(ccd.getPixelSize())]
     auto scaling = makeScalingMmToPx(det->getPixelSize());
     return scaling(det->getCenter(afw::cameraGeom::FOCAL_PLANE).getPoint());
 }
 
 afw::geom::Point2D getCenterInDetectorPixels(CONST_PTR(afw::cameraGeom::Detector) det) {
+// [mimics HSC's camGeom: ccd.getCenterPixel()]
     auto center = det->getCenter(afw::cameraGeom::PIXELS).getPoint();
     if ((getNQuarter(det)%2) != 0) {
         return afw::geom::Point2D(center.getY(), center.getX());
