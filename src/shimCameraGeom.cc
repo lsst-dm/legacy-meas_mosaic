@@ -1,4 +1,5 @@
 #include "lsst/meas/mosaic/shimCameraGeom.h"
+#include "lsst/pex/exceptions.h"
 
 namespace lsst {
 namespace meas {
@@ -10,9 +11,20 @@ int getNQuarter(CONST_PTR(afw::cameraGeom::Detector) det) {
 }
 
 afw::geom::Angle getYaw(CONST_PTR(afw::cameraGeom::Detector) det) {
-//    afw::geom::Angle deg = det->getOrientation().getYaw() - getNQuarter(det)*90*afw::geom::degrees;
-//    deg.wrapCtr();
     afw::geom::Angle deg = det->getOrientation().getYaw();
+    int nQuarter = det->getOrientation().getNQuarter();
+    if (nQuarter%4 != 0) {
+        deg = det->getOrientation().getYaw() - nQuarter*90.0*afw::geom::degrees;
+    }
+    if (fabs(deg.asDegrees()) >= 90.0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::InvalidParameterError,
+            (boost::format("Mismatch between yaw (%f deg) and nQuarter (%d) for detector %d:"
+                           " abs(yaw - 90*nQuarter) = %f is > 90 deg") %
+             det->getOrientation().getYaw().asDegrees() % getNQuarter(det) % det->getSerial() %
+             fabs(deg.asDegrees())).str()
+            );
+    }
     return deg;
 }
 
