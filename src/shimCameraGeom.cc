@@ -39,11 +39,11 @@ afw::geom::Point2D getCenterInFpPixels(CONST_PTR(afw::cameraGeom::Detector) det)
 
 afw::geom::Point2D getCenterInDetectorPixels(CONST_PTR(afw::cameraGeom::Detector) det) {
     auto center = det->getCenter(afw::cameraGeom::PIXELS).getPoint();
-//    if ((getNQuarter(det) % 2) != 0) {
-//        return afw::geom::Point2D(center.getY(), center.getX());
-//    } else {
-    return center;
-//    }
+    if ((getNQuarter(det)%2) != 0) {
+        return afw::geom::Point2D(center.getY(), center.getX());
+    } else {
+        return center;
+    }
 }
 
 int getWidth(CONST_PTR(afw::cameraGeom::Detector) det) {
