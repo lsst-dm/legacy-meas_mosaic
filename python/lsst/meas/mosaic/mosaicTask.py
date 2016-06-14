@@ -344,6 +344,8 @@ class SourceReader(object):
 
             if len(selMatches) > self.config.minNumMatch:
                 naxis1, naxis2 = calexp_md.get('NAXIS1'), calexp_md.get('NAXIS2')
+                if nQuarter%2 != 0:
+                    naxis1, naxis2 = calexp_md.get('NAXIS2'), calexp_md.get('NAXIS1')
                 bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2))
                 cellSet = afwMath.SpatialCellSet(bbox, self.config.cellSize, self.config.cellSize)
                 for s in selSources:
@@ -354,7 +356,7 @@ class SourceReader(object):
                         try:
                             cellSet.insertCandidate(measMosaic.SpatialCellSource(src))
                         except:
-                            self.log.info('visit=%d ccd=%d x=%f y=%f' %
+                            self.log.info('FAILED TO INSERT CANDIDATE: visit=%d ccd=%d x=%f y=%f' %
                                           (dataRef.dataId['visit'], dataRef.dataId['ccd'],
                                            src.getX(), src.getY()) + ' bbox=' + str(bbox))
                 for cell in cellSet.getCellList():
@@ -609,6 +611,10 @@ class MosaicTask(pipeBase.CmdLineTask):
         for ccd in self.ccdSet.values():
             w = measMosaic.getWidth(ccd)
             h = measMosaic.getHeight(ccd)
+            nQuarter = ccd.getOrientation().getNQuarter()
+            if nQuarter%2 != 0:
+                w = measMosaic.getHeight(ccd)
+                h = measMosaic.getWidth(ccd)
             us = list()
             vs = list()
             for x, y in zip([0, w, w, 0, 0], [0, 0, h, h, 0]):
