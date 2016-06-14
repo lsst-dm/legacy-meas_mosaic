@@ -180,7 +180,12 @@ class MosaicConfig(pexConfig.Config):
         doc="Type of coadd being produced; used to select the correct SkyMap.",
         dtype=str,
         default="deep")
-
+    srcSchemaMap = pexConfig.DictField(
+        doc="Mapping between different stack (e.g. HSC vs. LSST) schema names",
+        keytype=str,
+        itemtype=str,
+        default=None,
+        optional=True)
 
 class SourceReader(object):
     """ Object to read source catalog.
@@ -225,6 +230,15 @@ class SourceReader(object):
         m.first.set(fluxKey, flux)
         m.first.set(fluxSigmaKey, fluxSigma)
         return m
+
+    def checkHscStack(self, metadata):
+        """Check to see if data were processed with the HSC stack
+        """
+        try:
+            hscPipe = metadata.get("HSCPIPE_VERSION")
+        except:
+            hscPipe = None
+        return hscPipe
 
     def readSrc(self, dataRef):
         """Read source catalog etc for input dataRef
@@ -281,13 +295,38 @@ class SourceReader(object):
             nQuarter = calexp.getDetector().getOrientation().getNQuarter()
             sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
 
-            if nQuarter%4 != 0:
-                sources = rotatePixelCoords(sources, calexp.getWidth(), calexp.getHeight(), nQuarter)
+            # Check if we are looking at HSC stack outputs: if so, no pixel rotation of sources is
+            # required, but alias mapping must be set to associate HSC's schema with that of LSST.
+            hscRun = self.checkHscStack(calexp_md)
+
+            if hscRun is None:
+                if nQuarter%4 != 0:
+                    sources = rotatePixelCoords(sources, calexp.getWidth(), calexp.getHeight(), nQuarter)
+
+            # Set the aliap map for the source catalog
+            if self.config.srcSchemaMap is not None and hscRun is not None:
+                aliasMap = sources.schema.getAliasMap()
+                for lsstName, otherName in self.config.srcSchemaMap.iteritems():
+                    aliasMap.set(lsstName, otherName)
 
             refObjLoader = measAstrom.LoadAstrometryNetObjectsTask(
                 measAstrom.LoadAstrometryNetObjectsTask.ConfigClass())
             srcMatch = dataRef.get('srcMatch', immediate=True)
             matches = refObjLoader.joinMatchListWithCatalog(srcMatch, sources)
+            # Set the aliap map for the matched sources (i.e. the .second attribute schema for each match)
+            if self.config.srcSchemaMap is not None and hscRun is not None:
+                for mm in matches:
+                    aliasMap = mm.second.schema.getAliasMap()
+                    for lsstName, otherName in self.config.srcSchemaMap.iteritems():
+                        aliasMap.set(lsstName, otherName)
+            if hscRun is not None:
+                for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
+                    getattr(matches[0].second.getTable(), "define" + slot)(
+                        getattr(sources, "get" + slot + "Definition")())
+                    # For some reason, the CalibFlux slot in sources is coming up as centroid_sdss, so
+                    # set it to flux_naive explicitly
+                    for slot in ("CalibFlux", ):
+                        getattr(matches[0].second.getTable(), "define" + slot)("flux_naive")
             matches = [m for m in matches if m.first is not None]
             refSchema = matches[0].first.schema if matches else None
 
@@ -344,8 +383,9 @@ class SourceReader(object):
 
             if len(selMatches) > self.config.minNumMatch:
                 naxis1, naxis2 = calexp_md.get('NAXIS1'), calexp_md.get('NAXIS2')
-                if nQuarter % 2 != 0:
-                    naxis1, naxis2 = calexp_md.get('NAXIS2'), calexp_md.get('NAXIS1')
+                if hscRun is None:
+                    if nQuarter % 2 != 0:
+                        naxis1, naxis2 = calexp_md.get('NAXIS2'), calexp_md.get('NAXIS1')
                 bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2))
                 cellSet = afwMath.SpatialCellSet(bbox, self.config.cellSize, self.config.cellSize)
                 for s in selSources:
