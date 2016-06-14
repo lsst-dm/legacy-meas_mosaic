@@ -21,6 +21,28 @@
 #
 """Support utilities for meas_mosaic"""
 
+def checkHscStack(metadata):
+    """!Check to see if data were processed with the HSC stack
+
+    @param[in] metadata  the metadata object to search for header HSCPIPE_VERSION
+
+    @return    hscPipe   value of HSCPIPE_VERSION header if present, otherwise None
+
+    Note that the "HSC stack" referred to is soon to become obsolete.  It is a
+    fork of the LSST stack which underwent significant development for the purpose
+    of HSC SSP data release production runs.  All new functionality developed there
+    is being ported over to the LSST stack and, once done, the "HSC stack" will
+    be retired.  However, for the time being it is useful to be able to directly
+    compare outputs from the current implementations of the two stacks (for port
+    validation, in particular).  This requires some accommodations for schema and
+    coordinate system conventions that differ between the two.
+    """
+    try:
+        hscPipe = metadata.get("HSCPIPE_VERSION")
+    except:
+        hscPipe = None
+    return hscPipe
+
 def matchJanskyToDn(matches):
     """!Convert fluxes in a list of matches from units of "janskys", as read in by LSST, to DN.
 
