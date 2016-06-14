@@ -700,12 +700,16 @@ class MosaicTask(pipeBase.CmdLineTask):
                 h = measMosaic.getWidth(ccd)
             us = list()
             vs = list()
+            minU, minV = 18000.0, 18000.0
             for x, y in zip([0, w, w, 0, 0], [0, 0, h, h, 0]):
                 xy = afwGeom.Point2D(x, y)
-                u, v = measMosaic.detPxToFpPx(ccd, xy)
+                u, v = measMosaic.detPxToFpPxRot(ccd, xy)
                 us.append(u)
                 vs.append(v)
+                if u < minU : minU = u
+                if v < minV : minV = v
             plt.plot(us, vs, 'k-')
+            plt.text(minU + w/2, minV + h/2, '%i' % ccd.getId(), ha='center', va= 'center')
 
     def plotJCont(self, iexp):
         coeff = self.coeffSet[iexp]
@@ -713,15 +717,14 @@ class MosaicTask(pipeBase.CmdLineTask):
         scale = coeff.pixelScale()
         deg2pix = 1. / scale
 
-        delta = 250.0
-        x = numpy.arange(self.fpMin[0], self.fpMax[0], delta)
-        y = numpy.arange(self.fpMin[1], self.fpMax[1], delta)
+        x = numpy.arange(self.fpMin[0], self.fpMax[0], self.deltaFp)
+        y = numpy.arange(self.fpMin[1], self.fpMax[1], self.deltaFp)
         levels = numpy.linspace(0.81, 1.02, 36)
         X, Y = numpy.meshgrid(x, y)
-        Z = numpy.zeros((len(X),len(Y)))
+        Z = numpy.zeros((len(y),len(x)))
 
-        for j in range(len(Y)):
-            for i in range(len(X)):
+        for j in range(len(x)):
+            for i in range(len(y)):
                 Z[i][j] = coeff.detJ(X[i][j], Y[i][j]) * deg2pix ** 2
 
         plt.clf()
@@ -734,19 +737,20 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.savefig(os.path.join(self.outputDir, "jcont_%d.png" % (iexp)), format='png')
 
     def plotFCorCont(self, iexp):
-        delta = 250.0
+        delta = self.deltaFp
         x = numpy.arange(self.fpMin[0], self.fpMax[0], delta)
         y = numpy.arange(self.fpMin[1], self.fpMax[1], delta)
-        levels = numpy.linspace(0.72, 1.28, 36)
         X, Y = numpy.meshgrid(x, y)
-        Z = numpy.zeros((len(X),len(Y)))
+        Z = numpy.zeros((len(y),len(x)))
 
-        for j in range(len(Y)):
-            for i in range(len(X)):
+        for j in range(len(x)):
+            for i in range(len(y)):
                 Z[i][j] = 10**(-0.4*self.ffpSet[iexp].eval(X[i][j], Y[i][j]))
-        mean = math.floor(Z[len(X)/2][len(Y)/2] * 10 + 0.5) / 10.
-        levels = numpy.linspace(mean-0.2, mean+0.2, 41)
+        # mean = math.floor(Z[len(Z[0])/2][len(Z[1])/2] * 10 + 0.5) / 10.
+        mean = 1.0
+        levels = numpy.linspace(mean - 0.25, mean + 0.25, 41)
 
+        plt.close('all')
         plt.clf()
         plt.contourf(X, Y, Z, levels=levels)
         plt.colorbar()
@@ -813,16 +817,11 @@ class MosaicTask(pipeBase.CmdLineTask):
     def clippedStd(self, a, n):
         aa = list()
         for v in a:
-            if v == v:
+            if v == v and numpy.isfinite(v):
                 aa.append(v)
         aa = numpy.array(aa)
-
         avg = aa.mean()
         std = aa.std()
-        for i in range(n):
-            b = aa[numpy.fabs(aa-avg) < 2.1*std]
-            avg = b.mean()
-            std = b.std()
 
         b = aa[numpy.fabs(aa-avg) < 2.1*std]
         avg = b.mean()
@@ -890,53 +889,62 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.rc('text', usetex=USETEX)
 
         plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
-        plt.plot(d_xi_bad, d_eta_bad, 'k,', markeredgewidth=0)
-        plt.plot(d_xi_m, d_eta_m, 'g,', markeredgewidth=0)
-        plt.plot(d_xi_s, d_eta_s, 'r,', markeredgewidth=0)
+        plt.plot(d_xi_bad, d_eta_bad, 'k+', markersize=2, alpha=0.5, label='bad')
+        plt.plot(d_xi_m, d_eta_m, 'go', markersize=2, alpha=0.5, label='external')
+        plt.plot(d_xi_s, d_eta_s, 'ro', markersize=2, alpha=0.5, label='internal')
         plt.xlim(-0.5, 0.5)
         plt.ylim(-0.5, 0.5)
 
         plt.xlabel(r'$\Delta\xi$ (arcsec)')
         plt.ylabel(r'$\Delta\eta$ (arcsec)')
+        plt.legend(fontsize=8)
 
-        bins = numpy.arange(-0.5, 0.5, 0.01) + 0.005
+        binLimit = 0.5
+        while d_xi[numpy.fabs(d_xi) < binLimit].size < min(10, d_xi.size):
+            binLimit += 0.5
+
+        bins = numpy.arange(-binLimit, binLimit, binLimit*0.02) + binLimit*0.01
 
         ax = plt.subplot2grid((5,6),(0,0), colspan=4)
         if self.sourceVec.size() != 0:
             plt.hist([d_xi, d_xi_m, d_xi_s], bins=bins, normed=False, histtype='step')
         else:
             plt.hist([d_xi, d_xi_m], bins=bins, normed=False, histtype='step')
-        plt.text(0.75, 0.7, r"$\sigma=$%5.3f" % (xi_std), transform=ax.transAxes, color='blue')
-        plt.text(0.75, 0.5, r"$\sigma=$%5.3f" % (xi_std_m), transform=ax.transAxes, color='green')
+        plt.text(0.25, 1.1, 'LSST: ResPosScatter', transform=ax.transAxes, color='black', fontsize=14)
+        plt.text(0.77, 0.7, r"$\sigma_{all}=$%5.3f" % (xi_std), transform=ax.transAxes, color='blue',
+                 fontsize=9)
+        plt.text(0.77, 0.5, r"$\sigma_{ext}=$%5.3f" % (xi_std_m), transform=ax.transAxes, color='green',
+                 fontsize=9)
         y = mlab.normpdf(bins, xi_mean_m, xi_std_m)
         plt.plot(bins, y*xi_n_m*0.01, 'g:')
         if self.sourceVec.size() != 0:
-            plt.text(0.75, 0.3, r"$\sigma=$%5.3f" % (xi_std_s), transform=ax.transAxes, color='red')
+            plt.text(0.77, 0.3, r"$\sigma_{int}=$%5.3f" % (xi_std_s), transform=ax.transAxes, color='red',
+                     fontsize=9)
             y = mlab.normpdf(bins, xi_mean_s, xi_std_s)
             plt.plot(bins, y*xi_n_s*0.01, 'r:')
-        plt.xlim(-0.5, 0.5)
+        plt.xlim(-binLimit, binLimit)
 
         ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
         plt.hist(d_eta, bins=bins, normed=False, orientation='horizontal', histtype='step')
         plt.hist(d_eta_m, bins=bins, normed=False, orientation='horizontal', histtype='step')
         if self.sourceVec.size() != 0:
             plt.hist(d_eta_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
-        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes,
-                 color='blue')
-        plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (eta_std_m), rotation=270, transform=ax.transAxes,
-                 color='green')
+        plt.text(0.7, 0.22, r"$\sigma_{all}=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes,
+                 color='blue', fontsize=9)
+        plt.text(0.5, 0.22, r"$\sigma_{ext}=$%5.3f" % (eta_std_m), rotation=270, transform=ax.transAxes,
+                 color='green', fontsize=9)
         y = mlab.normpdf(bins, eta_mean_m, eta_std_m)
         plt.plot(y*eta_n_m*0.01, bins, 'g:')
         if self.sourceVec.size() != 0:
-            plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (eta_std_s), rotation=270, transform=ax.transAxes,
-                     color='red')
+            plt.text(0.3, 0.22, r"$\sigma_{int}=$%5.3f" % (eta_std_s), rotation=270, transform=ax.transAxes,
+                     color='red', fontsize=9)
             y = mlab.normpdf(bins, eta_mean_s, eta_std_s)
             plt.plot(y*eta_n_s*0.01, bins, 'r:')
         plt.xticks(rotation=270)
         plt.yticks(rotation=270)
-        plt.ylim(-0.5, 0.5)
+        plt.ylim(-binLimit, binLimit)
+        plt.tight_layout()
 
-        plt.title('LSST: ResPosScatter')
         plt.savefig(os.path.join(self.outputDir, "ResPosScatter.png"), format='png')
 
     def plotMdM(self):
@@ -1019,16 +1027,17 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.rc('text', usetex=USETEX)
 
         plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
-        plt.plot(mag0_bad, d_mag_bad, 'k,', markeredgewidth=0)
-        plt.plot(mag_cat_m, d_mag_cat_m, 'c,', markeredgewidth=0)
+        plt.plot(mag0_bad, d_mag_bad, 'kx', markersize=2, alpha=0.5, label='bad')
+        plt.plot(mag_cat_m, d_mag_cat_m, 'co', markersize=2, alpha=0.5, label='match cat')
         if self.sourceVec.size() != 0:
-            plt.plot(mag0_s, d_mag_s, 'r,', markeredgewidth=0)
-        plt.plot(mag0_m, d_mag_m, 'g,', markeredgewidth=0)
+            plt.plot(mag0_s, d_mag_s, 'ro', markersize=2, alpha=0.5, label='internal')
+        plt.plot(mag0_m, d_mag_m, 'go', markersize=2, alpha=0.5, label='external')
         plt.plot([15,25], [0,0], 'k--')
         plt.xlim(15, 25)
         plt.ylim(-0.25, 0.25)
         plt.ylabel(r'$\Delta mag$ (mag)')
         plt.title('LSST: MdM')
+        plt.legend(fontsize=7)
 
         bins = numpy.arange(-0.25, 0.25, 0.005) + 0.0025
         bins2 = numpy.arange(-0.25, 0.25, 0.05) + 0.025
@@ -1039,17 +1048,17 @@ class MosaicTask(pipeBase.CmdLineTask):
         if self.sourceVec.size() != 0:
             plt.hist(d_mag_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
         plt.hist(d_mag_cat_m, bins=bins2, normed=False, orientation='horizontal', histtype='step')
-        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (mag_std_a), rotation=270, transform=ax.transAxes,
-                 color='blue')
-        plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (mag_std_m), rotation=270, transform=ax.transAxes,
-                 color='green')
-        plt.text(0.7, 0.90, r"$\sigma=$%5.3f" % (mag_cat_std_m), rotation=270, transform=ax.transAxes,
-                 color='cyan')
+        plt.text(0.7, 0.22, r"$\sigma_{all}=$%5.3f" % (mag_std_a), rotation=270, transform=ax.transAxes,
+                 color='blue', fontsize=9)
+        plt.text(0.5, 0.22, r"$\sigma_{ext}=$%5.3f" % (mag_std_m), rotation=270, transform=ax.transAxes,
+                 color='green', fontsize=9)
+        plt.text(0.7, 0.93, r"$\sigma_{cat}=$%5.3f" % (mag_cat_std_m), rotation=270, transform=ax.transAxes,
+                 color='cyan', fontsize=9)
         y = mlab.normpdf(bins, mag_mean_m, mag_std_m)
         plt.plot(y*mag_n_m*0.005, bins, 'g:')
         if self.sourceVec.size() != 0:
-            plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes,
-                     color='red')
+            plt.text(0.3, 0.22, r"$\sigma_{int}=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes,
+                     color='red', fontsize=9)
             y = mlab.normpdf(bins, mag_mean_s, mag_std_s)
             plt.plot(y*mag_n_s*0.005, bins, 'r:')
         y = mlab.normpdf(bins, mag_cat_mean_m, mag_cat_std_m)
@@ -1088,23 +1097,23 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.rc('text', usetex=USETEX)
 
         plt.subplot(2, 2, 1)
-        plt.plot(xi, d_xi, ',', markeredgewidth=0)
+        plt.plot(xi, d_xi, 'o', markersize=2, alpha=0.5)
         plt.xlabel(r'$\xi$ (arcsec)')
         plt.ylabel(r'$\Delta\xi$ (arcsec)')
         plt.title('LSST: PosDPos')
 
         plt.subplot(2, 2, 3)
-        plt.plot(xi, d_eta, ',', markeredgewidth=0)
+        plt.plot(xi, d_eta, 'o', markersize=2, alpha=0.5 )
         plt.xlabel(r'$\xi$ (arcsec)')
         plt.ylabel(r'$\Delta\eta$ (arcsec)')
 
         plt.subplot(2, 2, 2)
-        plt.plot(eta, d_xi, ',', markeredgewidth=0)
+        plt.plot(eta, d_xi, 'o', markersize=2, alpha=0.5)
         plt.xlabel(r'$\eta$ (arcsec)')
         plt.ylabel(r'$\Delta\xi$ (arcsec)')
 
         plt.subplot(2, 2, 4)
-        plt.plot(eta, d_xi, ',', markeredgewidth=0)
+        plt.plot(eta, d_xi, 'o', markersize=2, alpha=0.5)
         plt.xlabel(r'$\eta$ (arcsec)')
         plt.ylabel(r'$\Delta\eta$ (arcsec)')
         plt.tight_layout()
@@ -1154,25 +1163,25 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         ax = plt.subplot(2, 2, 1)
         plt.hist(d_mag, bins=100, normed=True, histtype='step')
-        plt.text(0.1, 0.7, r"$\sigma=$%7.5f" % (mag_std), transform=ax.transAxes)
+        plt.text(0.07, 0.82, r"$\sigma=$%7.5f" % (mag_std), transform=ax.transAxes, fontsize=10)
         plt.xlabel(r'$\Delta mag$ (mag)')
         plt.title('LSST: ResFlux')
 
         ax = plt.subplot(2, 2, 2)
-        plt.plot(r, dm, 'o')
-        plt.xlabel(r'Distance from center (pixel)')
-        plt.ylabel(r'Offset in magnitude')
+        plt.plot(r, dm, 'o', markersize=2, alpha=0.5)
+        plt.xlabel('Distance from center (pixel)')
+        plt.ylabel('Offset in magnitude')
 
         ax = plt.subplot(2, 2, 3)
         plt.plot(iexp, d_mag, ',', markeredgewidth=0)
-        plt.xlabel(r'Exposure ID')
+        plt.xlabel('Exposure ID')
         plt.ylabel(r'$\Delta mag$ (mag)')
         plt.xlim(iexp.min()-1, iexp.max()+1)
         plt.ylim(-0.2, 0.2)
 
         ax = plt.subplot(2, 2, 4)
         plt.plot(ichip, d_mag, ',', markeredgewidth=0)
-        plt.xlabel(r'Chip ID')
+        plt.xlabel('Chip ID')
         plt.ylabel(r'$\Delta mag$ (mag)')
         plt.xlim(ichip.min()-1, ichip.max()+1)
         plt.ylim(-0.2, 0.2)
@@ -1210,9 +1219,13 @@ class MosaicTask(pipeBase.CmdLineTask):
         plt.clf()
         plt.rc('text', usetex=USETEX)
 
-        plt.scatter(u1, v1, s1, color='blue')
-        plt.scatter(u2, v2, s2, color='red')
+        plt.scatter(u1, v1, s1, color='blue', label=r'$\Delta$mag > 0')
+        plt.scatter(u2, v2, s2, color='red', label=r'$\Delta$mag < 0')
         plt.axes().set_aspect('equal')
+        plt.xlabel('u (Focal Plane pixels)')
+        plt.ylabel('v (Focal Plane pixels)')
+        plt.legend(fontsize=7)
+        self.plotCcd()
         plt.title('LSST: DFlux2D')
         plt.savefig(os.path.join(self.outputDir, "DFlux2D.png"), format='png')
 
@@ -1480,6 +1493,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.ccdSet = ccdSet
 
         if diagnostics:
+            self.deltaFp = 250.0
+            padding = 2500.0 # approx half ccd height + room for CCD spacing
             xMinFp, xMaxFp = 18000, -18000
             yMinFp, yMaxFp = 18000, -18000
             for ichip in self.ccdSet.keys():
@@ -1490,8 +1505,10 @@ class MosaicTask(pipeBase.CmdLineTask):
                 if center[1] > yMaxFp: yMaxFp = center[1]
                 if center[1] < yMinFp: yMinFp = center[1]
 
-            self.fpMin = afwGeom.Point2D(round(xMinFp - 500.0, -3), round(yMinFp - 500.0, -3))
-            self.fpMax = afwGeom.Point2D(round(xMaxFp + 500.0, -3), round(yMaxFp + 500.0, -3))
+            self.fpMin = afwGeom.Point2D(round(xMinFp - padding, -3),
+                                         round(yMinFp - padding, -3))
+            self.fpMax = afwGeom.Point2D(round(xMaxFp + padding, -3),
+                                         round(yMaxFp + padding, -3))
 
         if self.config.doSolveWcs:
 
