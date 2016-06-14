@@ -312,7 +312,7 @@ void Obs::setUV(PTR(lsst::afw::cameraGeom::Detector) &ccd, double x0, double y0)
     this->v0 = this->x*sinYaw + this->y*cosYaw;
 
     afw::geom::Point2D xy(this->x, this->y);
-    afw::geom::Point2D uv = detPxToFpPx(ccd, xy);
+    afw::geom::Point2D uv = detPxToFpPxRot(ccd, xy);
 
     this->u = uv.getX() + x0;
     this->v = uv.getY() + y0;
@@ -2991,10 +2991,9 @@ lsst::meas::mosaic::convertCoeff(Coeff::Ptr& coeff, PTR(lsst::afw::cameraGeom::D
 	}
     }
 
-    afw::geom::Extent2D off = getCenterInFpPixels(ccd) - getCenterInDetectorPixels(ccd);
-
-    newC->x0 =  (off[0] + coeff->x0)*cosYaw + (off[1] + coeff->y0)*sinYaw;
-    newC->y0 = -(off[0] + coeff->x0)*sinYaw + (off[1] + coeff->y0)*cosYaw;
+    afw::geom::Point2D newXY0 = computeX0Y0(ccd, coeff->x0, coeff->y0);
+    newC->x0 = newXY0[0];
+    newC->y0 = newXY0[1];
 
     double a = coeff->a[0];
     double b = coeff->a[1];
@@ -3223,11 +3222,11 @@ lsst::meas::mosaic::getJImg(Coeff::Ptr& coeff,
 		xend = width - 1;
 		interval = xend - x + 1;
 	    }
-            afw::geom::Point2D uv = detPxToFpPx(ccd, afw::geom::Point2D(x, y)) +
+            afw::geom::Point2D uv = detPxToFpPxRot(ccd, afw::geom::Point2D(x, y)) +
                 afw::geom::Extent2D(coeff->x0, coeff->y0);
 
 	    double val0 = coeff->detJ(uv.getX(), uv.getY())*deg2pix*deg2pix;
-            uv = detPxToFpPx(ccd, afw::geom::Point2D(xend, y)) + afw::geom::Extent2D(coeff->x0, coeff->y0);
+            uv = detPxToFpPxRot(ccd, afw::geom::Point2D(xend, y)) + afw::geom::Extent2D(coeff->x0, coeff->y0);
 	    double val1 = coeff->detJ(uv.getX(), uv.getY())*deg2pix*deg2pix;
 
 	    for (int i = 0; i < interval; i++) {

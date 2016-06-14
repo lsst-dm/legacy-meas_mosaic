@@ -1877,10 +1877,9 @@ lsst::meas::mosaic::convertFluxFitParams(FluxFitParams::Ptr& ffp, PTR(lsst::afw:
 	}
     }
 
-    afw::geom::Extent2D off = getCenterInFpPixels(ccd) - getCenterInDetectorPixels(ccd);
-
-    newP->x0 =  (off[0] + x0) * cosYaw + (off[1] + y0) * sinYaw;
-    newP->y0 = -(off[0] + x0) * sinYaw + (off[1] + y0) * cosYaw;
+    afw::geom::Point2D newXY0 = computeX0Y0(ccd, x0, y0);
+    newP->x0 = newXY0[0];
+    newP->y0 = newXY0[1];
 
     return newP;
 }
@@ -1932,10 +1931,10 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 		interval = xend - x + 1;
 	    }
 
-            afw::geom::Point2D uv = detPxToFpPx(ccd, afw::geom::Point2D(x, y)) +
+            afw::geom::Point2D uv = detPxToFpPxRot(ccd, afw::geom::Point2D(x, y)) +
                 afw::geom::Extent2D(coeff->x0, coeff->y0);
 	    double val0 = p->eval(uv.getX(), uv.getY());
-            uv = detPxToFpPx(ccd, afw::geom::Point2D(xend, y)) + afw::geom::Extent2D(coeff->x0, coeff->y0);
+            uv = detPxToFpPxRot(ccd, afw::geom::Point2D(xend, y)) + afw::geom::Extent2D(coeff->x0, coeff->y0);
 	    double val1 = p->eval(uv.getX(), uv.getY());
 
 	    for (int i = 0; i < interval; i++) {
