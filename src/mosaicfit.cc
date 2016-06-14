@@ -1038,16 +1038,18 @@ Eigen::VectorXd solveMatrix_MKL(long size, Eigen::MatrixXd &a_data, Eigen::Vecto
 }
 
 Eigen::VectorXd solveMatrix_Eigen(long size, Eigen::MatrixXd &a, Eigen::VectorXd &b) {
-    Eigen::PartialPivLU<Eigen::MatrixXd> lu(a);
-    return lu.solve(b);
+    Eigen::FullPivLU<Eigen::MatrixXd> lu(a);
+    Eigen::MatrixXd xlu = lu.solve(b);
+    std::cout << "solveMatrix_Eigen: FullPivLU Relative error = " << (a*xlu - b).norm()/b.norm() << std::endl;
+    return xlu;
 }
 
 Eigen::VectorXd solveMatrix(long size, Eigen::MatrixXd &a_data, Eigen::VectorXd &b_data) {
     if(lapack::isLapackAvailable) {
-	return solveMatrix_MKL(size, a_data, b_data);
+        return solveMatrix_MKL(size, a_data, b_data);
     }
     else {
-	return solveMatrix_Eigen(size, a_data, b_data);
+        return solveMatrix_Eigen(size, a_data, b_data);
     }
 }
 
