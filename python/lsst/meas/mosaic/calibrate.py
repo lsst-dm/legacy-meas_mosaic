@@ -1,10 +1,17 @@
 from lsst.pipe.base import CmdLineTask, ArgumentParser
-from lsst.pex.config import Config, Field
+from lsst.pex.config import Config, Field, DictField
 from .updateExposure import applyMosaicResultsExposure, applyMosaicResultsCatalog, applyCalib
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
+from . import utils as mosaicUtils
 
 class CalibrateCatalogConfig(Config):
     doApplyCalib = Field(dtype=bool, default=True, doc="Calibrate fluxes to magnitudes?")
+    srcSchemaMap = DictField(
+        doc="Mapping between different stack (e.g. HSC vs. LSST) schema names",
+        keytype=str,
+        itemtype=str,
+        default=None,
+        optional=True)
 
 class CalibrateCatalogTask(CmdLineTask):
     ConfigClass = CalibrateCatalogConfig
@@ -19,6 +26,14 @@ class CalibrateCatalogTask(CmdLineTask):
 
     def run(self, dataRef):
         catalog = dataRef.get("src", immediate=True)
+        calexp_md = dataRef.get('calexp_md', immediate=True)
+        # Check if we are looking at HSC stack outputs
+        hscRun = mosaicUtils.checkHscStack(calexp_md)
+        # Set the aliap map for the source catalog
+        if self.config.srcSchemaMap is not None and hscRun is not None:
+            aliasMap = catalog.schema.getAliasMap()
+            for lsstName, otherName in self.config.srcSchemaMap.iteritems():
+                aliasMap.set(lsstName, otherName)
         results = applyMosaicResultsCatalog(dataRef, catalog)
         catalog = results.catalog
         if self.config.doApplyCalib:

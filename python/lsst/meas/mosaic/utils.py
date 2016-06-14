@@ -21,6 +21,19 @@
 #
 """Support utilities for meas_mosaic"""
 
+def checkHscStack(metadata):
+    """!Check to see if data were processed with the HSC stack
+
+    @param[in] metadata  the metadata object to search for header HSCPIPE_VERSION
+
+    @return    hscPipe   value of HSCPIPE_VERSION header if present, otherwise None
+    """
+    try:
+        hscPipe = metadata.get("HSCPIPE_VERSION")
+    except:
+        hscPipe = None
+    return hscPipe
+
 def matchJanskyToDn(matches):
     """!Convert fluxes in a list of matches from units of "janskys", as read in by LSST, to DN.
 
