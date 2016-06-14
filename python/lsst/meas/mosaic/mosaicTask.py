@@ -227,15 +227,20 @@ class SourceReader(object):
         return m
 
     def readSrc(self, dataRef):
-        """ Read source catalog etc for input dataRef
+        """Read source catalog etc for input dataRef
 
         The following are returned:
         Source catalog, matched list, and wcs will be read from 'src', 'srcMatch', and 'calexp_md',
         respectively.
 
-        If color transformation is given, it will be applied to reference flux of matched list.
-        Source catalog and matched list will be converted to measMosaic's Source and SourceMatch and
-        returned.
+        NOTE: If the detector has nQuarter%4 != 0 (i.e. it is rotated w.r.t the focal plane
+              coordinate system), the (x, y) pixel values of the centroid slot for the source
+              catalogs are rotated such that pixel (0, 0) is the LLC (i.e. the coordinate system
+              expected by meas_mosaic).
+
+        If color transformation information is given, it will be applied to the reference flux
+        of the matched list.  The source catalog and matched list will be converted to measMosaic's
+        Source and SourceMatch and returned.
 
         The number of 'Source's in each cell defined by config.cellSize will be limited to brightest
         config.nStarPerCell.
@@ -251,10 +256,34 @@ class SourceReader(object):
             if not dataRef.datasetExists('calexp_md'):
                 raise RuntimeError("no data for calexp_md %s" % (dataId))
 
-            calexp_md = dataRef.get('calexp_md', immediate=True)
-            wcs = afwImage.makeWcs(calexp_md)
+            def rotatePixelCoords(sources, width, height, nQuarter):
+                """Rotate catalog (x, y) pixel coordinates such that LLC of detector in FP is (0, 0)
+                """
+                for s in sources:
+                    xKey = s.schema.find("slot_Centroid_x").key
+                    yKey = s.schema.find("slot_Centroid_y").key
+                    x0 = s.get(xKey)
+                    y0 = s.get(yKey)
+                    if nQuarter == 1:
+                        s.set(xKey, height - y0 - 1.0)
+                        s.set(yKey, x0)
+                    if nQuarter == 2:
+                        s.set(xKey, width - x0 - 1.0)
+                        s.set(yKey, height - y0 - 1.0)
+                    if nQuarter == 3:
+                        s.set(xKey, y0)
+                        s.set(yKey, width - x0 - 1.0)
+                return sources
 
+            calexp_md = dataRef.get('calexp_md', immediate=True)
+            calexp = dataRef.get('calexp', immediate=True)
+            wcs = afwImage.makeWcs(calexp_md)
+            nQuarter = calexp.getDetector().getOrientation().getNQuarter()
             sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
+
+            if nQuarter%4 != 0:
+                sources = rotatePixelCoords(sources, calexp.getWidth(), calexp.getHeight(), nQuarter)
+
             refObjLoader = measAstrom.LoadAstrometryNetObjectsTask(
                 measAstrom.LoadAstrometryNetObjectsTask.ConfigClass())
             srcMatch = dataRef.get('srcMatch', immediate=True)
