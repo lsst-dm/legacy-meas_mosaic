@@ -37,6 +37,14 @@ int getHeight(CONST_PTR(afw::cameraGeom::Detector));
 // focal plane.
 afw::geom::Point2D detPxToFpPx(CONST_PTR(afw::cameraGeom::Detector), afw::geom::Point2D const);
 
+// Convert a pixel position on a given detector to a pixel position on the
+// focal plane ACCOUNTING FOR YAW ROTATION.
+// [mimics HSC's camGeom: ccd.getPositionFromPixel(point).getPixels(ccd.getPixelSize())]
+afw::geom::Point2D detPxToFpPxRot(CONST_PTR(afw::cameraGeom::Detector), afw::geom::Point2D const);
+
+// Compute new position of LLC in Focal Plane pixels: X0, Y0
+afw::geom::Point2D computeX0Y0(CONST_PTR(afw::cameraGeom::Detector), double, double);
+
 }}} // lsst::meas::mosaic
 
 #endif

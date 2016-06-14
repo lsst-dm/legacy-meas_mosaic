@@ -81,4 +81,34 @@ afw::geom::Point2D detPxToFpPx(CONST_PTR(afw::cameraGeom::Detector) det, afw::ge
                                   afw::cameraGeom::FOCAL_PLANE).getPoint());
 }
 
+afw::geom::Point2D detPxToFpPxRot(CONST_PTR(afw::cameraGeom::Detector) det, afw::geom::Point2D const detPt) {
+// [mimics HSC's camGeom: ccd.getPositionFromPixel(point).getPixels(ccd.getPixelSize())]
+    double cosYaw = std::cos(getYaw(det));
+    double sinYaw = std::sin(getYaw(det));
+    // Center in detector and focal plane pixels
+    afw::geom::Point2D centerDet = getCenterInDetectorPixels(det);
+    afw::geom::Point2D centerFp = getCenterInFpPixels(det);
+
+    afw::geom::Extent2D offset = afw::geom::Extent2D(cosYaw * detPt.getX() - sinYaw * detPt.getY(),
+                                                     sinYaw * detPt.getX() + cosYaw * detPt.getY());
+    offset -= afw::geom::Extent2D(centerDet);
+    auto scaling = makeScalingMmToPx(det->getPixelSize());
+    return centerFp + scaling(offset);
+}
+
+afw::geom::Point2D computeX0Y0(CONST_PTR(afw::cameraGeom::Detector) det, double x0, double y0) {
+    afw::geom::Point2D newXY0;
+
+    double cosYaw = std::cos(getYaw(det));
+    double sinYaw = std::sin(getYaw(det));
+
+    // Offset between center in focal plane and detector pixels
+    afw::geom::Extent2D off = getCenterInFpPixels(det) - getCenterInDetectorPixels(det);
+
+    newXY0[0] =  (off[0] + x0)*cosYaw + (off[1] + y0)*sinYaw;
+    newXY0[1] = -(off[0] + x0)*sinYaw + (off[1] + y0)*cosYaw;
+
+    return newXY0;
+}
+
 }}} // lsst::meas::mosaic
