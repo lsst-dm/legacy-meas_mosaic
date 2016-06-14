@@ -176,6 +176,18 @@ class MosaicConfig(pexConfig.Config):
         doc="PSF star flag for star selection",
         dtype=str,
         default='calib_psfUsed')
+    calibStarForStarSelection = pexConfig.Field(
+        doc="Calibration star detected as an icSrc flag for star selection",
+        dtype=str,
+        default='calib_detected')
+    parentForStarSelection = pexConfig.Field(
+        doc="Does souce have a parent? For star selection",
+        dtype=str,
+        default='parent')
+    nChildForStarSelection = pexConfig.Field(
+        doc="Does souce have any children? For star selection",
+        dtype=str,
+        default='deblend_nChild')
     coaddName = pexConfig.Field(
         doc="Type of coadd being produced; used to select the correct SkyMap.",
         dtype=str,
@@ -198,9 +210,10 @@ class SourceReader(object):
     def selectStars(self, sources, includeSaturated=False):
         """ Return a list of stellar like objects selected from input sources
 
-        Stellarity will be judged based mainly on extendedness (classification.extendedness).
+        Stellarity will be judged based mainly on extendedness (base_ClassificationExtendedness_value).
         If an object is used to determine PSF (calib.psf.used == True), it will be included.
-        Saturated objects (flags.pixel.saturated.any) will not be included as a default.
+        Blended objects (with either parent or nChild > 0) will not be included by default.
+        Saturated objects (base_PixelFlags_flag_saturated) will not be included by default.
         """
 
         if len(sources) == 0:
@@ -215,14 +228,48 @@ class SourceReader(object):
             sourceList = sources
 
         schema = sourceList[0].schema
-        extKey = schema.find(self.config.extendednessForStarSelection).getKey()
-        satKey = schema.find(self.config.saturatedForStarSelection).getKey()
+
+        try:
+            parentKey = schema.find(self.config.parentForStarSelection).getKey()
+        except:
+            paretKey = None
+        try:
+            nChildKey = schema.find(self.config.nChildForStarSelection).getKey()
+        except:
+            nChildKey = None
+        try:
+            extKey = schema.find(self.config.extendednessForStarSelection).getKey()
+        except:
+            extKey = None
+        try:
+            satKey = schema.find(self.config.saturatedForStarSelection).getKey()
+        except:
+            satKey = None
+        try:
+            calibKey = schema.find(self.config.calibStarForStarSelection).getKey()
+        except:
+            calibKey = None
 
         stars = []
         for includeSource, checkSource in zip(sources, sourceList):
-            star = (psfKey is not None and checkSource.get(psfKey)) or checkSource.get(extKey) < 0.5
-            saturated = checkSource.get(satKey)
-            if star and (includeSaturated or not saturated):
+            doInclude = True
+            if extKey is not None and checkSource.get(extKey) > 0.5:
+                doInclude = False
+            if psfKey is not None and not checkSource.get(psfKey):
+                doInclude = False
+            # Do allow point sources regardless of above conditions (if used as psf), but those ones below
+            if extKey is not None and checkSource.get(extKey) < 0.5:
+                doInclude = True
+            if calibKey is not None and not checkSource.get(calibKey):
+                doInclude = False
+            if parentKey is not None and checkSource.get(parentKey) > 0:
+                doInclude = False
+            if nChildKey is not None and checkSource.get(nChildKey) > 0:
+                doInclude = False
+            if satKey is not None and checkSource.get(satKey):
+                if not includeSaturated:
+                    doInclude = False
+            if doInclude:
                 stars.append(includeSource)
         return stars
 
