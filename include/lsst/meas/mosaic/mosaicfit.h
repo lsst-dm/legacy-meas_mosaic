@@ -2,6 +2,7 @@
 #if !defined(HSC_MEAS_MOSAIC_H)
 #define HSC_MEAS_MOSAIC_H
 
+#include <cmath>
 #include <memory>
 #include <vector>
 #include "lsst/pex/exceptions.h"
@@ -9,7 +10,6 @@
 #include "lsst/afw/geom.h"
 #include "lsst/afw/cameraGeom.h"
 #include "lsst/afw/table.h"
-#include "lsst/utils/ieee.h"
 
 namespace lsst {
     namespace meas {
@@ -33,7 +33,7 @@ namespace lsst {
                     _err(std::numeric_limits<double>::quiet_NaN()),
                     _xerr(std::numeric_limits<double>::quiet_NaN()),
                     _yerr(std::numeric_limits<double>::quiet_NaN()),
-                    _astromBad(!lsst::utils::isfinite(_flux))
+                    _astromBad(!std::isfinite(_flux))
                     {
                         try {
                             _err = record.get(record.getSchema().find<double>("fluxSigma").key);

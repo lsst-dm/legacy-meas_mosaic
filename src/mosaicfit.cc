@@ -1,3 +1,4 @@
+#include <cmath>
 #include <ctime>
 #include <memory>
 #include <strings.h>
@@ -13,7 +14,6 @@
 #include "lsst/meas/mosaic/mosaicfit.h"
 #include "lsst/meas/mosaic/snapshot.h"
 #include "lsst/meas/mosaic/shimCameraGeom.h"
-#include "lsst/utils/ieee.h"
 
 #define D2R (M_PI/180.)
 #define R2D (180./M_PI)
@@ -2171,7 +2171,7 @@ lsst::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all,
 	    o->setUV(ccdSet[ichip]);
 	    o->xerr = ss[j]->getXErr();
 	    o->yerr = ss[j]->getYErr();
-	    if (lsst::utils::isnan(o->xerr) || lsst::utils::isnan(o->yerr))
+	    if (std::isnan(o->xerr) || std::isnan(o->yerr))
 		o->good = false;
 	    //printf("%d %e %e\n", o->good, o->xerr, o->yerr);
 	    o->istar = i;
