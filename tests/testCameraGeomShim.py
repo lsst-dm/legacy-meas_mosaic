@@ -99,19 +99,6 @@ class ShimCameraGeomTestCase(utilsTests.TestCase):
                 self.assertAlmostEqual(measMosaic.detPxToFpPxRot(ccd, point).getX(), pt.getX(), 5)
                 self.assertAlmostEqual(measMosaic.detPxToFpPxRot(ccd, point).getY(), pt.getY(), 5)
 
-def suite():
-    """Returns a suite containing all the test cases in this module."""
-    utilsTests.init()
-
-    suites = []
-    suites += unittest.makeSuite(ShimCameraGeomTestCase)
-    suites += unittest.makeSuite(utilsTests.MemoryTestCase)
-
-    return unittest.TestSuite(suites)
-
-def run(exit=False):
-    """Run the tests"""
-    utilsTests.run(suite(), exit)
-
 if __name__ == "__main__":
-    run(True)
+    """Run the tests"""
+    unittest.main()
