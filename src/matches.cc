@@ -169,14 +169,14 @@ namespace lsst { namespace meas { namespace mosaic {
 
 	afw::table::Schema catSchema = catalog.getSchema();
 	afw::table::Schema simpleMinSchema = afw::table::SimpleTable::makeMinimalSchema();
-	afw::table::Schema refSchema = copySchema(catSchema, simpleMinSchema, "", "ref.");
+	afw::table::Schema refSchema = copySchema(catSchema, simpleMinSchema, "", "ref_");
 	afw::table::SimpleCatalog refCatalog(refSchema);
-	copySimpleCatalog(catalog, refCatalog, "", "ref.");
+	copySimpleCatalog(catalog, refCatalog, "", "ref_");
 
 	afw::table::Schema sourceMinSchema = afw::table::SourceTable::makeMinimalSchema();
-	afw::table::Schema srcSchema = copySchema(catSchema, sourceMinSchema, "", "src.");
+	afw::table::Schema srcSchema = copySchema(catSchema, sourceMinSchema, "", "src_");
 	afw::table::SourceCatalog srcCatalog(srcSchema);
-	copySourceCatalog(catalog, srcCatalog, "", "src.");
+	copySourceCatalog(catalog, srcCatalog, "", "src_");
 
 	afw::table::ReferenceMatchVector matches;
 	afw::table::Key<double> distKey = catalog.getSchema().find<double>("distance").key;
