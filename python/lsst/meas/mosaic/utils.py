@@ -224,6 +224,8 @@ def plotJCont(ccdSet, coeffSet, iexp, outputDir):
             Z[i][j] = coeff.detJ(X[i][j], Y[i][j]) * deg2pix ** 2
 
     plt.clf()
+    plt.rc('xtick', labelsize=10)
+    plt.rc('ytick', labelsize=10)
     plt.contourf(X, Y, Z, levels=levels)
     plt.colorbar()
     plt.title('LSST: %d' % (iexp))
@@ -249,6 +251,8 @@ def plotFCorCont(ccdSet, ffpSet, coeffSet, iexp, outputDir):
 
     plt.close('all')
     plt.clf()
+    plt.rc('xtick', labelsize=10)
+    plt.rc('ytick', labelsize=10)
     plt.contourf(X, Y, Z, levels=levels)
     plt.colorbar()
     plt.title('LSST: %d' % (iexp))
@@ -296,20 +300,23 @@ def plotResPosArrow2D(ccdSet, iexp, matchVec, sourceVec, outputDir):
     dys = numpy.array(_dys)
 
     plt.clf()
-    plt.rc('text', usetex=USETEX)
-
-    q = plt.quiver(xm, ym, dxm, dym, units='inches', angles='xy', scale=1, color='green')
-    if len(ym) != 0 and ym.max() > 5000:
-        plt.quiverkey(q, 0, 19000, 0.1, "0.1 arcsec", coordinates='data', color='black')
-    else:
-        plt.quiverkey(q, 0,  4500, 0.1, "0.1 arcsec", coordinates='data', color='black')
-    plt.quiver(xs, ys, dxs, dys, units='inches', angles='xy', scale=1, color='red')
+    plt.rc("text", usetex=USETEX)
+    plt.rc('xtick', labelsize=10)
+    plt.rc('ytick', labelsize=10)
 
     plotCcd(ccdSet)
-    plt.axes().set_aspect('equal')
+    q = plt.quiver(xm, ym, dxm, dym, units="inches", angles="xy", scale=1, color="green", label="external")
+    if len(xm) != 0 and len(ym) != 0:
+        xPos = round(xm.min() + (xm.max() - xm.min())*0.002, -2)
+        yPos = round(ym.max() + (ym.max() - ym.min())*0.025, -2)
+        plt.quiverkey(q, xPos, yPos, 0.1, "0.1 arcsec", coordinates="data", color="blue", labelcolor="blue",
+                      labelpos='E', fontproperties={'size': 10})
+    plt.quiver(xs, ys, dxs, dys, units="inches", angles="xy", scale=1, color="red", label="internal")
 
-    plt.title('LSST: %d' % (iexp))
-    plt.savefig(os.path.join(outputDir, "ResPosArrow2D_%d.png" % (iexp)), format='png')
+    plt.axes().set_aspect("equal")
+    plt.legend(fontsize=8)
+    plt.title("LSST: %d" % (iexp))
+    plt.savefig(os.path.join(outputDir, "ResPosArrow2D_%d.png" % (iexp)), format="png")
 
 def plotResPosScatter(matchVec, sourceVec, outputDir):
     _x = []
@@ -368,7 +375,9 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     eta_std_s, eta_mean_s, eta_n_s = clippedStd(d_eta_s, 2)
 
     plt.clf()
-    plt.rc('text', usetex=USETEX)
+    plt.rc("text", usetex=USETEX)
+    plt.rc('xtick', labelsize=10)
+    plt.rc('ytick', labelsize=10)
 
     plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
     plt.plot(d_xi_bad, d_eta_bad, 'k+', markersize=2, alpha=0.5, label='bad')
@@ -388,6 +397,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     bins = numpy.arange(-binLimit, binLimit, binLimit*0.02) + binLimit*0.01
 
     ax = plt.subplot2grid((5,6),(0,0), colspan=4)
+    ax.tick_params(axis='both', labelsize=8)
     if sourceVec.size() != 0:
         plt.hist([d_xi, d_xi_m, d_xi_s], bins=bins, normed=False, histtype='step')
     else:
@@ -407,8 +417,9 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     plt.xlim(-binLimit, binLimit)
 
     ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
-    plt.hist(d_eta, bins=bins, normed=False, orientation='horizontal', histtype='step')
-    plt.hist(d_eta_m, bins=bins, normed=False, orientation='horizontal', histtype='step')
+    ax.tick_params(axis='both', labelsize=8)
+    plt.hist(d_eta, bins=bins, normed=False, orientation="horizontal", histtype="step")
+    plt.hist(d_eta_m, bins=bins, normed=False, orientation="horizontal", histtype="step")
     if sourceVec.size() != 0:
         plt.hist(d_eta_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
     plt.text(0.7, 0.22, r"$\sigma_{all}=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes,
@@ -525,8 +536,9 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     bins2 = numpy.arange(-0.25, 0.25, 0.05) + 0.025
 
     ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
-    plt.hist(d_mag_a, bins=bins, normed=False, orientation='horizontal', histtype='step')
-    plt.hist(d_mag_m, bins=bins, normed=False, orientation='horizontal', histtype='step')
+    ax.tick_params(axis='both', labelsize=10)
+    plt.hist(d_mag_a, bins=bins, normed=False, orientation="horizontal", histtype="step")
+    plt.hist(d_mag_m, bins=bins, normed=False, orientation="horizontal", histtype="step")
     if sourceVec.size() != 0:
         plt.hist(d_mag_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
     plt.hist(d_mag_cat_m, bins=bins2, normed=False, orientation='horizontal', histtype='step')
@@ -576,8 +588,9 @@ def plotPosDPos(matchVec, sourceVec, outputDir):
     d_eta = numpy.array(_y)
 
     plt.clf()
-    plt.rc('text', usetex=USETEX)
-
+    plt.rc("text", usetex=USETEX)
+    plt.rc('xtick', labelsize=10)
+    plt.rc('ytick', labelsize=10)
     plt.subplot(2, 2, 1)
     plt.plot(xi, d_xi, 'o', markersize=2, alpha=0.5)
     plt.xlabel(r'$\xi$ (arcsec)')
@@ -641,7 +654,9 @@ def plotResFlux(ccdSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     dm = numpy.array(_dm)
 
     plt.clf()
-    plt.rc('text', usetex=USETEX)
+    plt.rc("text", usetex=USETEX)
+    plt.rc('xtick', labelsize=9)
+    plt.rc('ytick', labelsize=9)
 
     ax = plt.subplot(2, 2, 1)
     plt.hist(d_mag, bins=100, normed=True, histtype='step')
