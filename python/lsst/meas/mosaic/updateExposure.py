@@ -151,20 +151,20 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     return Struct(catalog=catalog, wcs=wcs, ffp=ffp)
 
 
-def applyCalib(catalog, calib):
+def applyCalib(catalog, calib, hscRun=None):
     """Convert all fluxes in a catalog to magnitudes
 
-    The fluxes are converted in-place, so that the "flux.*" are now really
+    The fluxes are converted in-place, so that the "_flux*" are now really
     magnitudes.
     """
-    fluxKeys, errKeys = getFluxKeys(catalog.schema)
-
-    mapper = afwTable.SchemaMapper(catalog.schema)
+    fluxKeys, errKeys = getFluxKeys(catalog.schema, hscRun=hscRun)
+    mapper = afwTable.SchemaMapper(catalog.schema, True)
     for item in catalog.schema:
         name = item.field.getName()
         if name in fluxKeys:
             continue
         mapper.addMapping(item.key)
+    aliasMap = catalog.schema.getAliasMap()
 
     newFluxKeys = {}
     newErrKeys = {}
@@ -179,35 +179,36 @@ def applyCalib(catalog, calib):
                                            (fluxField.getName(), fluxField.getDoc()), "mag",
                                            fluxField.getElementCount())
         newFluxKeys[newName] = mapper.addMapping(fluxKeys[name], newField)
-        if name in errKeys:
-            errField = catalog.schema.find(name + ".err").field
+
+        sigmaName = "Sigma"
+        if hscRun is not None:
+            sigmaName = "_err"
+
+        if name + sigmaName in errKeys:
+            errField = catalog.schema.find(name + sigmaName).field
             if errField.getElementCount() == 1:
-                newErrField = errField.__class__(newName + ".err",
+                newErrField = errField.__class__(newName + sigmaName,
                                                  "Calibrated magnitude error from %s (%s)" %
-                                                 (errField.getName(), errField.getDoc()),
-                                                 "mag")
+                                                 (errField.getName(), errField.getDoc()), "mag")
             else:
-                newErrField = errField.__class__(newName + ".err",
+                newErrField = errField.__class__(newName + sigmaName,
                                                  "Calibrated magnitude error from %s (%s)" %
-                                                 (errField.getName(), errField.getDoc()),
-                                                 "mag",
+                                                 (errField.getName(), errField.getDoc()), "mag",
                                                  errField.getElementCount())
-            newErrKeys[newName] = mapper.addMapping(errKeys[name], newErrField)
+            newErrKeys[newName] = mapper.addMapping(errKeys[name + sigmaName], newErrField)
+        aliasMap.set(name, newName)
+        aliasMap.set(name+sigmaName, newName+sigmaName)
 
     calib.setThrowOnNegativeFlux(False)
 
     newCatalog = afwTable.SourceCatalog(mapper.getOutputSchema())
-    for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
-        oldColumn = getattr(catalog, "get" + slot + "Definition")()
-        newColumn = oldColumn.replace("flux", "mag", 1) if oldColumn.startswith("flux.") else oldColumn
-        getattr(newCatalog, "define" + slot)(newColumn)
     newCatalog.extend(catalog, mapper=mapper)
 
     for name, key in newFluxKeys.items():
         flux = newCatalog[key]
         if name in newErrKeys:
             fluxErr = newCatalog[newErrKeys[name]]
-            magArray = numpy.array([calib.getMagnitude(f, e) for f,e in zip(flux, fluxErr)])
+            magArray = numpy.array([calib.getMagnitude(f, e) for f, e in zip(flux, fluxErr)])
             mag = magArray[:,0]
             fluxErr[:] = magArray[:,1]
         else:
