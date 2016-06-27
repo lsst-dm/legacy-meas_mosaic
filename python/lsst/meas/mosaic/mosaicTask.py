@@ -1,5 +1,25 @@
 #!/usr/bin/env python
-
+#
+# LSST Data Management System
+# Copyright 2008-2016 AURA/LSST.
+#
+# This product includes software developed by the
+# LSST Project (http://www.lsst.org/).
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the LSST License Statement and
+# the GNU General Public License along with this program.  If not,
+# see <https://www.lsstcorp.org/LegalNotices/>.
+#
 import os
 import math
 import numpy
@@ -8,15 +28,14 @@ import multiprocessing
 
 import lsst.afw.geom                    as afwGeom
 import lsst.afw.image                   as afwImage
-import lsst.afw.table                   as afwTable
 import lsst.afw.math                    as afwMath
-import lsst.pex.config                  as pexConfig
-import lsst.pipe.base                   as pipeBase
+import lsst.afw.table                   as afwTable
 import lsst.meas.algorithms             as measAlg
 import lsst.meas.astrom                 as measAstrom
 import lsst.meas.mosaic.mosaicLib       as measMosaic
+import lsst.pex.config                  as pexConfig
+import lsst.pipe.base                   as pipeBase
 
-from lsst.pipe.tasks.colorterms import ColortermLibrary
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 from lsst.pex.logging import getDefaultLog
 from lsst.pipe.tasks.colorterms import ColortermLibrary
@@ -161,27 +180,27 @@ class MosaicConfig(pexConfig.Config):
     extendednessForStarSelection = pexConfig.Field(
         doc="Extendedness for star selection",
         dtype=str,
-        default='base_ClassificationExtendedness_value')
+        default="base_ClassificationExtendedness_value")
     saturatedForStarSelection = pexConfig.Field(
         doc="Saturated flag for star selection",
         dtype=str,
-        default='base_PixelFlags_flag_saturated')
+        default="base_PixelFlags_flag_saturated")
     psfStarForStarSelection = pexConfig.Field(
         doc="PSF star flag for star selection",
         dtype=str,
-        default='calib_psfUsed')
+        default="calib_psfUsed")
     calibStarForStarSelection = pexConfig.Field(
         doc="Calibration star detected as an icSrc flag for star selection",
         dtype=str,
-        default='calib_detected')
+        default="calib_detected")
     parentForStarSelection = pexConfig.Field(
         doc="Does souce have a parent? For star selection",
         dtype=str,
-        default='parent')
+        default="parent")
     nChildForStarSelection = pexConfig.Field(
         doc="Does souce have any children? For star selection",
         dtype=str,
-        default='deblend_nChild')
+        default="deblend_nChild")
     coaddName = pexConfig.Field(
         doc="Type of coadd being produced; used to select the correct SkyMap.",
         dtype=str,
@@ -282,16 +301,16 @@ class SourceReader(object):
         dataId = dataRef.dataId
 
         try:
-            if not dataRef.datasetExists('src'):
+            if not dataRef.datasetExists("src"):
                 raise RuntimeError("no data for src %s" % (dataId))
-            if not dataRef.datasetExists('calexp_md'):
+            if not dataRef.datasetExists("calexp_md"):
                 raise RuntimeError("no data for calexp_md %s" % (dataId))
 
-            calexp_md = dataRef.get('calexp_md', immediate=True)
-            calexp = dataRef.get('calexp', immediate=True)
+            calexp_md = dataRef.get("calexp_md", immediate=True)
+            calexp = dataRef.get("calexp", immediate=True)
             wcs = afwImage.makeWcs(calexp_md)
             nQuarter = calexp.getDetector().getOrientation().getNQuarter()
-            sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
+            sources = dataRef.get("src", immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
 
             # Check if we are looking at HSC stack outputs: if so, no pixel rotation of sources is
             # required, but alias mapping must be set to associate HSC's schema with that of LSST.
@@ -309,7 +328,7 @@ class SourceReader(object):
 
             refObjLoader = measAstrom.LoadAstrometryNetObjectsTask(
                 measAstrom.LoadAstrometryNetObjectsTask.ConfigClass())
-            srcMatch = dataRef.get('srcMatch', immediate=True)
+            srcMatch = dataRef.get("srcMatch", immediate=True)
             if hscRun is not None:
                 # The reference object loader grows the bbox by the config parameter pixelMargin.  This
                 # is set to 50 by default but is not reflected by the radius parameter set in the
@@ -384,41 +403,41 @@ class SourceReader(object):
             retMatch = list()
 
             if len(selMatches) > self.config.minNumMatch:
-                naxis1, naxis2 = calexp_md.get('NAXIS1'), calexp_md.get('NAXIS2')
+                naxis1, naxis2 = calexp_md.get("NAXIS1"), calexp_md.get("NAXIS2")
                 if hscRun is None:
                     if nQuarter%2 != 0:
-                        naxis1, naxis2 = calexp_md.get('NAXIS2'), calexp_md.get('NAXIS1')
-                bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2))
+                        naxis1, naxis2 = calexp_md.get("NAXIS2"), calexp_md.get("NAXIS1")
+                bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(naxis1, naxis2))
                 cellSet = afwMath.SpatialCellSet(bbox, self.config.cellSize, self.config.cellSize)
                 for s in selSources:
                     if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
                         src = measMosaic.Source(s)
-                        src.setExp(dataId['visit'])
-                        src.setChip(dataId['ccd'])
+                        src.setExp(dataId["visit"])
+                        src.setChip(dataId["ccd"])
                         try:
                             cellSet.insertCandidate(measMosaic.SpatialCellSource(src))
                         except:
-                            self.log.info('FAILED TO INSERT CANDIDATE: visit=%d ccd=%d x=%f y=%f' %
-                                          (dataRef.dataId['visit'], dataRef.dataId['ccd'],
-                                           src.getX(), src.getY()) + ' bbox=' + str(bbox))
+                            self.log.info("FAILED TO INSERT CANDIDATE: visit=%d ccd=%d x=%f y=%f" %
+                                          (dataRef.dataId["visit"], dataRef.dataId["ccd"],
+                                           src.getX(), src.getY()) + " bbox=" + str(bbox))
                 for cell in cellSet.getCellList():
                     cell.sortCandidates()
                     for i, cand in enumerate(cell):
                         cand = measMosaic.cast_SpatialCellSource(cand)
                         src = cand.getSource()
                         retSrc.append(src)
-                        if i == self.config.nStarPerCell-1:
+                        if i == self.config.nStarPerCell - 1:
                             break
                 for m in selMatches:
                     if m.first is not None and m.second is not None:
                         match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs),
                                                        measMosaic.Source(m.second))
-                        match.second.setExp(dataId['visit'])
-                        match.second.setChip(dataId['ccd'])
+                        match.second.setExp(dataId["visit"])
+                        match.second.setChip(dataId["ccd"])
                         retMatch.append(match)
             else:
-                self.log.info('%8d %3d : %d/%d matches  Suspicious to wrong match. Ignore this CCD' %
-                              (dataRef.dataId['visit'], dataRef.dataId['ccd'], len(selMatches), len(matches)))
+                self.log.info("%8d %3d : %d/%d matches  Suspicious to wrong match. Ignore this CCD" %
+                              (dataRef.dataId["visit"], dataRef.dataId["ccd"], len(selMatches), len(matches)))
 
         except Exception as e:
             self.log.warn("Failed to read %s: %s" % (dataId, e))
@@ -465,15 +484,15 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         ccds = measMosaic.CcdSet()
         for dataRef in dataRefList:
-            if not dataRef.dataId['ccd'] in ccds.keys():
-                ccd = dataRef.get('camera')[int(dataRef.dataId['ccd'])]
-                ccds[dataRef.dataId['ccd']] = ccd
+            if not dataRef.dataId["ccd"] in ccds.keys():
+                ccd = dataRef.get("camera")[int(dataRef.dataId["ccd"])]
+                ccds[dataRef.dataId["ccd"]] = ccd
 
         return ccds
 
     def getWcsForCcd(self, dataRef):
         try:
-            md = dataRef.get('calexp_md')
+            md = dataRef.get("calexp_md")
             return afwImage.makeWcs(md)
         except Exception as e:
             print "Failed to read: %s for %s" % (e, dataRef.dataId)
@@ -484,27 +503,27 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         wcsDic = measMosaic.WcsDic()
         for dataRef in dataRefList:
-            if not dataRef.dataId['visit'] in wcsDic.keys():
-                if (dataRef.datasetExists('calexp') and
-                    dataRef.datasetExists('src') and
-                    dataRef.datasetExists('srcMatch')):
+            if not dataRef.dataId["visit"] in wcsDic.keys():
+                if (dataRef.datasetExists("calexp") and
+                    dataRef.datasetExists("src") and
+                    dataRef.datasetExists("srcMatch")):
                     wcs = self.getWcsForCcd(dataRef)
-                    ccd = ccdSet[dataRef.dataId['ccd']]
+                    ccd = ccdSet[dataRef.dataId["ccd"]]
                     offset = measMosaic.getCenterInFpPixels(ccd)
                     wcs.shiftReferencePixel(offset[0], offset[1])
-                    wcsDic[dataRef.dataId['visit']] = wcs
+                    wcsDic[dataRef.dataId["visit"]] = wcs
 
         return wcsDic
 
     def removeNonExistCcd(self, dataRefList, ccdSet):
         num = dict()
         for dataRef in dataRefList:
-            if not dataRef.dataId['ccd'] in num.keys():
-                num[dataRef.dataId['ccd']] = 0
-            if (dataRef.datasetExists('calexp') and
-                dataRef.datasetExists('src') and
-                dataRef.datasetExists('srcMatch')):
-                num[dataRef.dataId['ccd']] += 1
+            if not dataRef.dataId["ccd"] in num.keys():
+                num[dataRef.dataId["ccd"]] = 0
+            if (dataRef.datasetExists("calexp") and
+                dataRef.datasetExists("src") and
+                dataRef.datasetExists("srcMatch")):
+                num[dataRef.dataId["ccd"]] += 1
 
         for ichip in ccdSet.keys():
             if num[ichip] == 0:
@@ -539,15 +558,15 @@ class MosaicTask(pipeBase.CmdLineTask):
         for dataId, result in resultList:
             sources, matches, wcs = result
             if sources is not None:
-                if not dataId['visit'] in ssVisit.keys():
-                    ssVisit[dataId['visit']] = list()
-                    mlVisit[dataId['visit']] = list()
+                if not dataId["visit"] in ssVisit.keys():
+                    ssVisit[dataId["visit"]] = list()
+                    mlVisit[dataId["visit"]] = list()
 
                 for s in sources:
-                    ssVisit[dataId['visit']].append(s)
+                    ssVisit[dataId["visit"]].append(s)
 
                 for m in matches:
-                    mlVisit[dataId['visit']].append(m)
+                    mlVisit[dataId["visit"]].append(m)
 
                 for dataRef in dataRefList:
                     if dataRef.dataId == dataId:
@@ -569,34 +588,34 @@ class MosaicTask(pipeBase.CmdLineTask):
     def mergeCatalog(self, sourceSet, matchList, ccdSet, d_lim):
 
         self.log.info("Creating kd-tree for matched catalog ...")
-        self.log.info("len(matchList) = "+str(len(matchList))+" "+
+        self.log.info("len(matchList) = " + str(len(matchList)) + " " +
                       str([len(matches) for matches in matchList]))
         rootMat = measMosaic.kdtreeMat(matchList)
         allMat = rootMat.mergeMat()
         self.log.info("# of allMat : %d" % self.countObsInSourceGroup(allMat))
-        self.log.info('len(allMat) = %d' % len(allMat))
+        self.log.info("len(allMat) = %d" % len(allMat))
 
         self.log.info("Creating kd-tree for source catalog ...")
-        self.log.info('len(sourceSet) = '+str(len(sourceSet))+" "+
+        self.log.info("len(sourceSet) = " + str(len(sourceSet)) + " " +
                       str([len(sources) for sources in sourceSet]))
         rootSource = measMosaic.kdtreeSource(sourceSet, rootMat, ccdSet, d_lim)
         allSource = rootSource.mergeSource(self.config.numSourceMerge)
         self.log.info("# of allSource : %d" % self.countObsInSourceGroup(allSource))
-        self.log.info('len(allSource) = %d' % len(allSource))
+        self.log.info("len(allSource) = %d" % len(allSource))
 
         return allMat, allSource
 
     def writeNewWcs(self, dataRefList):
         self.log.info("Write New WCS ...")
-        exp = afwImage.ExposureI(0,0)
+        exp = afwImage.ExposureI(0, 0)
         for dataRef in dataRefList:
-            iexp = dataRef.dataId['visit']
-            ichip = dataRef.dataId['ccd']
+            iexp = dataRef.dataId["visit"]
+            ichip = dataRef.dataId["ccd"]
             c = measMosaic.convertCoeff(self.coeffSet[iexp], self.ccdSet[ichip]);
             wcs = measMosaic.wcsFromCoeff(c);
             exp.setWcs(wcs)
             try:
-                dataRef.put(exp, 'wcs')
+                dataRef.put(exp, "wcs")
             except Exception as e:
                 print "failed to write something: %s" % (e)
 
@@ -609,15 +628,15 @@ class MosaicTask(pipeBase.CmdLineTask):
                 m.mag0 != -9999 and m.mag_cat != -9999):
                 mag = m.mag
                 mag_cat = m.mag_cat
-                exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
-                chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
+                exp_cor = -2.5*math.log10(self.fexp[m.iexp])
+                chip_cor = -2.5*math.log10(self.fchip[m.ichip])
                 gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
                 mag_cor = mag + exp_cor + chip_cor + gain_cor
                 dmag.append(mag_cor - mag_cat)
         std, mean, n  = mosaicUtils.clippedStd(numpy.array(dmag), 2.1)
         for dataRef in dataRefList:
-            iexp = dataRef.dataId['visit']
-            ichip = dataRef.dataId['ccd']
+            iexp = dataRef.dataId["visit"]
+            ichip = dataRef.dataId["ccd"]
             try:
                 x0 = self.coeffSet[iexp].x0
                 y0 = self.coeffSet[iexp].y0
@@ -629,12 +648,12 @@ class MosaicTask(pipeBase.CmdLineTask):
             metadata = measMosaic.metadataFromFluxFitParams(newP)
             exp = afwImage.ExposureI(0,0)
             exp.getMetadata().combine(metadata)
-            scale = self.fexp[iexp] * self.fchip[ichip]
+            scale = self.fexp[iexp]*self.fchip[ichip]
             calib = afwImage.Calib()
             calib.setFluxMag0(1.0/scale, 1.0/scale*std*M_LN10*0.4)
             exp.setCalib(calib)
             try:
-                dataRef.put(exp, 'fcr')
+                dataRef.put(exp, "fcr")
             except Exception as e:
                 print "failed to write something: %s" % (e)
 
@@ -674,9 +693,9 @@ class MosaicTask(pipeBase.CmdLineTask):
         # flag (set flux to negative value to be flagged as bad object) objects which
         # show large magnitude difference from median value.
         visits = wcsDic.keys()
-        for j in range(len(visits)-1):
+        for j in range(len(visits) - 1):
             visit_ref = visits[j]
-            for i in range(j+1, len(visits)):
+            for i in range(j + 1, len(visits)):
                 visit_targ = visits[i]
                 refs = list()
                 targs = list()
@@ -711,7 +730,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
                 # There is no overlapping sources
                 if len(mref) < 10:
-                    print '%d %d' % (visit_ref, visit_targ)
+                    print "%d %d" % (visit_ref, visit_targ)
                     continue
 
                 mref = -2.5*numpy.log10(mref)
@@ -721,14 +740,14 @@ class MosaicTask(pipeBase.CmdLineTask):
                 med = numpy.median(dm)
                 Q1 = numpy.percentile(dm, 10)
                 Q3 = numpy.percentile(dm, 90)
-                SIQR = 0.5 * (Q3 - Q1)
+                SIQR = 0.5*(Q3 - Q1)
 
                 del dm
 
                 ngood = 0
                 nbad  = 0
                 for mr, mt, ref, targ in zip(mref, mtarg, refs, targs):
-                    if math.fabs(mt-mr-med) > 3.0 * SIQR:
+                    if math.fabs(mt-mr-med) > 3.0*SIQR:
                         ref.setFlux(-9999)
                         targ.setFlux(-9999)
                         nbad += 1
@@ -736,7 +755,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                         ngood += 1
 
                 print "visit_ref visit_targ med SIQR ngood nbad"
-                print '%10d %10d %6.3f %5.3f %5d %5d' % (visit_ref, visit_targ, med, SIQR, ngood, nbad)
+                print "%10d %10d %6.3f %5.3f %5d %5d" % (visit_ref, visit_targ, med, SIQR, ngood, nbad)
 
                 del mref
                 del mtarg
@@ -750,16 +769,17 @@ class MosaicTask(pipeBase.CmdLineTask):
         tractWcs = tractInfo.getWcs()
         for dataRef in dataRefList:
             try:
-                if not dataRef.datasetExists('calexp_md'):
+                if not dataRef.datasetExists("calexp_md"):
                     raise RuntimeError("no data for calexp_md %s" % (dataRef.dataId))
-                md = dataRef.get('calexp_md', immediate=True)
+                md = dataRef.get("calexp_md", immediate=True)
                 wcs = afwImage.makeWcs(md)
 
                 dataRefListExists.append(dataRef)
 
                 if self.config.requireTractOverlap:
-                    naxis1, naxis2 = md.get('NAXIS1'), md.get('NAXIS2')
-                    bbox = afwGeom.Box2D(afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2)))
+                    naxis1, naxis2 = md.get("NAXIS1"), md.get("NAXIS2")
+                    bbox = afwGeom.Box2D(afwGeom.Box2I(
+                            afwGeom.Point2I(0, 0), afwGeom.Extent2I(naxis1, naxis2)))
                     overlap = False
                     for corner in bbox.getCorners():
                         if tractBBox.contains(tractWcs.skyToPixel(wcs.pixelToSky(corner))):
@@ -776,11 +796,11 @@ class MosaicTask(pipeBase.CmdLineTask):
             except Exception as e:
                 print e
 
-        visitListOverlapWithTract = list(set([d.dataId['visit'] for d in dataRefListOverlapWithTract]))
+        visitListOverlapWithTract = list(set([d.dataId["visit"] for d in dataRefListOverlapWithTract]))
 
         dataRefListToUse = list()
         for dataRef in dataRefListExists:
-            if dataRef.dataId['visit'] in visitListOverlapWithTract:
+            if dataRef.dataId["visit"] in visitListOverlapWithTract:
                 dataRefListToUse.append(dataRef)
 
         return dataRefListOverlapWithTract, dataRefListToUse
@@ -796,9 +816,9 @@ class MosaicTask(pipeBase.CmdLineTask):
             os.makedirs(self.outputDir)
 
         if self.config.nBrightest != 0:
-            self.log.fatal('Config paremeter nBrightest is deprecated.')
-            self.log.fatal('Please use cellSize and nStarPerCell.')
-            self.log.fatal('Exiting ...')
+            self.log.fatal("Config paremeter nBrightest is deprecated.")
+            self.log.fatal("Please use cellSize and nStarPerCell.")
+            self.log.fatal("Exiting ...")
             return []
 
         dataRefListOverlapWithTract, dataRefListToUse = self.checkOverlapWithTract(tractInfo, dataRefList)
@@ -812,8 +832,8 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         if debug:
             for ccd in ccdSet.values():
-                self.log.info(str(ccd.getId().getSerial())+" "+
-                              str(ccd.getCenter().getPixels(ccd.getPixelSize()))+" "+
+                self.log.info(str(ccd.getId().getSerial()) + " " +
+                              str(ccd.getCenter().getPixels(ccd.getPixelSize())) + " " +
                               str(ccd.getOrientation().getYaw()))
 
         wcsDic = self.readWcs(dataRefListUsed, ccdSet)
@@ -822,11 +842,11 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         if debug:
             for iexp, wcs in wcsDic.iteritems():
-                self.log.info(str(iexp)+" "+str(wcs.getPixelOrigin())+" "+
+                self.log.info(str(iexp) + " " + str(wcs.getPixelOrigin()) + " " +
                               str(wcs.getSkyOrigin().getPosition(afwGeom.degrees)))
 
-        self.log.info("frameIds : "+str(wcsDic.keys()))
-        self.log.info("ccdIds : "+str(ccdSet.keys()))
+        self.log.info("frameIds : " + str(wcsDic.keys()))
+        self.log.info("ccdIds : " + str(ccdSet.keys()))
 
         d_lim = afwGeom.Angle(self.config.radXMatch, afwGeom.arcseconds)
         if debug:
@@ -849,7 +869,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.log.info("Make obsVec")
         nmatch  = allMat.size()
         nsource = allSource.size()
-        matchVec  = measMosaic.obsVecFromSourceGroup(allMat,    wcsDic, ccdSet)
+        matchVec  = measMosaic.obsVecFromSourceGroup(allMat, wcsDic, ccdSet)
         sourceVec = measMosaic.obsVecFromSourceGroup(allSource, wcsDic, ccdSet)
 
         self.log.info("Solve mosaic ...")
@@ -878,7 +898,6 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.ccdSet = ccdSet
 
         if self.config.doSolveWcs:
-
             if internal:
                 coeffSet = measMosaic.solveMosaic_CCD(order, nmatch, nsource,
                                                       matchVec, sourceVec,
@@ -903,34 +922,34 @@ class MosaicTask(pipeBase.CmdLineTask):
             for m in matchVec:
                 coeff = coeffSet[m.iexp]
                 scale = coeff.pixelScale()
-                m.mag -= 2.5 * math.log10(coeff.detJ(m.u, m.v) / scale**2)
+                m.mag -= 2.5*math.log10(coeff.detJ(m.u, m.v)/scale**2)
 
             if sourceVec.size() != 0:
                 for s in sourceVec:
                     coeff = coeffSet[s.iexp]
                     scale = coeff.pixelScale()
-                    s.mag -= 2.5 * math.log10(coeff.detJ(s.u, s.v) / scale**2)
+                    s.mag -= 2.5*math.log10(coeff.detJ(s.u, s.v)/scale**2)
 
         else:
 
             wcsAll = dict()
 
             for dataRef in dataRefListUsed:
-                frameId = '%07d-%03d' % (dataRef.dataId['visit'], dataRef.dataId['ccd'])
-                md = dataRef.get('calexp_md')
+                frameId = "%07d-%03d" % (dataRef.dataId["visit"], dataRef.dataId["ccd"])
+                md = dataRef.get("calexp_md")
                 wcsAll[frameId] = afwImage.makeWcs(md)
                 del md
 
             for m in matchVec:
-                wcs = wcsAll['%07d-%03d' % (m.iexp, m.ichip)]
+                wcs = wcsAll["%07d-%03d" % (m.iexp, m.ichip)]
                 scale = wcs.pixelScale().asDegrees()
-                m.mag -= 2.5 * math.log10(wcs.pixArea(afwGeom.Point2D(m.x, m.y)) / scale**2)
+                m.mag -= 2.5*math.log10(wcs.pixArea(afwGeom.Point2D(m.x, m.y))/scale**2)
 
             if sourceVec.size() != 0:
                 for s in sourceVec:
-                    wcs = wcsAll['%07d-%03d' % (s.iexp, s.ichip)]
+                    wcs = wcsAll["%07d-%03d" % (s.iexp, s.ichip)]
                     scale = wcs.pixelScale().asDegrees()
-                    s.mag -= 2.5 * math.log10(wcs.pixArea(afwGeom.Point2D(s.x, s.y)) / scale**2)
+                    s.mag -= 2.5*math.log10(wcs.pixArea(afwGeom.Point2D(s.x, s.y))/scale**2)
 
             del wcsAll
 
@@ -940,8 +959,8 @@ class MosaicTask(pipeBase.CmdLineTask):
             for visit in wcsDic.keys():
                 ffp = measMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
                 u_max, v_max = mosaicUtils.getExtent(matchVec)
-                ffp.u_max = (math.floor(u_max / 10.) + 1) * 10
-                ffp.v_max = (math.floor(v_max / 10.) + 1) * 10
+                ffp.u_max = (math.floor(u_max/10.0) + 1)*10
+                ffp.v_max = (math.floor(v_max/10.0) + 1)*10
                 ffpSet[visit] = ffp
 
             fexp = measMosaic.map_int_float()
@@ -975,8 +994,8 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         filters = list()
         for dataRef in dataRefList:
-            if not dataRef.dataId['filter'] in filters:
-                filters.append(dataRef.dataId['filter'])
+            if not dataRef.dataId["filter"] in filters:
+                filters.append(dataRef.dataId["filter"])
 
         if len(filters) != 1:
             self.log.fatal("There are %d filters in input frames" % len(filters))
@@ -984,7 +1003,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         if self.config.doColorTerms and self.config.photoCatName:
             ct = self.config.colorterms.getColorterm(filters[0], self.config.photoCatName)
-            self.log.info('color term: '+str(ct))
+            self.log.info("color term: " + str(ct))
         elif self.config.doColorTerms:
             ct = None
             self.log.warn("Cannot apply color term: reference catalog not specified")

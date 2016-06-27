@@ -26,7 +26,7 @@ import math
 import numpy
 
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 
@@ -135,7 +135,7 @@ def clippedStd(a, nStd):
     avg = aa.mean()
     std = aa.std()
 
-    b = aa[numpy.fabs(aa-avg) < nStd*std]
+    b = aa[numpy.fabs(aa - avg) < nStd*std]
     avg = b.mean()
     std = b.std()
 
@@ -202,14 +202,14 @@ def plotCcd(ccdSet):
             vs.append(v)
             if u < minU : minU = u
             if v < minV : minV = v
-        plt.plot(us, vs, 'k-')
-        plt.text(minU + w/2, minV + h/2, '%i' % ccd.getId(), ha='center', va= 'center')
+        plt.plot(us, vs, "k-")
+        plt.text(minU + w/2, minV + h/2, "%i" % ccd.getId(), ha="center", va= "center")
 
 def plotJCont(ccdSet, coeffSet, iexp, outputDir):
     coeff = coeffSet[iexp]
 
     scale = coeff.pixelScale()
-    deg2pix = 1. / scale
+    deg2pix = 1.0/scale
 
     fpMin, fpMax, deltaFp = getCcdFpExtent(ccdSet)
 
@@ -217,22 +217,22 @@ def plotJCont(ccdSet, coeffSet, iexp, outputDir):
     y = numpy.arange(fpMin[1], fpMax[1], deltaFp)
     levels = numpy.linspace(0.81, 1.02, 36)
     X, Y = numpy.meshgrid(x, y)
-    Z = numpy.zeros((len(y),len(x)))
+    Z = numpy.zeros((len(y), len(x)))
 
     for j in range(len(x)):
         for i in range(len(y)):
-            Z[i][j] = coeff.detJ(X[i][j], Y[i][j]) * deg2pix ** 2
+            Z[i][j] = coeff.detJ(X[i][j], Y[i][j])*deg2pix**2
 
     plt.clf()
     plt.rc('xtick', labelsize=10)
     plt.rc('ytick', labelsize=10)
     plt.contourf(X, Y, Z, levels=levels)
     plt.colorbar()
-    plt.title('LSST: %d' % (iexp))
+    plt.title("LSST: %d" % (iexp))
 
     plotCcd(ccdSet)
 
-    plt.savefig(os.path.join(outputDir, "jcont_%d.png" % (iexp)), format='png')
+    plt.savefig(os.path.join(outputDir, "jcont_%d.png" % (iexp)), format="png")
 
 def plotFCorCont(ccdSet, ffpSet, coeffSet, iexp, outputDir):
     fpMin, fpMax, deltaFp = getCcdFpExtent(ccdSet)
@@ -245,17 +245,18 @@ def plotFCorCont(ccdSet, ffpSet, coeffSet, iexp, outputDir):
     for j in range(len(x)):
         for i in range(len(y)):
             Z[i][j] = 10**(-0.4*ffpSet[iexp].eval(X[i][j], Y[i][j]))
-    # mean = math.floor(Z[len(Z[0])/2][len(Z[1])/2] * 10 + 0.5) / 10.
+    # mean = math.floor(Z[len(Z[0])/2][len(Z[1])/2] * 10 + 0.5)/10.
+    # set mean to 1.0 for now for direct comparison from HSC stack output
     mean = 1.0
     levels = numpy.linspace(mean - 0.25, mean + 0.25, 41)
 
-    plt.close('all')
+    plt.close("all")
     plt.clf()
     plt.rc('xtick', labelsize=10)
     plt.rc('ytick', labelsize=10)
     plt.contourf(X, Y, Z, levels=levels)
     plt.colorbar()
-    plt.title('LSST: %d' % (iexp))
+    plt.title("LSST: %d" % (iexp))
 
     try:
         x0 = coeffSet[iexp].x0
@@ -265,7 +266,7 @@ def plotFCorCont(ccdSet, ffpSet, coeffSet, iexp, outputDir):
         y0 = 0.0
     plotCcd(ccdSet)
 
-    plt.savefig(os.path.join(outputDir, "fcont_%d.png" % (iexp)), format='png')
+    plt.savefig(os.path.join(outputDir, "fcont_%d.png" % (iexp)), format="png")
 
 def plotResPosArrow2D(ccdSet, iexp, matchVec, sourceVec, outputDir):
     _xm = []
@@ -276,8 +277,8 @@ def plotResPosArrow2D(ccdSet, iexp, matchVec, sourceVec, outputDir):
         if (m.good == True and m.iexp == iexp):
             _xm.append(m.u)
             _ym.append(m.v)
-            _dxm.append((m.xi_fit - m.xi) * 3600)
-            _dym.append((m.eta_fit - m.eta) * 3600)
+            _dxm.append((m.xi_fit - m.xi)*3600)
+            _dym.append((m.eta_fit - m.eta)*3600)
     _xs = []
     _ys = []
     _dxs = []
@@ -287,8 +288,8 @@ def plotResPosArrow2D(ccdSet, iexp, matchVec, sourceVec, outputDir):
             if (s.good == True and s.iexp == iexp):
                 _xs.append(s.u)
                 _ys.append(s.v)
-                _dxs.append((s.xi_fit - s.xi) * 3600)
-                _dys.append((s.eta_fit - s.eta) * 3600)
+                _dxs.append((s.xi_fit - s.xi)*3600)
+                _dys.append((s.eta_fit - s.eta)*3600)
 
     xm = numpy.array(_xm)
     ym = numpy.array(_ym)
@@ -325,38 +326,37 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     _ybad = []
     _xm = []
     _ym = []
-    f = open(os.path.join(outputDir, "dpos.dat"), "wt")
-    f.write("#m/s  xi_fit   eta_fit       xi        eta           u              v    good=1\n")
-    for m in matchVec:
-        if (m.good == True):
-            _x.append((m.xi_fit - m.xi) * 3600)
-            _y.append((m.eta_fit - m.eta) * 3600)
-            _xm.append((m.xi_fit - m.xi) * 3600)
-            _ym.append((m.eta_fit - m.eta) * 3600)
-            f.write("m %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 1\n" % (m.xi_fit, m.eta_fit,
-                                                                         m.xi, m.eta, m.u, m.v))
-        else:
-            _xbad.append((m.xi_fit - m.xi) * 3600)
-            _ybad.append((m.eta_fit - m.eta) * 3600)
-            f.write("m %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 0\n" % (m.xi_fit, m.eta_fit,
-                                                                         m.xi, m.eta, m.u, m.v))
-    _xs = []
-    _ys = []
-    if (sourceVec.size() != 0):
-        for s in sourceVec:
-            if (s.good == True):
-                _x.append((s.xi_fit - s.xi) * 3600)
-                _y.append((s.eta_fit - s.eta) * 3600)
-                _xs.append((s.xi_fit - s.xi) * 3600)
-                _ys.append((s.eta_fit - s.eta) * 3600)
-                f.write("s %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 1\n" % (s.xi_fit, s.eta_fit,
-                                                                             s.xi, s.eta, s.u, s.v))
+    with open(os.path.join(outputDir, "dpos.dat"), "wt") as f:
+        f.write("#m/s  xi_fit   eta_fit       xi        eta           u              v    good=1\n")
+        for m in matchVec:
+            if (m.good == True):
+                _x.append((m.xi_fit - m.xi)*3600)
+                _y.append((m.eta_fit - m.eta)*3600)
+                _xm.append((m.xi_fit - m.xi)*3600)
+                _ym.append((m.eta_fit - m.eta)*3600)
+                f.write("m %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 1\n" % (m.xi_fit, m.eta_fit,
+                                                                             m.xi, m.eta, m.u, m.v))
             else:
-                _xbad.append((s.xi_fit - s.xi) * 3600)
-                _ybad.append((s.eta_fit - s.eta) * 3600)
-                f.write("s %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 0\n" % (s.xi_fit, s.eta_fit,
-                                                                             s.xi, s.eta, s.u, s.v))
-    f.close()
+                _xbad.append((m.xi_fit - m.xi)*3600)
+                _ybad.append((m.eta_fit - m.eta)*3600)
+                f.write("m %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 0\n" % (m.xi_fit, m.eta_fit,
+                                                                             m.xi, m.eta, m.u, m.v))
+        _xs = []
+        _ys = []
+        if (sourceVec.size() != 0):
+            for s in sourceVec:
+                if (s.good == True):
+                    _x.append((s.xi_fit - s.xi)*3600)
+                    _y.append((s.eta_fit - s.eta)*3600)
+                    _xs.append((s.xi_fit - s.xi)*3600)
+                    _ys.append((s.eta_fit - s.eta)*3600)
+                    f.write("s %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 1\n" % (s.xi_fit, s.eta_fit,
+                                                                                 s.xi, s.eta, s.u, s.v))
+                else:
+                    _xbad.append((s.xi_fit - s.xi)*3600)
+                    _ybad.append((s.eta_fit - s.eta)*3600)
+                    f.write("s %10.6f %10.6f %10.6f %10.6f %14.6f %14.6f 0\n" % (s.xi_fit, s.eta_fit,
+                                                                                 s.xi, s.eta, s.u, s.v))
 
     d_xi = numpy.array(_x)
     d_eta = numpy.array(_y)
@@ -380,14 +380,14 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     plt.rc('ytick', labelsize=10)
 
     plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
-    plt.plot(d_xi_bad, d_eta_bad, 'k+', markersize=2, alpha=0.5, label='bad')
-    plt.plot(d_xi_m, d_eta_m, 'go', markersize=2, alpha=0.5, label='external')
-    plt.plot(d_xi_s, d_eta_s, 'ro', markersize=2, alpha=0.5, label='internal')
+    plt.plot(d_xi_bad, d_eta_bad, "k+", markersize=2, alpha=0.5, label="bad")
+    plt.plot(d_xi_m, d_eta_m, "go", markersize=2, alpha=0.5, label="external")
+    plt.plot(d_xi_s, d_eta_s, "ro", markersize=2, alpha=0.5, label="internal")
     plt.xlim(-0.5, 0.5)
     plt.ylim(-0.5, 0.5)
 
-    plt.xlabel(r'$\Delta\xi$ (arcsec)')
-    plt.ylabel(r'$\Delta\eta$ (arcsec)')
+    plt.xlabel(r"$\Delta\xi$ (arcsec)")
+    plt.ylabel(r"$\Delta\eta$ (arcsec)")
     plt.legend(fontsize=8)
 
     binLimit = 0.5
@@ -399,21 +399,21 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     ax = plt.subplot2grid((5,6),(0,0), colspan=4)
     ax.tick_params(axis='both', labelsize=8)
     if sourceVec.size() != 0:
-        plt.hist([d_xi, d_xi_m, d_xi_s], bins=bins, normed=False, histtype='step')
+        plt.hist([d_xi, d_xi_m, d_xi_s], bins=bins, normed=False, histtype="step")
     else:
-        plt.hist([d_xi, d_xi_m], bins=bins, normed=False, histtype='step')
-    plt.text(0.25, 1.1, 'LSST: ResPosScatter', transform=ax.transAxes, color='black', fontsize=14)
-    plt.text(0.77, 0.7, r"$\sigma_{all}=$%5.3f" % (xi_std), transform=ax.transAxes, color='blue',
+        plt.hist([d_xi, d_xi_m], bins=bins, normed=False, histtype="step")
+    plt.text(0.25, 1.1, "LSST: ResPosScatter", transform=ax.transAxes, color="black", fontsize=14)
+    plt.text(0.77, 0.7, r"$\sigma_{all}=$%5.3f" % (xi_std), transform=ax.transAxes, color="blue",
              fontsize=9)
-    plt.text(0.77, 0.5, r"$\sigma_{ext}=$%5.3f" % (xi_std_m), transform=ax.transAxes, color='green',
+    plt.text(0.77, 0.5, r"$\sigma_{ext}=$%5.3f" % (xi_std_m), transform=ax.transAxes, color="green",
              fontsize=9)
     y = mlab.normpdf(bins, xi_mean_m, xi_std_m)
-    plt.plot(bins, y*xi_n_m*0.01, 'g:')
+    plt.plot(bins, y*xi_n_m*0.01, "g:")
     if sourceVec.size() != 0:
-        plt.text(0.77, 0.3, r"$\sigma_{int}=$%5.3f" % (xi_std_s), transform=ax.transAxes, color='red',
+        plt.text(0.77, 0.3, r"$\sigma_{int}=$%5.3f" % (xi_std_s), transform=ax.transAxes, color="red",
                  fontsize=9)
         y = mlab.normpdf(bins, xi_mean_s, xi_std_s)
-        plt.plot(bins, y*xi_n_s*0.01, 'r:')
+        plt.plot(bins, y*xi_n_s*0.01, "r:")
     plt.xlim(-binLimit, binLimit)
 
     ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
@@ -421,24 +421,24 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     plt.hist(d_eta, bins=bins, normed=False, orientation="horizontal", histtype="step")
     plt.hist(d_eta_m, bins=bins, normed=False, orientation="horizontal", histtype="step")
     if sourceVec.size() != 0:
-        plt.hist(d_eta_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
+        plt.hist(d_eta_s, bins=bins, normed=False, orientation="horizontal", histtype="step")
     plt.text(0.7, 0.22, r"$\sigma_{all}=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes,
-             color='blue', fontsize=9)
+             color="blue", fontsize=9)
     plt.text(0.5, 0.22, r"$\sigma_{ext}=$%5.3f" % (eta_std_m), rotation=270, transform=ax.transAxes,
-             color='green', fontsize=9)
+             color="green", fontsize=9)
     y = mlab.normpdf(bins, eta_mean_m, eta_std_m)
-    plt.plot(y*eta_n_m*0.01, bins, 'g:')
+    plt.plot(y*eta_n_m*0.01, bins, "g:")
     if sourceVec.size() != 0:
         plt.text(0.3, 0.22, r"$\sigma_{int}=$%5.3f" % (eta_std_s), rotation=270, transform=ax.transAxes,
-                 color='red', fontsize=9)
+                 color="red", fontsize=9)
         y = mlab.normpdf(bins, eta_mean_s, eta_std_s)
-        plt.plot(y*eta_n_s*0.01, bins, 'r:')
+        plt.plot(y*eta_n_s*0.01, bins, "r:")
     plt.xticks(rotation=270)
     plt.yticks(rotation=270)
     plt.ylim(-binLimit, binLimit)
     plt.tight_layout()
 
-    plt.savefig(os.path.join(outputDir, "ResPosScatter.png"), format='png')
+    plt.savefig(os.path.join(outputDir, "ResPosScatter.png"), format="png")
 
 def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     _dmag_m = []
@@ -452,52 +452,51 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     _mag0_s = []
     _mag0_bad = []
     _mag_cat_bad = []
-    f = open(os.path.join(outputDir, 'dmag.dat'), 'wt')
-    f.write("#m/s mag_cor   mag0    mag_cat         u             v       good=1\n")
-    for m in matchVec:
-        mag = m.mag
-        mag0 = m.mag0
-        mag_cat = m.mag_cat
-        exp_cor = -2.5 * math.log10(fexp[m.iexp])
-        chip_cor = -2.5 * math.log10(fchip[m.ichip])
-        gain_cor = ffpSet[m.iexp].eval(m.u, m.v)
-        mag_cor = mag + exp_cor + chip_cor + gain_cor
-        diff = mag_cor - mag0
-        if (m.good == True and m.mag != -9999 and m.jstar != -1 and m.mag0 != -9999 and
-            m.mag_cat != -9999):
-            _dmag_m.append(diff)
-            _dmag_a.append(diff)
-            _mag0_m.append(mag0)
-            _dmag_cat_m.append(mag_cor - mag_cat)
-            _mag_cat_m.append(mag_cat)
-            f.write("m %9.6f %9.6f %9.6f %14.6f %14.6f 1\n" % (mag_cor, mag0, mag_cat, m.u, m.v))
-        else:
-            _dmag_bad.append(diff)
-            _mag0_bad.append(mag0)
-            _dmag_cat_bad.append(mag_cor - mag_cat)
-            _mag_cat_bad.append(mag_cat)
-            f.write("m %9.6f %9.6f %9.6f %14.6f %14.6f 0\n" % (mag_cor, mag0, mag_cat, m.u, m.v))
-
-    if sourceVec.size() != 0:
-        for s in sourceVec:
-            mag = s.mag
-            mag0 = s.mag0
-            exp_cor = -2.5 * math.log10(fexp[s.iexp])
-            chip_cor = -2.5 * math.log10(fchip[s.ichip])
-            gain_cor = ffpSet[s.iexp].eval(s.u, s.v)
+    with open(os.path.join(outputDir, "dmag.dat"), "wt") as f:
+        f.write("#m/s mag_cor   mag0    mag_cat         u             v       good=1\n")
+        for m in matchVec:
+            mag = m.mag
+            mag0 = m.mag0
+            mag_cat = m.mag_cat
+            exp_cor = -2.5*math.log10(fexp[m.iexp])
+            chip_cor = -2.5*math.log10(fchip[m.ichip])
+            gain_cor = ffpSet[m.iexp].eval(m.u, m.v)
             mag_cor = mag + exp_cor + chip_cor + gain_cor
             diff = mag_cor - mag0
-
-            if (s.good == True and s.mag != -9999 and s.jstar != -1):
-                _dmag_s.append(diff)
+            if (m.good == True and m.mag != -9999 and m.jstar != -1 and m.mag0 != -9999 and
+                m.mag_cat != -9999):
+                _dmag_m.append(diff)
                 _dmag_a.append(diff)
-                _mag0_s.append(mag0)
-                f.write("s %9.6f %9.6f %9.6f %14.6f %14.6f 1\n" % (mag_cor, mag0, -9999, s.u, s.v))
+                _mag0_m.append(mag0)
+                _dmag_cat_m.append(mag_cor - mag_cat)
+                _mag_cat_m.append(mag_cat)
+                f.write("m %9.6f %9.6f %9.6f %14.6f %14.6f 1\n" % (mag_cor, mag0, mag_cat, m.u, m.v))
             else:
                 _dmag_bad.append(diff)
                 _mag0_bad.append(mag0)
-                f.write("s %9.6f %9.6f %9.6f %14.6f %14.6f 0\n" % (mag_cor, mag0, -9999, s.u, s.v))
-    f.close()
+                _dmag_cat_bad.append(mag_cor - mag_cat)
+                _mag_cat_bad.append(mag_cat)
+                f.write("m %9.6f %9.6f %9.6f %14.6f %14.6f 0\n" % (mag_cor, mag0, mag_cat, m.u, m.v))
+
+        if sourceVec.size() != 0:
+            for s in sourceVec:
+                mag = s.mag
+                mag0 = s.mag0
+                exp_cor = -2.5*math.log10(fexp[s.iexp])
+                chip_cor = -2.5*math.log10(fchip[s.ichip])
+                gain_cor = ffpSet[s.iexp].eval(s.u, s.v)
+                mag_cor = mag + exp_cor + chip_cor + gain_cor
+                diff = mag_cor - mag0
+
+                if (s.good == True and s.mag != -9999 and s.jstar != -1):
+                    _dmag_s.append(diff)
+                    _dmag_a.append(diff)
+                    _mag0_s.append(mag0)
+                    f.write("s %9.6f %9.6f %9.6f %14.6f %14.6f 1\n" % (mag_cor, mag0, -9999, s.u, s.v))
+                else:
+                    _dmag_bad.append(diff)
+                    _mag0_bad.append(mag0)
+                    f.write("s %9.6f %9.6f %9.6f %14.6f %14.6f 0\n" % (mag_cor, mag0, -9999, s.u, s.v))
 
     d_mag_m = numpy.array(_dmag_m)
     d_mag_cat_m = numpy.array(_dmag_cat_m)
@@ -517,19 +516,19 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     mag_cat_std_m, mag_cat_mean_m, mag_cat_n_m  = clippedStd(d_mag_cat_m, 3)
 
     plt.clf()
-    plt.rc('text', usetex=USETEX)
+    plt.rc("text", usetex=USETEX)
 
     plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
-    plt.plot(mag0_bad, d_mag_bad, 'kx', markersize=2, alpha=0.5, label='bad')
-    plt.plot(mag_cat_m, d_mag_cat_m, 'co', markersize=2, alpha=0.5, label='match cat')
+    plt.plot(mag0_bad, d_mag_bad, "kx", markersize=2, alpha=0.5, label="bad")
+    plt.plot(mag_cat_m, d_mag_cat_m, "co", markersize=2, alpha=0.5, label="match cat")
     if sourceVec.size() != 0:
-        plt.plot(mag0_s, d_mag_s, 'ro', markersize=2, alpha=0.5, label='internal')
-    plt.plot(mag0_m, d_mag_m, 'go', markersize=2, alpha=0.5, label='external')
-    plt.plot([15,25], [0,0], 'k--')
+        plt.plot(mag0_s, d_mag_s, "ro", markersize=2, alpha=0.5, label="internal")
+    plt.plot(mag0_m, d_mag_m, "go", markersize=2, alpha=0.5, label="external")
+    plt.plot([15,25], [0,0], "k--")
     plt.xlim(15, 25)
     plt.ylim(-0.25, 0.25)
-    plt.ylabel(r'$\Delta mag$ (mag)')
-    plt.title('LSST: MdM')
+    plt.ylabel(r"$\Delta mag$ (mag)")
+    plt.title("LSST: MdM")
     plt.legend(fontsize=7)
 
     bins = numpy.arange(-0.25, 0.25, 0.005) + 0.0025
@@ -540,28 +539,28 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     plt.hist(d_mag_a, bins=bins, normed=False, orientation="horizontal", histtype="step")
     plt.hist(d_mag_m, bins=bins, normed=False, orientation="horizontal", histtype="step")
     if sourceVec.size() != 0:
-        plt.hist(d_mag_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
-    plt.hist(d_mag_cat_m, bins=bins2, normed=False, orientation='horizontal', histtype='step')
+        plt.hist(d_mag_s, bins=bins, normed=False, orientation="horizontal", histtype="step")
+    plt.hist(d_mag_cat_m, bins=bins2, normed=False, orientation="horizontal", histtype="step")
     plt.text(0.7, 0.22, r"$\sigma_{all}=$%5.3f" % (mag_std_a), rotation=270, transform=ax.transAxes,
-             color='blue', fontsize=9)
+             color="blue", fontsize=9)
     plt.text(0.5, 0.22, r"$\sigma_{ext}=$%5.3f" % (mag_std_m), rotation=270, transform=ax.transAxes,
-             color='green', fontsize=9)
+             color="green", fontsize=9)
     plt.text(0.7, 0.93, r"$\sigma_{cat}=$%5.3f" % (mag_cat_std_m), rotation=270, transform=ax.transAxes,
-             color='cyan', fontsize=9)
+             color="cyan", fontsize=9)
     y = mlab.normpdf(bins, mag_mean_m, mag_std_m)
-    plt.plot(y*mag_n_m*0.005, bins, 'g:')
+    plt.plot(y*mag_n_m*0.005, bins, "g:")
     if sourceVec.size() != 0:
         plt.text(0.3, 0.22, r"$\sigma_{int}=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes,
-                 color='red', fontsize=9)
+                 color="red", fontsize=9)
         y = mlab.normpdf(bins, mag_mean_s, mag_std_s)
-        plt.plot(y*mag_n_s*0.005, bins, 'r:')
+        plt.plot(y*mag_n_s*0.005, bins, "r:")
     y = mlab.normpdf(bins, mag_cat_mean_m, mag_cat_std_m)
-    plt.plot(y*mag_cat_n_m*0.05, bins, 'c:')
+    plt.plot(y*mag_cat_n_m*0.05, bins, "c:")
     plt.xticks(rotation=270)
     plt.yticks(rotation=270)
     plt.ylim(-0.25, 0.25)
     plt.tight_layout()
-    plt.savefig(os.path.join(outputDir, "MdM.png"), format='png')
+    plt.savefig(os.path.join(outputDir, "MdM.png"), format="png")
 
 def plotPosDPos(matchVec, sourceVec, outputDir):
     _xi = []
@@ -570,17 +569,17 @@ def plotPosDPos(matchVec, sourceVec, outputDir):
     _y = []
     for m in matchVec:
         if (m.good == True):
-            _x.append((m.xi_fit - m.xi) * 3600)
-            _y.append((m.eta_fit - m.eta) * 3600)
-            _xi.append(m.xi * 3600)
-            _eta.append(m.eta * 3600)
+            _x.append((m.xi_fit - m.xi)*3600)
+            _y.append((m.eta_fit - m.eta)*3600)
+            _xi.append(m.xi*3600)
+            _eta.append(m.eta*3600)
     if (sourceVec.size() != 0):
         for s in sourceVec:
             if (s.good == True):
-                _x.append((s.xi_fit - s.xi) * 3600)
-                _y.append((s.eta_fit - s.eta) * 3600)
-                _xi.append(s.xi * 3600)
-                _eta.append(s.eta * 3600)
+                _x.append((s.xi_fit - s.xi)*3600)
+                _y.append((s.eta_fit - s.eta)*3600)
+                _xi.append(s.xi*3600)
+                _eta.append(s.eta*3600)
 
     xi = numpy.array(_xi)
     eta = numpy.array(_eta)
@@ -592,27 +591,27 @@ def plotPosDPos(matchVec, sourceVec, outputDir):
     plt.rc('xtick', labelsize=10)
     plt.rc('ytick', labelsize=10)
     plt.subplot(2, 2, 1)
-    plt.plot(xi, d_xi, 'o', markersize=2, alpha=0.5)
-    plt.xlabel(r'$\xi$ (arcsec)')
-    plt.ylabel(r'$\Delta\xi$ (arcsec)')
-    plt.title('LSST: PosDPos')
+    plt.plot(xi, d_xi, "o", markersize=2, alpha=0.5)
+    plt.xlabel(r"$\xi$ (arcsec)")
+    plt.ylabel(r"$\Delta\xi$ (arcsec)")
+    plt.title("LSST: PosDPos")
 
     plt.subplot(2, 2, 3)
-    plt.plot(xi, d_eta, 'o', markersize=2, alpha=0.5 )
-    plt.xlabel(r'$\xi$ (arcsec)')
-    plt.ylabel(r'$\Delta\eta$ (arcsec)')
+    plt.plot(xi, d_eta, "o", markersize=2, alpha=0.5 )
+    plt.xlabel(r"$\xi$ (arcsec)")
+    plt.ylabel(r"$\Delta\eta$ (arcsec)")
 
     plt.subplot(2, 2, 2)
-    plt.plot(eta, d_xi, 'o', markersize=2, alpha=0.5)
-    plt.xlabel(r'$\eta$ (arcsec)')
-    plt.ylabel(r'$\Delta\xi$ (arcsec)')
+    plt.plot(eta, d_xi, "o", markersize=2, alpha=0.5)
+    plt.xlabel(r"$\eta$ (arcsec)")
+    plt.ylabel(r"$\Delta\xi$ (arcsec)")
 
     plt.subplot(2, 2, 4)
-    plt.plot(eta, d_xi, 'o', markersize=2, alpha=0.5)
-    plt.xlabel(r'$\eta$ (arcsec)')
-    plt.ylabel(r'$\Delta\eta$ (arcsec)')
+    plt.plot(eta, d_xi, "o", markersize=2, alpha=0.5)
+    plt.xlabel(r"$\eta$ (arcsec)")
+    plt.ylabel(r"$\Delta\eta$ (arcsec)")
     plt.tight_layout()
-    plt.savefig(os.path.join(outputDir, "PosDPos.png"), format='png')
+    plt.savefig(os.path.join(outputDir, "PosDPos.png"), format="png")
 
 def plotResFlux(ccdSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     _dmag = []
@@ -623,8 +622,8 @@ def plotResFlux(ccdSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
         if (m.good == True and m.mag != -9999 and m.jstar != -1):
             mag = m.mag
             mag0 = m.mag0
-            exp_cor = -2.5 * math.log10(fexp[m.iexp])
-            chip_cor = -2.5 * math.log10(fchip[m.ichip])
+            exp_cor = -2.5*math.log10(fexp[m.iexp])
+            chip_cor = -2.5*math.log10(fchip[m.ichip])
             gain_cor = ffpSet[m.iexp].eval(m.u, m.v)
             mag_cor = mag + exp_cor + chip_cor + gain_cor
             diff = mag_cor - mag0
@@ -648,7 +647,7 @@ def plotResFlux(ccdSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
         _y0 = measMosaic.getCenterInFpPixels(ccd)[1] + 0.5*h
 
         _r.append(math.sqrt(_x0*_x0 + _y0*_y0))
-        _dm.append(-2.5 * math.log10(fchip[int(ccd.getSerial())]))
+        _dm.append(-2.5*math.log10(fchip[int(ccd.getSerial())]))
 
     r = numpy.array(_r)
     dm = numpy.array(_dm)
@@ -659,31 +658,31 @@ def plotResFlux(ccdSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     plt.rc('ytick', labelsize=9)
 
     ax = plt.subplot(2, 2, 1)
-    plt.hist(d_mag, bins=100, normed=True, histtype='step')
+    plt.hist(d_mag, bins=100, normed=True, histtype="step")
     plt.text(0.07, 0.82, r"$\sigma=$%7.5f" % (mag_std), transform=ax.transAxes, fontsize=10)
-    plt.xlabel(r'$\Delta mag$ (mag)')
-    plt.title('LSST: ResFlux')
+    plt.xlabel(r"$\Delta mag$ (mag)")
+    plt.title("LSST: ResFlux")
 
     ax = plt.subplot(2, 2, 2)
-    plt.plot(r, dm, 'o', markersize=2, alpha=0.5)
-    plt.xlabel('Distance from center (pixel)')
-    plt.ylabel('Offset in magnitude')
+    plt.plot(r, dm, "o", markersize=2, alpha=0.5)
+    plt.xlabel("Distance from center (pixel)")
+    plt.ylabel("Offset in magnitude")
 
     ax = plt.subplot(2, 2, 3)
-    plt.plot(iexp, d_mag, ',', markeredgewidth=0)
-    plt.xlabel('Exposure ID')
-    plt.ylabel(r'$\Delta mag$ (mag)')
-    plt.xlim(iexp.min()-1, iexp.max()+1)
+    plt.plot(iexp, d_mag, ",", markeredgewidth=0)
+    plt.xlabel("Exposure ID")
+    plt.ylabel(r"$\Delta mag$ (mag)")
+    plt.xlim(iexp.min() - 1, iexp.max() + 1)
     plt.ylim(-0.2, 0.2)
 
     ax = plt.subplot(2, 2, 4)
-    plt.plot(ichip, d_mag, ',', markeredgewidth=0)
-    plt.xlabel('Chip ID')
-    plt.ylabel(r'$\Delta mag$ (mag)')
-    plt.xlim(ichip.min()-1, ichip.max()+1)
+    plt.plot(ichip, d_mag, ",", markeredgewidth=0)
+    plt.xlabel("Chip ID")
+    plt.ylabel(r"$\Delta mag$ (mag)")
+    plt.xlim(ichip.min() - 1, ichip.max() + 1)
     plt.ylim(-0.2, 0.2)
     plt.tight_layout()
-    plt.savefig(os.path.join(outputDir, "ResFlux.png"), format='png')
+    plt.savefig(os.path.join(outputDir, "ResFlux.png"), format="png")
 
 def plotDFlux2D(ccdSet, ffpSet, fexp, fchip, matchVec, outputDir):
     _dmag = []
@@ -693,8 +692,8 @@ def plotDFlux2D(ccdSet, ffpSet, fexp, fchip, matchVec, outputDir):
         if (m.good == True and m.mag != -9999 and m.jstar != -1):
             mag = m.mag
             mag0 = m.mag0
-            exp_cor = -2.5 * math.log10(fexp[m.iexp])
-            chip_cor = -2.5 * math.log10(fchip[m.ichip])
+            exp_cor = -2.5*math.log10(fexp[m.iexp])
+            chip_cor = -2.5*math.log10(fchip[m.ichip])
             gain_cor = ffpSet[m.iexp].eval(m.u, m.v)
             mag_cor = mag + exp_cor + chip_cor + gain_cor
             diff = mag_cor - mag0
@@ -714,52 +713,49 @@ def plotDFlux2D(ccdSet, ffpSet, fexp, fchip, matchVec, outputDir):
     s2 = [math.fabs(d_mag[i])*20 for i in range(len(d_mag)) if d_mag[i] < 0]
 
     plt.clf()
-    plt.rc('text', usetex=USETEX)
-
-    plt.scatter(u1, v1, s1, color='blue', label=r'$\Delta$mag > 0')
-    plt.scatter(u2, v2, s2, color='red', label=r'$\Delta$mag < 0')
-    plt.axes().set_aspect('equal')
-    plt.xlabel('u (Focal Plane pixels)')
-    plt.ylabel('v (Focal Plane pixels)')
+    plt.rc("text", usetex=USETEX)
+    plt.rc("xtick", labelsize=9)
+    plt.rc("ytick", labelsize=9)
+    plt.scatter(u1, v1, s1, color="blue", label=r"$\Delta$mag > 0")
+    plt.scatter(u2, v2, s2, color="red", label=r"$\Delta$mag < 0")
+    plt.axes().set_aspect("equal")
+    plt.xlabel("u (Focal Plane pixels)")
+    plt.ylabel("v (Focal Plane pixels)")
     plt.legend(fontsize=7)
     plotCcd(ccdSet)
-    plt.title('LSST: DFlux2D')
-    plt.savefig(os.path.join(outputDir, "DFlux2D.png"), format='png')
-
+    plt.title("LSST: DFlux2D")
+    plt.savefig(os.path.join(outputDir, "DFlux2D.png"), format="png")
 
 def writeWcsData(coeffSet, ccdSet, outputDir):
     """!Write out diagnostic meas_mosaic Wcs solution data files
     """
-    f = open(os.path.join(outputDir, "coeffs.dat"), "wt")
-    f.write("# iexp     c.A          c.D\n")
-    f.write("# iexp     c.x0         c.y0\n")
-    f.write("# iexp     c.a(k)       c.b(k)           c.ap(k)         c.bp(k)\n")
-    for iexp in coeffSet.keys():
-        c = coeffSet[iexp]
-        f.write("%ld %12.5e %12.5e\n" % (iexp, c.A,  c.D))
-        f.write("%ld %12.5f %12.5f\n" % (iexp, c.x0, c.y0))
-        for k in range(c.getNcoeff()):
-            f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" %
-                    (iexp, c.get_a(k), c.get_b(k), c.get_ap(k), c.get_bp(k)));
-    f.close()
+    with open(os.path.join(outputDir, "coeffs.dat"), "wt") as f:
+        f.write("# iexp     c.A          c.D\n")
+        f.write("# iexp     c.x0         c.y0\n")
+        f.write("# iexp     c.a(k)       c.b(k)           c.ap(k)         c.bp(k)\n")
+        for iexp in coeffSet.keys():
+            c = coeffSet[iexp]
+            f.write("%ld %12.5e %12.5e\n" % (iexp, c.A,  c.D))
+            f.write("%ld %12.5f %12.5f\n" % (iexp, c.x0, c.y0))
+            for k in range(c.getNcoeff()):
+                f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" %
+                        (iexp, c.get_a(k), c.get_b(k), c.get_ap(k), c.get_bp(k)));
 
-    f = open(os.path.join(outputDir, "ccd.dat"), "wt")
-    f.write("#chip   centerXFp    centerYFp   yaw (rad)\n")
-    for ichip in ccdSet.keys():
-        ccd = ccdSet[ichip]
-        center = measMosaic.getCenterInFpPixels(ccd)
-        f.write("%4ld %12.4f %12.4f %10.7f\n" % (ichip, center[0], center[1], measMosaic.getYaw(ccd)))
-    f.close()
+    with open(os.path.join(outputDir, "ccd.dat"), "wt") as f:
+        f.write("#chip   centerXFp    centerYFp   yaw (rad)\n")
+        for ichip in ccdSet.keys():
+            ccd = ccdSet[ichip]
+            center = measMosaic.getCenterInFpPixels(ccd)
+            f.write("%4ld %12.4f %12.4f %10.7f\n" % (ichip, center[0], center[1], measMosaic.getYaw(ccd)))
 
 def writeFluxData(fchip, outputDir):
     """!Write out diagnostic meas_mosaic photometric solution data files
     """
-    f = open(os.path.join(outputDir, "ccdScale.dat"), "wt")
-    f.write("#chip scale\n")
-    for ichip in fchip.keys():
-        scale = fchip[ichip]
-        f.write("%4ld %7.5f\n" % (ichip, scale))
-    f.close()
+    with open(os.path.join(outputDir, "ccdScale.dat"), "wt") as f:
+        f.write("#chip scale\n")
+        for ichip in fchip.keys():
+            scale = fchip[ichip]
+            f.write("%4ld %7.5f\n" % (ichip, scale))
 
 def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile):
     # count number of unique objects
@@ -784,9 +780,7 @@ def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile)
 
     numGood = 0
     for m in matchVec:
-        if (not m.good or m.jstar == -1 or
-            m.mag == -9999 or m.err == -9999 or
-            m.mag_cat == -9999):
+        if (not m.good or m.jstar == -1 or m.mag == -9999 or m.err == -9999 or m.mag_cat == -9999):
             continue
 
         index = m.istar
@@ -808,25 +802,24 @@ def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile)
         cosAlpha = -cosTheta*cosPhi*sinD + sinTheta*cosD
         ra[index] += math.atan2(sinAlpha, cosAlpha) + crval[0]
 
-        exp_cor = -2.5 * math.log10(fexp[m.iexp])
-        chip_cor = -2.5 * math.log10(fchip[m.ichip])
+        exp_cor = -2.5*math.log10(fexp[m.iexp])
+        chip_cor = -2.5*math.log10(fchip[m.ichip])
         gain_cor = ffpSet[m.iexp].eval(m.u, m.v)
         mag_cor = m.mag + exp_cor + chip_cor + gain_cor
 
-        mag[index] += mag_cor / m.err**2
-        var[index] += mag_cor * mag_cor / m.err**2
-        err[index] += (1.0 / m.err**2)
+        mag[index] += mag_cor/m.err**2
+        var[index] += mag_cor*mag_cor/m.err**2
+        err[index] += (1.0/m.err**2)
         numbers[index] += 1
 
     # Take a mean of individual measurements
     ra /= numbers
     dec /= numbers
     mag /= err
-    err = numpy.sqrt((var - mag * mag * err) / err)
+    err = numpy.sqrt((var - mag*mag*err)/err)
 
     for s in sourceVec:
-        if (not s.good or s.jstar == -1 or
-            s.mag == -9999 or s.err == -9999):
+        if (not s.good or s.jstar == -1 or s.mag == -9999 or s.err == -9999):
             continue
 
         index = s.istar + num_m
@@ -834,8 +827,7 @@ def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile)
         if numbers[index] == 0:
             numGood += 1
 
-            # For sourceVec, fitted values are stored.
-            # So simply take them.
+            # For sourceVec, fitted values are stored, so simply take them.
             mag[index] = s.mag0
             ra[index] = s.ra
             dec[index] = s.dec
@@ -843,16 +835,16 @@ def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile)
 
         else:
             assert mag[index] == numpy.float64(s.mag0), "Discrepancy between solved magnitudes"
-            assert ra[index] == numpy.float64(s.ra), "Discrepancy between solved positions"
-            assert dec[index] == numpy.float64(s.dec), "Discrepancy between solved positions"
+            assert ra[index] == numpy.float64(s.ra), "Discrepancy between solved positions (ra)"
+            assert dec[index] == numpy.float64(s.dec), "Discrepancy between solved positions (dec)"
 
         # For error, calculate RMS around fitted values
-        exp_cor = -2.5 * math.log10(fexp[s.iexp])
-        chip_cor = -2.5 * math.log10(fchip[s.ichip])
+        exp_cor = -2.5*math.log10(fexp[s.iexp])
+        chip_cor = -2.5*math.log10(fchip[s.ichip])
         gain_cor = ffpSet[s.iexp].eval(s.u, s.v)
         mag_cor = s.mag + exp_cor + chip_cor + gain_cor
-        var[index] += ((mag_cor-s.mag0)/s.err)**2
-        err[index] += (1.0 / s.err**2)
+        var[index] += ((mag_cor - s.mag0)/s.err)**2
+        err[index] += (1.0/s.err**2)
         numbers[index] += 1
 
     err[num_m:] = numpy.sqrt(var[num_m:]/err[num_m:])
