@@ -37,7 +37,7 @@ class CalibrateCatalogTask(CmdLineTask):
         results = applyMosaicResultsCatalog(dataRef, catalog)
         catalog = results.catalog
         if self.config.doApplyCalib:
-            catalog = applyCalib(catalog, results.ffp.calib)
+            catalog = applyCalib(catalog, results.ffp.calib, hscRun=hscRun)
         dataRef.put(catalog, "calibrated_src")
 
     def writeConfig(self, *args, **kwargs):
