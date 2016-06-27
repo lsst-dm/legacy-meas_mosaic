@@ -124,7 +124,7 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
         outCatalog[corrKey][:] = corr
         catalog = outCatalog
 
-    fluxKeys, errKeys = getFluxKeys(catalog.schema)
+    fluxKeys, errKeys = getFluxKeys(catalog.schema, hscRun=hscRun)
     for name, key in fluxKeys.items():
         if key.getElementCount() == 1:
             catalog[key][:] *= corr
@@ -216,14 +216,26 @@ def applyCalib(catalog, calib):
 
     return newCatalog
 
-def getFluxKeys(schema):
+def getFluxKeys(schema, hscRun=None):
     """Retrieve the flux and flux error keys from a schema
 
-    Both are returned as dicts indexed on the flux name (e.g. "flux.psf" or "cmodel.flux").
+    Both are returned as dicts indexed on the flux name (e.g. "base_PsfFlux" or "base_CmodelFlux").
     """
     schemaKeys = dict((s.field.getName(), s.key) for s in schema)
-    fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
-                    re.search(r"^(flux\.\w+|\w+\.flux)$", name))
-    errKeys = dict((name, schemaKeys[name + ".err"]) for name in fluxKeys.keys() if
-                   name + ".err" in schemaKeys)
+
+    if hscRun is None:
+        fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
+                        re.search(r"^(\w+_flux)$", name) and key.getTypeString() != "Flag")
+        errKeys = dict((name + "Sigma", schemaKeys[name + "Sigma"]) for name in fluxKeys.keys() if
+                       name + "Sigma" in schemaKeys)
+    else:
+        fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
+                        re.search(r"^(flux\_\w+|\w+\_flux)$", name)
+                        and not re.search(r"^(\w+\_apcorr)$", name) and name + "_err" in schemaKeys)
+        errKeys = dict((name + "_err" , schemaKeys[name + "_err"]) for name in fluxKeys.keys() if
+                       name + "_err" in schemaKeys)
+
+    if len(fluxKeys) == 0:
+        raise TaskError("No flux keys found")
+
     return fluxKeys, errKeys
