@@ -7,6 +7,7 @@ import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 from lsst.afw.fits import FitsError
+from . import utils as mosaicUtils
 
 __all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog",
            "applyCalib")
@@ -97,27 +98,29 @@ def getMosaicResults(dataRef, dims=None):
 
 
 def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
-    """Apply the results of meas_mosaic to a source catalog
+    """!Apply the results of meas_mosaic to a source catalog
 
-    The coordinates and all fluxes are updated in-place with the
-    meas_mosaic solution.
+    The coordinates and all fluxes are updated in-place with the meas_mosaic solution.
     """
     ffp = getFluxFitParams(dataRef)
+    calexp_md = dataRef.get('calexp_md', immediate=True)
+    calexp = dataRef.get('calexp', immediate=True)
+    nQuarter = calexp.getDetector().getOrientation().getNQuarter()
+    hscRun = mosaicUtils.checkHscStack(calexp_md)
+    if hscRun is None:
+        if nQuarter%4 != 0:
+            catalog = mosaicUtils.rotatePixelCoords(catalog, calexp.getWidth(), calexp.getHeight(), nQuarter)
     xx, yy = catalog.getX(), catalog.getY()
     corr = numpy.power(10.0, -0.4*ffp.ffp.eval(xx, yy))*calculateJacobian(ffp.wcs, xx, yy)
 
     if addCorrection:
-        mapper = afwTable.SchemaMapper(catalog.schema)
+        mapper = afwTable.SchemaMapper(catalog.schema, True)
         for s in catalog.schema:
             mapper.addMapping(s.key)
-        corrField = afwTable.Field[float]("mosaic.corr", "Magnitude correction from meas_mosaic")
+        corrField = afwTable.Field[float]("mosaic_corr", "Magnitude correction from meas_mosaic")
         corrKey = mapper.addOutputField(corrField)
         outCatalog = type(catalog)(mapper.getOutputSchema())
-        for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
-            getattr(outCatalog, "define" + slot)(getattr(catalog, "get" + slot + "Definition")())
-
         outCatalog.extend(catalog, mapper=mapper)
-
         outCatalog[corrKey][:] = corr
         catalog = outCatalog
 
@@ -138,6 +141,12 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     wcs = getWcs(dataRef)
     for rec in catalog:
         rec.updateCoord(wcs)
+
+    # Now rotate them back to the LSST coord system
+    if hscRun is None:
+        if nQuarter%4 != 0:
+            catalog = mosaicUtils.rotatePixelCoordsBack(catalog, calexp.getWidth(), calexp.getHeight(),
+                                                        nQuarter)
 
     return Struct(catalog=catalog, wcs=wcs, ffp=ffp)
 
