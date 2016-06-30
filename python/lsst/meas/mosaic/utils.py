@@ -32,3 +32,30 @@ def matchJanskyToDn(matches):
             if "flux" in k or "fluxSigma" in k:
                 m.first[k] /= JANSKYS_PER_AB_FLUX
     return matches
+
+def rotatePixelCoords(sources, width, height, nQuarter):
+    """!Rotate catalog (x, y) pixel coordinates such that LLC of detector in FP is (0, 0)
+
+    @param[in/out] sources   SourceCatalog for which the x, y pixel values are to be rotated in place
+    @param[in]     width     image width from which the sources were measured
+    @param[in]     height    image height from which the sources were measured
+    @param[in]     nQuarter  number of 90 degree rotations of the associated detector in the focal plane
+
+    @return        sources   updated source catalog
+    """
+    if nQuarter < 1 or nQuarter > 3:
+        raise ValueError('nQuarter is %i. It should be 1 <= nQuarter <= 3 .' % int(nQuarter))
+    xKey = sources.schema.find("slot_Centroid_x").key
+    yKey = sources.schema.find("slot_Centroid_y").key
+    for s in sources:
+        x0 = s.get(xKey)
+        y0 = s.get(yKey)
+        if nQuarter == 1:
+            s.set(xKey, height - y0 - 1.0)
+            s.set(yKey, x0)
+        if nQuarter == 2:
+            s.set(xKey, width - x0 - 1.0)
+            s.set(yKey, height - y0 - 1.0)
+        if nQuarter == 3:
+            s.set(xKey, y0)
+            s.set(yKey, width - x0 - 1.0)
