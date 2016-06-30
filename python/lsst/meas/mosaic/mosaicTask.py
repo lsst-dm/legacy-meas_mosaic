@@ -9,7 +9,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 import multiprocessing
-from lsst.pex.logging import getDefaultLog
 
 import lsst.afw.cameraGeom              as cameraGeom
 import lsst.afw.geom                    as afwGeom
@@ -22,9 +21,11 @@ import lsst.pipe.base                   as pipeBase
 import lsst.meas.algorithms             as measAlg
 import lsst.meas.astrom                 as measAstrom
 import lsst.meas.mosaic.mosaicLib       as measMosaic
-from lsst.pipe.tasks.colorterms import ColortermLibrary
 
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
+from lsst.pex.logging import getDefaultLog
+from lsst.pipe.tasks.colorterms import ColortermLibrary
+from . import utils as mosaicUtils
 
 # Use LaTeX to render figure captions? Requires dvipng (not available on lsst-dev).
 USETEX=False
@@ -268,6 +269,9 @@ class SourceReader(object):
                 filterName = afwImage.Filter(calexp_md).getName()
                 refFluxField = measAlg.getRefFluxField(refSchema, filterName)
                 refSchema.getAliasMap().set("flux", refFluxField)
+
+            # LSST reads in a_net catalogs with flux in "janskys", so must convert back to DN.
+            matches = mosaicUtils.matchJanskyToDn(matches)
 
             selSources = self.selectStars(sources, self.config.includeSaturated)
             selMatches = self.selectStars(matches, self.config.includeSaturated)
