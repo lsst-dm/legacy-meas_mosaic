@@ -2,14 +2,14 @@
 #if !defined(HSC_MEAS_MOSAIC_H)
 #define HSC_MEAS_MOSAIC_H
 
+#include <cmath>
+#include <memory>
 #include <vector>
 #include "lsst/pex/exceptions.h"
 #include "lsst/afw/image.h"
 #include "lsst/afw/geom.h"
 #include "lsst/afw/cameraGeom.h"
 #include "lsst/afw/table.h"
-#include "lsst/utils/ieee.h"
-#include "boost/enable_shared_from_this.hpp"
 
 namespace lsst {
     namespace meas {
@@ -33,11 +33,11 @@ namespace lsst {
                     _err(std::numeric_limits<double>::quiet_NaN()),
                     _xerr(std::numeric_limits<double>::quiet_NaN()),
                     _yerr(std::numeric_limits<double>::quiet_NaN()),
-                    _astromBad(!lsst::utils::isfinite(_flux))
+                    _astromBad(!std::isfinite(_flux))
                     {
                         try {
-                            _err = record.get(record.getSchema().find<double>("flux.err").key);
-                        } catch (pex::exceptions::NotFoundException const&) {
+                            _err = record.get(record.getSchema().find<double>("fluxSigma").key);
+                        } catch (pex::exceptions::NotFoundError const&) {
 			    // flux.err is not availabe. sqrt of flux will be used
 			    // 1.E-08 is a scaling factor to make mag_err ~ 0.1mag for 15 mag
 			    // This is a good approximation for 2MASS J-band
@@ -111,7 +111,7 @@ namespace lsst {
 
 	    class Poly {
 	    public:
-	        typedef boost::shared_ptr<Poly> Ptr;
+	        typedef std::shared_ptr<Poly> Ptr;
 
 		int order;
 		int ncoeff;
@@ -128,7 +128,7 @@ namespace lsst {
 
 	    class Coeff {
 	    public:
-		typedef boost::shared_ptr<Coeff> Ptr;
+		typedef std::shared_ptr<Coeff> Ptr;
 
 		Poly::Ptr p;
 		int iexp;
@@ -181,7 +181,7 @@ namespace lsst {
 
 	    class Obs {
 	    public:
-		typedef boost::shared_ptr<Obs> Ptr;
+		typedef std::shared_ptr<Obs> Ptr;
 
 		double ra, dec;
 		double xi, eta;
@@ -217,7 +217,7 @@ namespace lsst {
 
 		Obs(int id, double ra, double dec, double x, double y, int ichip, int iexp);
 		Obs(int id, double ra, double dec, int ichip, int iexp);
-		void setUV(lsst::afw::cameraGeom::Ccd::Ptr const &ccd, double x0=0, double y0=0);
+		void setUV(PTR(lsst::afw::cameraGeom::Detector) &ccd, double x0=0, double y0=0);
 		void setXiEta(double ra_c, double dec_c);
 		void setFitVal(Coeff::Ptr& c, Poly::Ptr p);
 		void setFitVal2(Coeff::Ptr& c, Poly::Ptr p);
@@ -225,12 +225,12 @@ namespace lsst {
 
 	    class KDTree
 #if !defined(SWIG)
-	      : public boost::enable_shared_from_this<KDTree>
+	      : public std::enable_shared_from_this<KDTree>
 #endif
 	    {
 	    public:
-		typedef boost::shared_ptr<KDTree> Ptr;
-		typedef boost::shared_ptr<const KDTree> ConstPtr;
+		typedef std::shared_ptr<KDTree> Ptr;
+		typedef std::shared_ptr<const KDTree> ConstPtr;
 
 		int depth;
 		int axis;
@@ -269,7 +269,7 @@ namespace lsst {
                 void _initializeMatches(SourceMatchSet& m, int depth);
             };
 
-	    typedef std::map<int, lsst::afw::cameraGeom::Ccd::Ptr> CcdSet;
+	    typedef std::map<int, PTR(lsst::afw::cameraGeom::Detector)> CcdSet;
 	    typedef std::map<int, Coeff::Ptr> CoeffSet;
 	    typedef std::vector<Obs::Ptr> ObsVec;
 
@@ -314,7 +314,7 @@ namespace lsst {
                                      std::string const & snapshotDir = ".");
 
 	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff,
-				    lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+				    PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
 	    lsst::afw::image::TanWcs::Ptr wcsFromCoeff(Coeff::Ptr& coeff);
 
@@ -322,7 +322,7 @@ namespace lsst {
 
 	    lsst::afw::image::Image<float>::Ptr
 	      getJImg(Coeff::Ptr& coeff,
-		      lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
 	    lsst::afw::image::Image<float>::Ptr
 	      getJImg(lsst::afw::image::Wcs::Ptr& wcs,
@@ -330,7 +330,7 @@ namespace lsst {
 
 	    lsst::afw::image::Image<float>::Ptr
 	      getJImg(lsst::afw::image::Wcs::Ptr& wcs,
-		      lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
             //{
             // Calculate Jacobian correction
@@ -353,7 +353,6 @@ namespace lsst {
                 ndarray::Array<double const, 1> const& y  ///< y positions for correction
                 );
             //}
-
     }
   }
 }

@@ -9,8 +9,8 @@ namespace lsst {
 
       class SpatialCellSource : public lsst::afw::math::SpatialCellCandidate {
       public:
-	typedef boost::shared_ptr<SpatialCellSource> Ptr;
-	typedef boost::shared_ptr<const SpatialCellSource> ConstPtr;
+	typedef std::shared_ptr<SpatialCellSource> Ptr;
+	typedef std::shared_ptr<const SpatialCellSource> ConstPtr;
 
 	SpatialCellSource(float const xCenter,
 			  float const yCenter,

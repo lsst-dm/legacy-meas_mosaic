@@ -1,30 +1,45 @@
 #!/usr/bin/env python
-
+#
+# LSST Data Management System
+# Copyright 2008-2016 AURA/LSST.
+#
+# This product includes software developed by the
+# LSST Project (http://www.lsst.org/).
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the LSST License Statement and
+# the GNU General Public License along with this program.  If not,
+# see <https://www.lsstcorp.org/LegalNotices/>.
+#
 import os
 import math
 import numpy
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.mlab as mlab
 import multiprocessing
-from lsst.pex.logging import getDefaultLog
 
-import lsst.afw.cameraGeom              as cameraGeom
-import lsst.afw.cameraGeom.utils        as cameraGeomUtils
 import lsst.afw.geom                    as afwGeom
 import lsst.afw.image                   as afwImage
-import lsst.afw.table                   as afwTable
-import lsst.afw.coord                   as afwCoord
 import lsst.afw.math                    as afwMath
+import lsst.afw.table                   as afwTable
+import lsst.meas.algorithms             as measAlg
+import lsst.meas.astrom                 as measAstrom
+import lsst.meas.mosaic.mosaicLib       as measMosaic
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
-import lsst.meas.mosaic.mosaicLib       as measMosaic
-import lsst.meas.astrom.astrom          as measAstrom
-from lsst.meas.photocal.colorterms import ColortermLibraryConfig
 
-from lsst.pipe.tasks.dataIds import PerTractCcdDataIdContainer
+from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
+from lsst.pex.logging import getDefaultLog
+from lsst.pipe.tasks.colorterms import ColortermLibrary
+from . import utils as mosaicUtils
 
 class MosaicRunner(pipeBase.TaskRunner):
     """Subclass of TaskRunner for MosaicTask
@@ -46,7 +61,7 @@ class MosaicRunner(pipeBase.TaskRunner):
         for ref in parsedCmd.id.refList:
             refListDict.setdefault(ref.dataId["tract"], []).append(ref)
         # we call run() once with each tract
-        return [(parsedCmd.butler.mapper.getCameraName(),
+        return [(parsedCmd.camera,
                  parsedCmd.butler,
                  tract,
                  refListDict[tract],
@@ -132,12 +147,32 @@ class MosaicConfig(pexConfig.Config):
         doc="If True, unmatched sources outside of tract will not be used as constraints",
         dtype=bool,
         default=True)
-    astrom = pexConfig.ConfigField(dtype=measAstrom.MeasAstromConfig, doc="Configuration for readMatches")
-    doColorTerms = pexConfig.Field(dtype=bool, default=True, doc="Apply color terms as part of solution?")
-    doSolveWcs = pexConfig.Field(dtype=bool, default=True, doc="Solve distortion and wcs?")
-    doSolveFlux = pexConfig.Field(dtype=bool, default=True, doc="Solve flux correction?")
-    commonFluxCorr = pexConfig.Field(dtype=bool, default=True, doc="Is flux correction common between exposures?")
-    colorterms = pexConfig.ConfigField(dtype=ColortermLibraryConfig, doc="Color term library")
+    astrom = pexConfig.ConfigField(
+        doc="Configuration for readMatches",
+        dtype=measAstrom.ANetBasicAstrometryConfig)
+    doColorTerms = pexConfig.Field(
+        doc="Apply color terms as part of solution?",
+        dtype=bool,
+        default=True)
+    doSolveWcs = pexConfig.Field(
+        doc="Solve distortion and wcs?",
+        dtype=bool,
+        default=True)
+    doSolveFlux = pexConfig.Field(
+        doc="Solve flux correction?",
+        dtype=bool,
+        default=True)
+    commonFluxCorr = pexConfig.Field(
+        doc="Is flux correction common between exposures?",
+        dtype=bool,
+        default=True)
+    colorterms = pexConfig.ConfigField(
+        doc="Color term library",
+        dtype=ColortermLibrary)
+    photoCatName = pexConfig.Field(
+        doc="Name of photometric reference catalog; used to select a color term dict in colorterm library.",
+        dtype=str,
+        optional=True)
     includeSaturated = pexConfig.Field(
         doc="If True, saturated objects will also be used for mosaicking.",
         dtype=bool,
@@ -145,15 +180,37 @@ class MosaicConfig(pexConfig.Config):
     extendednessForStarSelection = pexConfig.Field(
         doc="Extendedness for star selection",
         dtype=str,
-        default='classification.extendedness')
+        default="base_ClassificationExtendedness_value")
     saturatedForStarSelection = pexConfig.Field(
         doc="Saturated flag for star selection",
         dtype=str,
-        default='flags.pixel.saturated.any')
+        default="base_PixelFlags_flag_saturated")
     psfStarForStarSelection = pexConfig.Field(
         doc="PSF star flag for star selection",
         dtype=str,
-        default='calib.psf.used')
+        default="calib_psfUsed")
+    calibStarForStarSelection = pexConfig.Field(
+        doc="Calibration star detected as an icSrc flag for star selection",
+        dtype=str,
+        default="calib_detected")
+    parentForStarSelection = pexConfig.Field(
+        doc="Does souce have a parent? For star selection",
+        dtype=str,
+        default="parent")
+    nChildForStarSelection = pexConfig.Field(
+        doc="Does souce have any children? For star selection",
+        dtype=str,
+        default="deblend_nChild")
+    coaddName = pexConfig.Field(
+        doc="Type of coadd being produced; used to select the correct SkyMap.",
+        dtype=str,
+        default="deep")
+    srcSchemaMap = pexConfig.DictField(
+        doc="Mapping between different stack (e.g. HSC vs. LSST) schema names",
+        keytype=str,
+        itemtype=str,
+        default=None,
+        optional=True)
 
 class SourceReader(object):
     """ Object to read source catalog.
@@ -166,45 +223,77 @@ class SourceReader(object):
     def selectStars(self, sources, includeSaturated=False):
         """ Return a list of stellar like objects selected from input sources
 
-        Stellarity will be judged based mainly on extendedness (classification.extendedness).
+        Stellarity will be judged based mainly on extendedness (base_ClassificationExtendedness_value).
         If an object is used to determine PSF (calib.psf.used == True), it will be included.
-        Saturated objects (flags.pixel.saturated.any) will not be included as a default.
+        Blended objects (with either parent or nChild > 0) will not be included by default.
+        Saturated objects (base_PixelFlags_flag_saturated) will not be included by default.
         """
 
         if len(sources) == 0:
             return []
 
         psfKey = None                       # Table key for classification.psfstar
-        if isinstance(sources, afwTable.ReferenceMatchVector) or isinstance(sources[0], afwTable.ReferenceMatch):
+        if (isinstance(sources, afwTable.ReferenceMatchVector) or
+            isinstance(sources[0], afwTable.ReferenceMatch)):
             sourceList = [s.second for s in sources]
             psfKey = sourceList[0].schema.find(self.config.psfStarForStarSelection).getKey()
         else:
             sourceList = sources
 
         schema = sourceList[0].schema
-        extKey = schema.find(self.config.extendednessForStarSelection).getKey()
-        satKey = schema.find(self.config.saturatedForStarSelection).getKey()
+        schemaDict = schema.extract("*")
+        parentKey = schemaDict.get(self.config.parentForStarSelection, (None,))[0]
+        nChildKey = schemaDict.get(self.config.nChildForStarSelection, (None,))[0]
+        extKey = schemaDict.get(self.config.extendednessForStarSelection, (None,))[0]
+        satKey = schemaDict.get(self.config.saturatedForStarSelection, (None,))[0]
+        calibKey = schemaDict.get(self.config.calibStarForStarSelection, (None,))[0]
 
-        stars = []
-        for includeSource, checkSource in zip(sources, sourceList):
-            star = (psfKey is not None and checkSource.get(psfKey)) or checkSource.get(extKey) < 0.5
-            saturated = checkSource.get(satKey)
-            if star and (includeSaturated or not saturated):
-                stars.append(includeSource)
+        def checkStar(checkSource):
+            """
+            Return True if we should use this star, false otherwise.
+            """
+            doInclude = True
+            if (extKey and checkSource.get(extKey) > 0.5) or (psfKey and not checkSource.get(psfKey)):
+                doInclude = False
+            # Allow point sources regardless of above conditions (i.e. used as psf or not), but not those below
+            if extKey and checkSource.get(extKey) < 0.5:
+                doInclude = True
+            if ((calibKey and not checkSource.get(calibKey)) or
+                (parentKey and checkSource.get(parentKey) > 0) or
+                (nChildKey and checkSource.get(nChildKey) > 0) or
+                (satKey and checkSource.get(satKey) and not includeSaturated)):
+                doInclude = False
+
+            return doInclude
+
+        stars = [includeSource for includeSource, checkSource in zip(sources, sourceList)
+                 if checkStar(checkSource)]
+
         return stars
 
-    def setCatFlux(self, m, f, key):
-        m.first.set(key, f)
+    def setCatFlux(self, m, flux, fluxKey, fluxSigma, fluxSigmaKey):
+        m.first.set(fluxKey, flux)
+        m.first.set(fluxSigmaKey, fluxSigma)
         return m
 
     def readSrc(self, dataRef):
-        """ Read source catalog etc for input dataRef
+        """Read source catalog etc for input dataRef
 
-        The followings are returned
-        Source catalog, matched list, and wcs will be read from 'src', 'icMatchFull', and 'calexp_md', respectively.
-        If color transformation is given, it will be applied to reference flux of matched list.
-        Source catalog and matched list will be converted to measMosaic's Source and SourceMatch and returned.
-        The number of 'Source's in each cell defined by config.cellSize will be limited to brightest config.nStarPerCell.
+        The following are returned:
+        Source catalog, matched list, and wcs will be read from 'src', 'srcMatch', and 'calexp_md',
+        respectively.
+
+        NOTE: If the detector has nQuarter%4 != 0 (i.e. it is rotated w.r.t the focal plane
+              coordinate system), the (x, y) pixel values of the centroid slot for the source
+              catalogs are rotated such that pixel (0, 0) is the LLC (i.e. the coordinate system
+              expected by meas_mosaic).
+
+        If color transformation information is given, it will be applied to the reference flux
+        of the matched list.  The source catalog and matched list will be converted to measMosaic's
+        Source and SourceMatch and returned.
+
+        The number of 'Source's in each cell defined by config.cellSize will be limited to brightest
+        config.nStarPerCell.
         """
 
         self.log = getDefaultLog()
@@ -212,35 +301,100 @@ class SourceReader(object):
         dataId = dataRef.dataId
 
         try:
-            if not dataRef.datasetExists('src'):
+            if not dataRef.datasetExists("src"):
                 raise RuntimeError("no data for src %s" % (dataId))
-            if not dataRef.datasetExists('calexp_md'):
+            if not dataRef.datasetExists("calexp_md"):
                 raise RuntimeError("no data for calexp_md %s" % (dataId))
 
-            calexp_md = dataRef.get('calexp_md', immediate=True)
+            calexp_md = dataRef.get("calexp_md", immediate=True)
+            calexp = dataRef.get("calexp", immediate=True)
             wcs = afwImage.makeWcs(calexp_md)
+            nQuarter = calexp.getDetector().getOrientation().getNQuarter()
+            sources = dataRef.get("src", immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
 
-            sources = dataRef.get('src', immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
+            # Check if we are looking at HSC stack outputs: if so, no pixel rotation of sources is
+            # required, but alias mapping must be set to associate HSC's schema with that of LSST.
+            hscRun = mosaicUtils.checkHscStack(calexp_md)
+            if hscRun is None:
+                if nQuarter%4 != 0:
+                    sources = mosaicUtils.rotatePixelCoords(sources, calexp.getWidth(), calexp.getHeight(),
+                                                            nQuarter)
 
-            matchFull = dataRef.get('icMatchFull', immediate=True)
-            matches = measMosaic.matchesFromCatalog(matchFull)
-            icSrces = dataRef.get('icSrc', immediate=True)
-            for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape", "CalibFlux"):
-                getattr(matches[0].second.getTable(), "define" + slot)(getattr(icSrces, "get" + slot + "Definition")())
+            # Set the aliap map for the source catalog
+            if self.config.srcSchemaMap is not None and hscRun is not None:
+                aliasMap = sources.schema.getAliasMap()
+                for lsstName, otherName in self.config.srcSchemaMap.iteritems():
+                    aliasMap.set(lsstName, otherName)
 
+            refObjLoader = measAstrom.LoadAstrometryNetObjectsTask(
+                measAstrom.LoadAstrometryNetObjectsTask.ConfigClass())
+            srcMatch = dataRef.get("srcMatch", immediate=True)
+            if hscRun is not None:
+                # The reference object loader grows the bbox by the config parameter pixelMargin.  This
+                # is set to 50 by default but is not reflected by the radius parameter set in the
+                # metadata, so some matches may reside outside the circle searched within this radius
+                # Thus, increase the radius set in the metadata fed into joinMatchListWithCatalog() to
+                # accommodate.
+                matchmeta = srcMatch.table.getMetadata()
+                rad = matchmeta.getDouble("RADIUS")
+                matchmeta.setDouble("RADIUS", rad*1.05, "field radius in degrees, approximate, padded")
+            matches = refObjLoader.joinMatchListWithCatalog(srcMatch, sources)
+
+            # Set the aliap map for the matched sources (i.e. the .second attribute schema for each match)
+            if self.config.srcSchemaMap is not None and hscRun is not None:
+                for mm in matches:
+                    aliasMap = mm.second.schema.getAliasMap()
+                    for lsstName, otherName in self.config.srcSchemaMap.iteritems():
+                        aliasMap.set(lsstName, otherName)
+
+            if hscRun is not None:
+                for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
+                    getattr(matches[0].second.getTable(), "define" + slot)(
+                        getattr(sources, "get" + slot + "Definition")())
+                    # For some reason, the CalibFlux slot in sources is coming up as centroid_sdss, so
+                    # set it to flux_naive explicitly
+                    for slot in ("CalibFlux", ):
+                        getattr(matches[0].second.getTable(), "define" + slot)("flux_naive")
             matches = [m for m in matches if m.first is not None]
+            refSchema = matches[0].first.schema if matches else None
+
             if self.cterm is not None and len(matches) != 0:
-                refSchema = matches[0].first.schema
-                key_p = refSchema.find(self.cterm.primary).key
-                key_s = refSchema.find(self.cterm.secondary).key
-                key_f = refSchema.find("flux").key
-                refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
-                refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
+                # Add a "flux" field to the input schema of the first element
+                # of the match and populate it with a colorterm correct flux.
+                mapper = afwTable.SchemaMapper(refSchema)
+                for key, field in refSchema:
+                    mapper.addMapping(key)
+                fluxKey = mapper.editOutputSchema().addField("flux", type=float, doc="Reference flux")
+                fluxSigmaKey = mapper.editOutputSchema().addField("fluxSigma", type=float,
+                                                                  doc="Reference flux uncertainty")
+                table = afwTable.SimpleTable.make(mapper.getOutputSchema())
+                table.preallocate(len(matches))
+                for match in matches:
+                    newMatch = table.makeRecord()
+                    newMatch.assign(match.first, mapper)
+                    match.first = newMatch
+                primaryFluxKey = refSchema.find(refSchema.join(self.cterm.primary, "flux")).key
+                secondaryFluxKey = refSchema.find(refSchema.join(self.cterm.secondary, "flux")).key
+                primaryFluxSigmaKey = refSchema.find(refSchema.join(self.cterm.primary, "fluxSigma")).key
+                secondaryFluxSigmaKey = refSchema.find(refSchema.join(self.cterm.secondary, "fluxSigma")).key
+                refFlux1 = numpy.array([m.first.get(primaryFluxKey) for m in matches])
+                refFlux2 = numpy.array([m.first.get(secondaryFluxKey) for m in matches])
+                refFluxSigma1 = numpy.array([m.first.get(primaryFluxSigmaKey) for m in matches])
+                refFluxSigma2 = numpy.array([m.first.get(secondaryFluxSigmaKey) for m in matches])
                 refMag1 = -2.5*numpy.log10(refFlux1)
                 refMag2 = -2.5*numpy.log10(refFlux2)
                 refMag = self.cterm.transformMags(refMag1, refMag2)
                 refFlux = numpy.power(10.0, -0.4*refMag)
-                matches = [self.setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
+                refFluxSigma = self.cterm.propagateFluxErrors(refFluxSigma1, refFluxSigma2)
+                matches = [self.setCatFlux(m, flux, fluxKey, fluxSigma, fluxSigmaKey) for
+                           m, flux, fluxSigma in zip(matches, refFlux, refFluxSigma) if flux == flux]
+            else:
+                filterName = afwImage.Filter(calexp_md).getName()
+                refFluxField = measAlg.getRefFluxField(refSchema, filterName)
+                refSchema.getAliasMap().set("flux", refFluxField)
+
+            # LSST reads in a_net catalogs with flux in "janskys", so must convert back to DN.
+            matches = mosaicUtils.matchJanskyToDn(matches)
 
             selSources = self.selectStars(sources, self.config.includeSaturated)
             selMatches = self.selectStars(matches, self.config.includeSaturated)
@@ -249,34 +403,41 @@ class SourceReader(object):
             retMatch = list()
 
             if len(selMatches) > self.config.minNumMatch:
-                naxis1, naxis2 = calexp_md.get('NAXIS1'), calexp_md.get('NAXIS2')
-                bbox = afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2))
+                naxis1, naxis2 = calexp_md.get("NAXIS1"), calexp_md.get("NAXIS2")
+                if hscRun is None:
+                    if nQuarter%2 != 0:
+                        naxis1, naxis2 = calexp_md.get("NAXIS2"), calexp_md.get("NAXIS1")
+                bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(naxis1, naxis2))
                 cellSet = afwMath.SpatialCellSet(bbox, self.config.cellSize, self.config.cellSize)
                 for s in selSources:
                     if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
                         src = measMosaic.Source(s)
-                        src.setExp(dataId['visit'])
-                        src.setChip(dataId['ccd'])
+                        src.setExp(dataId["visit"])
+                        src.setChip(dataId["ccd"])
                         try:
                             cellSet.insertCandidate(measMosaic.SpatialCellSource(src))
                         except:
-                            self.log.info('visit=%d ccd=%d x=%f y=%f' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], src.getX(), src.getY()) + ' bbox=' + str(bbox))
+                            self.log.info("FAILED TO INSERT CANDIDATE: visit=%d ccd=%d x=%f y=%f" %
+                                          (dataRef.dataId["visit"], dataRef.dataId["ccd"],
+                                           src.getX(), src.getY()) + " bbox=" + str(bbox))
                 for cell in cellSet.getCellList():
                     cell.sortCandidates()
                     for i, cand in enumerate(cell):
                         cand = measMosaic.cast_SpatialCellSource(cand)
                         src = cand.getSource()
                         retSrc.append(src)
-                        if i == self.config.nStarPerCell-1:
+                        if i == self.config.nStarPerCell - 1:
                             break
                 for m in selMatches:
                     if m.first is not None and m.second is not None:
-                        match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs), measMosaic.Source(m.second))
-                        match.second.setExp(dataId['visit'])
-                        match.second.setChip(dataId['ccd'])
+                        match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs),
+                                                       measMosaic.Source(m.second))
+                        match.second.setExp(dataId["visit"])
+                        match.second.setChip(dataId["ccd"])
                         retMatch.append(match)
             else:
-                self.log.info('%8d %3d : %d/%d matches  Suspicious to wrong match. Ignore this CCD' % (dataRef.dataId['visit'], dataRef.dataId['ccd'], len(selMatches), len(matches)))
+                self.log.info("%8d %3d : %d/%d matches  Suspicious to wrong match. Ignore this CCD" %
+                              (dataRef.dataId["visit"], dataRef.dataId["ccd"], len(selMatches), len(matches)))
 
         except Exception as e:
             self.log.warn("Failed to read %s: %s" % (dataId, e))
@@ -287,7 +448,6 @@ class SourceReader(object):
 class Worker(object):
     """ Worker object for multiprocessing
     """
-
     def __init__(self, verbose=False):
         self.verbose = verbose
 
@@ -324,55 +484,51 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         ccds = measMosaic.CcdSet()
         for dataRef in dataRefList:
-            if not dataRef.dataId['ccd'] in ccds.keys():
-                ccd = cameraGeomUtils.findCcd(dataRef.getButler().mapper.camera, cameraGeom.Id(int(dataRef.dataId['ccd'])))
-                ccds[dataRef.dataId['ccd']] = ccd
-        
-        return ccds
-        
-    def getWcsForCcd(self, dataRef):
+            if not dataRef.dataId["ccd"] in ccds.keys():
+                ccd = dataRef.get("camera")[int(dataRef.dataId["ccd"])]
+                ccds[dataRef.dataId["ccd"]] = ccd
 
+        return ccds
+
+    def getWcsForCcd(self, dataRef):
         try:
-            md = dataRef.get('calexp_md')
+            md = dataRef.get("calexp_md")
             return afwImage.makeWcs(md)
         except Exception as e:
             print "Failed to read: %s for %s" % (e, dataRef.dataId)
             return None
 
     def readWcs(self, dataRefList, ccdSet):
-        
         self.log.info("Reading WCS ...")
 
         wcsDic = measMosaic.WcsDic()
         for dataRef in dataRefList:
-            if not dataRef.dataId['visit'] in wcsDic.keys():
-                if (dataRef.datasetExists('calexp') and
-                    dataRef.datasetExists('src') and
-                    dataRef.datasetExists('icSrc') and
-                    dataRef.datasetExists('icMatch')):
+            if not dataRef.dataId["visit"] in wcsDic.keys():
+                if (dataRef.datasetExists("calexp") and
+                    dataRef.datasetExists("src") and
+                    dataRef.datasetExists("srcMatch")):
                     wcs = self.getWcsForCcd(dataRef)
-                    ccd = ccdSet[dataRef.dataId['ccd']]
-                    offset = ccd.getCenter().getPixels(ccd.getPixelSize())
+                    ccd = ccdSet[dataRef.dataId["ccd"]]
+                    offset = measMosaic.getCenterInFpPixels(ccd)
                     wcs.shiftReferencePixel(offset[0], offset[1])
-                    wcsDic[dataRef.dataId['visit']] = wcs
+                    wcsDic[dataRef.dataId["visit"]] = wcs
 
         return wcsDic
 
     def removeNonExistCcd(self, dataRefList, ccdSet):
         num = dict()
         for dataRef in dataRefList:
-            if not dataRef.dataId['ccd'] in num.keys():
-                num[dataRef.dataId['ccd']] = 0
-            if (dataRef.datasetExists('calexp') and
-                dataRef.datasetExists('src') and
-                dataRef.datasetExists('icSrc') and
-                dataRef.datasetExists('icMatch')):
-                num[dataRef.dataId['ccd']] += 1
+            if not dataRef.dataId["ccd"] in num.keys():
+                num[dataRef.dataId["ccd"]] = 0
+            if (dataRef.datasetExists("calexp") and
+                dataRef.datasetExists("src") and
+                dataRef.datasetExists("srcMatch")):
+                num[dataRef.dataId["ccd"]] += 1
 
         for ichip in ccdSet.keys():
             if num[ichip] == 0:
                 ccdSet.erase(ichip)
-            
+
     def readCatalog(self, dataRefList, ct=None, numCoresForReadSource=1, readTimeout=9999, verbose=False):
         self.log.info("Reading catalogs ...")
         self.log.info("Use %d cores for reading source catalog" % (numCoresForReadSource))
@@ -402,15 +558,15 @@ class MosaicTask(pipeBase.CmdLineTask):
         for dataId, result in resultList:
             sources, matches, wcs = result
             if sources is not None:
-                if not dataId['visit'] in ssVisit.keys():
-                    ssVisit[dataId['visit']] = list()
-                    mlVisit[dataId['visit']] = list()
+                if not dataId["visit"] in ssVisit.keys():
+                    ssVisit[dataId["visit"]] = list()
+                    mlVisit[dataId["visit"]] = list()
 
                 for s in sources:
-                    ssVisit[dataId['visit']].append(s)
+                    ssVisit[dataId["visit"]].append(s)
 
                 for m in matches:
-                    mlVisit[dataId['visit']].append(m)
+                    mlVisit[dataId["visit"]].append(m)
 
                 for dataRef in dataRefList:
                     if dataRef.dataId == dataId:
@@ -432,34 +588,34 @@ class MosaicTask(pipeBase.CmdLineTask):
     def mergeCatalog(self, sourceSet, matchList, ccdSet, d_lim):
 
         self.log.info("Creating kd-tree for matched catalog ...")
-        self.log.info("len(matchList) = "+str(len(matchList))+" "+
+        self.log.info("len(matchList) = " + str(len(matchList)) + " " +
                       str([len(matches) for matches in matchList]))
         rootMat = measMosaic.kdtreeMat(matchList)
         allMat = rootMat.mergeMat()
         self.log.info("# of allMat : %d" % self.countObsInSourceGroup(allMat))
-        self.log.info('len(allMat) = %d' % len(allMat))
-    
+        self.log.info("len(allMat) = %d" % len(allMat))
+
         self.log.info("Creating kd-tree for source catalog ...")
-        self.log.info('len(sourceSet) = '+str(len(sourceSet))+" "+
+        self.log.info("len(sourceSet) = " + str(len(sourceSet)) + " " +
                       str([len(sources) for sources in sourceSet]))
         rootSource = measMosaic.kdtreeSource(sourceSet, rootMat, ccdSet, d_lim)
         allSource = rootSource.mergeSource(self.config.numSourceMerge)
         self.log.info("# of allSource : %d" % self.countObsInSourceGroup(allSource))
-        self.log.info('len(allSource) = %d' % len(allSource))
+        self.log.info("len(allSource) = %d" % len(allSource))
 
         return allMat, allSource
 
     def writeNewWcs(self, dataRefList):
         self.log.info("Write New WCS ...")
-        exp = afwImage.ExposureI(0,0)
+        exp = afwImage.ExposureI(0, 0)
         for dataRef in dataRefList:
-            iexp = dataRef.dataId['visit']
-            ichip = dataRef.dataId['ccd']
+            iexp = dataRef.dataId["visit"]
+            ichip = dataRef.dataId["ccd"]
             c = measMosaic.convertCoeff(self.coeffSet[iexp], self.ccdSet[ichip]);
             wcs = measMosaic.wcsFromCoeff(c);
             exp.setWcs(wcs)
             try:
-                dataRef.put(exp, 'wcs')
+                dataRef.put(exp, "wcs")
             except Exception as e:
                 print "failed to write something: %s" % (e)
 
@@ -471,17 +627,16 @@ class MosaicTask(pipeBase.CmdLineTask):
             if (m.good == True and m.mag != -9999 and m.jstar != -1 and
                 m.mag0 != -9999 and m.mag_cat != -9999):
                 mag = m.mag
-                mag0 = m.mag0
                 mag_cat = m.mag_cat
-                exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
-                chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
+                exp_cor = -2.5*math.log10(self.fexp[m.iexp])
+                chip_cor = -2.5*math.log10(self.fchip[m.ichip])
                 gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
                 mag_cor = mag + exp_cor + chip_cor + gain_cor
                 dmag.append(mag_cor - mag_cat)
-        std, mean, n  = self.clippedStd(numpy.array(dmag), 3)
+        std, mean, n  = mosaicUtils.clippedStd(numpy.array(dmag), 2.1)
         for dataRef in dataRefList:
-            iexp = dataRef.dataId['visit']
-            ichip = dataRef.dataId['ccd']
+            iexp = dataRef.dataId["visit"]
+            ichip = dataRef.dataId["ccd"]
             try:
                 x0 = self.coeffSet[iexp].x0
                 y0 = self.coeffSet[iexp].y0
@@ -493,608 +648,44 @@ class MosaicTask(pipeBase.CmdLineTask):
             metadata = measMosaic.metadataFromFluxFitParams(newP)
             exp = afwImage.ExposureI(0,0)
             exp.getMetadata().combine(metadata)
-            scale = self.fexp[iexp] * self.fchip[ichip]
+            scale = self.fexp[iexp]*self.fchip[ichip]
             calib = afwImage.Calib()
             calib.setFluxMag0(1.0/scale, 1.0/scale*std*M_LN10*0.4)
             exp.setCalib(calib)
             try:
-                dataRef.put(exp, 'fcr')
+                dataRef.put(exp, "fcr")
             except Exception as e:
                 print "failed to write something: %s" % (e)
 
-    def getExtent(self, matchVec):
-        u_max = float("-inf")
-        v_max = float("-inf")
-        for m in matchVec:
-            if (math.fabs(m.u) > u_max):
-                u_max = math.fabs(m.u)
-            if (math.fabs(m.v) > v_max):
-                v_max = math.fabs(m.v)
-
-        return u_max, v_max
-
-    def plotCcd(self, coeffx0=0, coeffy0=0):
-        for ccd in self.ccdSet.values():
-            w = ccd.getAllPixels(True).getWidth()
-            h = ccd.getAllPixels(True).getHeight()
-            us = list()
-            vs = list()
-            for x, y in zip([0, w, w, 0, 0], [0, 0, h, h, 0]):
-                xy = afwGeom.Point2D(x, y)
-                u, v = ccd.getPositionFromPixel(xy).getPixels(ccd.getPixelSize())
-                us.append(u)
-                vs.append(v)
-            plt.plot(us, vs, 'k-')
-
-    def plotJCont(self, iexp):
-        coeff = self.coeffSet[iexp]
-
-        scale = coeff.pixelScale()
-        deg2pix = 1. / scale
-
-        delta = 300.
-        if (self.ccdSet.size() >= 100):
-            x = numpy.arange(-18000., 18000., delta)
-            y = numpy.arange(-18000., 18000., delta)
-            levels = numpy.linspace(0.81, 1.02, 36)
-        else:
-            x = numpy.arange(-6000., 6000., delta)
-            y = numpy.arange(-6000., 6000., delta)
-            levels = numpy.linspace(0.88, 1.02, 36)
-        X, Y = numpy.meshgrid(x, y)
-        Z = numpy.zeros((len(X),len(Y)))
-
-        for j in range(len(Y)):
-            for i in range(len(X)):
-                Z[i][j] = coeff.detJ(X[i][j], Y[i][j]) * deg2pix ** 2
-
-        plt.clf()
-        plt.contourf(X, Y, Z, levels=levels)
-        plt.colorbar()
-        plt.title('%d' % (iexp))
-
-        self.plotCcd(coeff.x0, coeff.y0)
-
-        plt.savefig(os.path.join(self.outputDir, "jcont_%d.png" % (iexp)), format='png')
-
-    def plotFCorCont(self, iexp):
-        delta = 300.
-        if (self.ccdSet.size() > 10):
-            x = numpy.arange(-18000., 18000., delta)
-            y = numpy.arange(-18000., 18000., delta)
-            levels = numpy.linspace(0.72, 1.28, 36)
-        else:
-            x = numpy.arange(-6000., 6000., delta)
-            y = numpy.arange(-6000., 6000., delta)
-            levels = numpy.linspace(0.86, 1.14, 36)
-        X, Y = numpy.meshgrid(x, y)
-        Z = numpy.zeros((len(X),len(Y)))
-
-        for j in range(len(Y)):
-            for i in range(len(X)):
-                Z[i][j] = 10**(-0.4*self.ffpSet[iexp].eval(X[i][j], Y[i][j]))
-        mean = math.floor(Z[len(X)/2][len(Y)/2] * 10 + 0.5) / 10.
-        levels = numpy.linspace(mean-0.2, mean+0.2, 41)
-
-        plt.clf()
-        plt.contourf(X, Y, Z, levels=levels)
-        plt.colorbar()
-        plt.title('%d' % (iexp))
-
-        try:
-            x0 = self.coeffSet[iexp].x0
-            y0 = self.coeffSet[iexp].y0
-        except:
-            x0 = 0.0
-            y0 = 0.0
-        self.plotCcd(x0, y0)
-        
-        plt.savefig(os.path.join(self.outputDir, "fcont_%d.png" % (iexp)), format='png')
-
-    def plotResPosArrow2D(self, iexp):
-        _xm = []
-        _ym = []
-        _dxm = []
-        _dym = []
-        for m in self.matchVec:
-            if (m.good == True and m.iexp == iexp):
-                _xm.append(m.u)
-                _ym.append(m.v)
-                _dxm.append((m.xi_fit - m.xi) * 3600)
-                _dym.append((m.eta_fit - m.eta) * 3600)
-        _xs = []
-        _ys = []
-        _dxs = []
-        _dys = []
-        if (self.sourceVec.size() != 0):
-            for s in self.sourceVec:
-                if (s.good == True and s.iexp == iexp):
-                    _xs.append(s.u)
-                    _ys.append(s.v)
-                    _dxs.append((s.xi_fit - s.xi) * 3600)
-                    _dys.append((s.eta_fit - s.eta) * 3600)
-
-        xm = numpy.array(_xm)
-        ym = numpy.array(_ym)
-        dxm = numpy.array(_dxm)
-        dym = numpy.array(_dym)
-        xs = numpy.array(_xs)
-        ys = numpy.array(_ys)
-        dxs = numpy.array(_dxs)
-        dys = numpy.array(_dys)
-
-        plt.clf()
-        plt.rc('text', usetex=True)
-
-        q = plt.quiver(xm, ym, dxm, dym, units='inches', angles='xy', scale=1, color='green')
-        if len(ym) != 0 and ym.max() > 5000:
-            plt.quiverkey(q, 0, 19000, 0.1, "0.1 arcsec", coordinates='data', color='black')
-        else:
-            plt.quiverkey(q, 0,  4500, 0.1, "0.1 arcsec", coordinates='data', color='black')
-        plt.quiver(xs, ys, dxs, dys, units='inches', angles='xy', scale=1, color='red')
-
-        self.plotCcd(self.coeffSet[iexp].x0, self.coeffSet[iexp].y0)
-        plt.axes().set_aspect('equal')
-
-        plt.savefig(os.path.join(self.outputDir, "ResPosArrow2D_%d.png" % (iexp)), format='png')
-
-    def clippedStd(self, a, n):
-        aa = list()
-        for v in a:
-            if v == v:
-                aa.append(v)
-        aa = numpy.array(aa)
-
-        avg = aa.mean()
-        std = aa.std()
-        for i in range(n):
-            b = aa[numpy.fabs(aa-avg) < 2.1*std]
-            avg = b.mean()
-            std = b.std()
-
-        b = aa[numpy.fabs(aa-avg) < 2.1*std]
-        avg = b.mean()
-        std = b.std()
-            
-        return [std, avg, len(b)]
-
-    def plotResPosScatter(self):
-        _x = []
-        _y = []
-        _xbad = []
-        _ybad = []
-        _xm = []
-        _ym = []
-        f = open(os.path.join(self.outputDir, "dpos.dat"), "wt")
-        for m in self.matchVec:
-            if (m.good == True):
-                _x.append((m.xi_fit - m.xi) * 3600)
-                _y.append((m.eta_fit - m.eta) * 3600)
-                _xm.append((m.xi_fit - m.xi) * 3600)
-                _ym.append((m.eta_fit - m.eta) * 3600)
-                f.write("m %f %f %f %f %f %f 1\n" % (m.xi_fit, m.eta_fit,
-                                                     m.xi, m.eta, m.u, m.v))
-            else:
-                _xbad.append((m.xi_fit - m.xi) * 3600)
-                _ybad.append((m.eta_fit - m.eta) * 3600)
-                f.write("m %f %f %f %f %f %f 0\n" % (m.xi_fit, m.eta_fit,
-                                                     m.xi, m.eta, m.u, m.v))
-        _xs = []
-        _ys = []
-        if (self.sourceVec.size() != 0):
-            for s in self.sourceVec:
-                if (s.good == True):
-                    _x.append((s.xi_fit - s.xi) * 3600)
-                    _y.append((s.eta_fit - s.eta) * 3600)
-                    _xs.append((s.xi_fit - s.xi) * 3600)
-                    _ys.append((s.eta_fit - s.eta) * 3600)
-                    f.write("s %f %f %f %f %f %f 1\n" % (s.xi_fit, s.eta_fit,
-                                                         s.xi, s.eta, s.u, s.v))
-                else:
-                    _xbad.append((s.xi_fit - s.xi) * 3600)
-                    _ybad.append((s.eta_fit - s.eta) * 3600)
-                    f.write("s %f %f %f %f %f %f 0\n" % (s.xi_fit, s.eta_fit,
-                                                         s.xi, s.eta, s.u, s.v))
-        f.close()
-
-        d_xi = numpy.array(_x)
-        d_eta = numpy.array(_y)
-        d_xi_m = numpy.array(_xm)
-        d_eta_m = numpy.array(_ym)
-        d_xi_s = numpy.array(_xs)
-        d_eta_s = numpy.array(_ys)
-        d_xi_bad = numpy.array(_xbad)
-        d_eta_bad = numpy.array(_ybad)
-
-        xi_std,  xi_mean,  xi_n  = self.clippedStd(d_xi, 2)
-        eta_std, eta_mean, eta_n = self.clippedStd(d_eta, 2)
-        xi_std_m,  xi_mean_m,  xi_n_m  = self.clippedStd(d_xi_m, 2)
-        eta_std_m, eta_mean_m, eta_n_m = self.clippedStd(d_eta_m, 2)
-        xi_std_s,  xi_mean_s,  xi_n_s  = self.clippedStd(d_xi_s, 2)
-        eta_std_s, eta_mean_s, eta_n_s = self.clippedStd(d_eta_s, 2)
-
-        plt.clf()
-        plt.rc('text', usetex=True)
-
-        plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
-        plt.plot(d_xi_bad, d_eta_bad, 'k,', markeredgewidth=0)
-        plt.plot(d_xi_m, d_eta_m, 'g,', markeredgewidth=0)
-        plt.plot(d_xi_s, d_eta_s, 'r,', markeredgewidth=0)
-        plt.xlim(-0.5, 0.5)
-        plt.ylim(-0.5, 0.5)
-
-        plt.xlabel(r'$\Delta\xi$ (arcsec)')
-        plt.ylabel(r'$\Delta\eta$ (arcsec)')
-
-        bins = numpy.arange(-0.5, 0.5, 0.01) + 0.005
-
-        ax = plt.subplot2grid((5,6),(0,0), colspan=4)
-        if self.sourceVec.size() != 0:
-            plt.hist([d_xi, d_xi_m, d_xi_s], bins=bins, normed=False, histtype='step')
-        else:
-            plt.hist([d_xi, d_xi_m], bins=bins, normed=False, histtype='step')
-        plt.text(0.75, 0.7, r"$\sigma=$%5.3f" % (xi_std), transform=ax.transAxes, color='blue')
-        plt.text(0.75, 0.5, r"$\sigma=$%5.3f" % (xi_std_m), transform=ax.transAxes, color='green')
-        y = mlab.normpdf(bins, xi_mean_m, xi_std_m)
-        plt.plot(bins, y*xi_n_m*0.01, 'g:')
-        if self.sourceVec.size() != 0:
-            plt.text(0.75, 0.3, r"$\sigma=$%5.3f" % (xi_std_s), transform=ax.transAxes, color='red')
-            y = mlab.normpdf(bins, xi_mean_s, xi_std_s)
-            plt.plot(bins, y*xi_n_s*0.01, 'r:')
-        plt.xlim(-0.5, 0.5)
-
-        ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
-        plt.hist(d_eta, bins=bins, normed=False, orientation='horizontal', histtype='step')
-        plt.hist(d_eta_m, bins=bins, normed=False, orientation='horizontal', histtype='step')
-        if self.sourceVec.size() != 0:
-            plt.hist(d_eta_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
-        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes, color='blue')
-        plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (eta_std_m), rotation=270, transform=ax.transAxes, color='green')
-        y = mlab.normpdf(bins, eta_mean_m, eta_std_m)
-        plt.plot(y*eta_n_m*0.01, bins, 'g:')
-        if self.sourceVec.size() != 0:
-            plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (eta_std_s), rotation=270, transform=ax.transAxes, color='red')
-            y = mlab.normpdf(bins, eta_mean_s, eta_std_s)
-            plt.plot(y*eta_n_s*0.01, bins, 'r:')
-        plt.xticks(rotation=270)
-        plt.yticks(rotation=270)
-        plt.ylim(-0.5, 0.5)
-
-        plt.savefig(os.path.join(self.outputDir, "ResPosScatter.png"), format='png')
-
-    def plotMdM(self):
-        _dmag_m = []
-        _dmag_cat_m = []
-        _dmag_s = []
-        _dmag_a = []
-        _dmag_bad = []
-        _dmag_cat_bad = []
-        _mag0_m = []
-        _mag_cat_m = []
-        _mag0_s = []
-        _mag0_bad = []
-        _mag_cat_bad = []
-        f = open(os.path.join(self.outputDir, 'dmag.dat'), 'wt')
-        for m in self.matchVec:
-            if (m.good == True and m.mag != -9999 and m.jstar != -1 and m.mag0 != -9999 and m.mag_cat != -9999):
-                mag = m.mag
-                mag0 = m.mag0
-                mag_cat = m.mag_cat
-                exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
-                chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-                gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
-                mag_cor = mag + exp_cor + chip_cor + gain_cor
-                diff = mag_cor - mag0
-                _dmag_m.append(diff)
-                _dmag_a.append(diff)
-                _mag0_m.append(mag0)
-                _dmag_cat_m.append(mag_cor - mag_cat)
-                _mag_cat_m.append(mag_cat)
-                f.write("m %f %f %f %f %f 1\n" % (mag_cor, mag0, mag_cat,
-                                                  m.u, m.v))
-            else:
-                mag = m.mag
-                mag0 = m.mag0
-                mag_cat = m.mag_cat
-                exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
-                chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-                gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
-                mag_cor = mag + exp_cor + chip_cor + gain_cor
-                diff = mag_cor - mag0
-                _dmag_bad.append(diff)
-                _mag0_bad.append(mag0)
-                _dmag_cat_bad.append(mag_cor - mag_cat)
-                _mag_cat_bad.append(mag_cat)
-                f.write("m %f %f %f %f %f 0\n" % (mag_cor, mag0, mag_cat,
-                                                  m.u, m.v))
-        if self.sourceVec.size() != 0:
-            for s in self.sourceVec:
-                if (s.good == True and s.mag != -9999 and s.jstar != -1):
-                    mag = s.mag
-                    mag0 = s.mag0
-                    exp_cor = -2.5 * math.log10(self.fexp[s.iexp])
-                    chip_cor = -2.5 * math.log10(self.fchip[s.ichip])
-                    gain_cor = self.ffpSet[s.iexp].eval(s.u, s.v)
-                    mag_cor = mag + exp_cor + chip_cor + gain_cor
-                    diff = mag_cor - mag0
-                    _dmag_s.append(diff)
-                    _dmag_a.append(diff)
-                    _mag0_s.append(mag0)
-                    f.write("s %f %f %f %f %f 1\n" % (mag_cor, mag0, -9999,
-                                                      s.u, s.v))
-                else:
-                    mag = s.mag
-                    mag0 = s.mag0
-                    exp_cor = -2.5 * math.log10(self.fexp[s.iexp])
-                    chip_cor = -2.5 * math.log10(self.fchip[s.ichip])
-                    gain_cor = self.ffpSet[s.iexp].eval(s.u, s.v)
-                    mag_cor = mag + exp_cor + chip_cor + gain_cor
-                    diff = mag_cor - mag0
-                    _dmag_bad.append(diff)
-                    _mag0_bad.append(mag0)
-                    f.write("s %f %f %f %f %f 0\n" % (mag_cor, mag0, -9999,
-                                                      s.u, s.v))
-        f.close()
-
-        d_mag_m = numpy.array(_dmag_m)
-        d_mag_cat_m = numpy.array(_dmag_cat_m)
-        d_mag_s = numpy.array(_dmag_s)
-        d_mag_a = numpy.array(_dmag_a)
-        d_mag_bad = numpy.array(_dmag_bad)
-        d_mag_cat_bad = numpy.array(_dmag_cat_bad)
-        mag0_m = numpy.array(_mag0_m)
-        mag_cat_m = numpy.array(_mag_cat_m)
-        mag0_s = numpy.array(_mag0_s)
-        mag0_bad = numpy.array(_mag0_bad)
-        mag_cat_bad = numpy.array(_mag_cat_bad)
-
-        mag_std_m, mag_mean_m, mag_n_m  = self.clippedStd(d_mag_m, 3)
-        mag_std_s, mag_mean_s, mag_n_s  = self.clippedStd(d_mag_s, 3)
-        mag_std_a, mag_mean_a, mag_n_a  = self.clippedStd(d_mag_a, 3)
-        mag_cat_std_m, mag_cat_mean_m, mag_cat_n_m  = self.clippedStd(d_mag_cat_m, 3)
-
-        plt.clf()
-        plt.rc('text', usetex=True)
-
-        plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
-        plt.plot(mag0_bad, d_mag_bad, 'k,', markeredgewidth=0)
-        plt.plot(mag_cat_m, d_mag_cat_m, 'c,', markeredgewidth=0)
-        if self.sourceVec.size() != 0:
-            plt.plot(mag0_s, d_mag_s, 'r,', markeredgewidth=0)
-        plt.plot(mag0_m, d_mag_m, 'g,', markeredgewidth=0)
-        plt.plot([15,25], [0,0], 'k--')
-        plt.xlim(15, 25)
-        plt.ylim(-0.25, 0.25)
-        plt.ylabel(r'$\Delta mag$ (mag)')
-
-        bins = numpy.arange(-0.25, 0.25, 0.005) + 0.0025
-        bins2 = numpy.arange(-0.25, 0.25, 0.05) + 0.025
-
-        ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
-        plt.hist(d_mag_a, bins=bins, normed=False, orientation='horizontal', histtype='step')
-        plt.hist(d_mag_m, bins=bins, normed=False, orientation='horizontal', histtype='step')
-        if self.sourceVec.size() != 0:
-            plt.hist(d_mag_s, bins=bins, normed=False, orientation='horizontal', histtype='step')
-        plt.hist(d_mag_cat_m, bins=bins2, normed=False, orientation='horizontal', histtype='step')
-        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (mag_std_a), rotation=270, transform=ax.transAxes, color='blue')
-        plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (mag_std_m), rotation=270, transform=ax.transAxes, color='green')
-        plt.text(0.7, 0.90, r"$\sigma=$%5.3f" % (mag_cat_std_m), rotation=270, transform=ax.transAxes, color='cyan')
-        y = mlab.normpdf(bins, mag_mean_m, mag_std_m)
-        plt.plot(y*mag_n_m*0.005, bins, 'g:')
-        if self.sourceVec.size() != 0:
-            plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes, color='red')
-            y = mlab.normpdf(bins, mag_mean_s, mag_std_s)
-            plt.plot(y*mag_n_s*0.005, bins, 'r:')
-        y = mlab.normpdf(bins, mag_cat_mean_m, mag_cat_std_m)
-        plt.plot(y*mag_cat_n_m*0.05, bins, 'c:')
-        plt.xticks(rotation=270)
-        plt.yticks(rotation=270)
-        plt.ylim(-0.25, 0.25)
-
-        plt.savefig(os.path.join(self.outputDir, "MdM.png"), format='png')
-
-    def plotPosDPos(self):
-        _xi = []
-        _eta = []
-        _x = []
-        _y = []
-        for m in self.matchVec:
-            if (m.good == True):
-                _x.append((m.xi_fit - m.xi) * 3600)
-                _y.append((m.eta_fit - m.eta) * 3600)
-                _xi.append(m.xi * 3600)
-                _eta.append(m.eta * 3600)
-        if (self.sourceVec.size() != 0):
-            for s in self.sourceVec:
-                if (s.good == True):
-                    _x.append((s.xi_fit - s.xi) * 3600)
-                    _y.append((s.eta_fit - s.eta) * 3600)
-                    _xi.append(s.xi * 3600)
-                    _eta.append(s.eta * 3600)
-
-        xi = numpy.array(_xi)
-        eta = numpy.array(_eta)
-        d_xi = numpy.array(_x)
-        d_eta = numpy.array(_y)
-
-        plt.clf()
-        plt.rc('text', usetex=True)
-
-        plt.subplot(2, 2, 1)
-        plt.plot(xi, d_xi, ',', markeredgewidth=0)
-        plt.xlabel(r'$\xi$ (arcsec)')
-        plt.ylabel(r'$\Delta\xi$ (arcsec)')
-
-        plt.subplot(2, 2, 3)
-        plt.plot(xi, d_eta, ',', markeredgewidth=0)
-        plt.xlabel(r'$\xi$ (arcsec)')
-        plt.ylabel(r'$\Delta\eta$ (arcsec)')
-
-        plt.subplot(2, 2, 2)
-        plt.plot(eta, d_xi, ',', markeredgewidth=0)
-        plt.xlabel(r'$\eta$ (arcsec)')
-        plt.ylabel(r'$\Delta\xi$ (arcsec)')
-
-        plt.subplot(2, 2, 4)
-        plt.plot(eta, d_xi, ',', markeredgewidth=0)
-        plt.xlabel(r'$\eta$ (arcsec)')
-        plt.ylabel(r'$\Delta\eta$ (arcsec)')
-
-        plt.savefig(os.path.join(self.outputDir, "PosDPos.png"), format='png')
-
-    def plotResFlux(self):
-        _dmag = []
-        _iexp = []
-        _ichip = []
-        _r = []
-        for m in self.matchVec:
-            if (m.good == True and m.mag != -9999 and m.jstar != -1):
-                mag = m.mag
-                mag0 = m.mag0
-                exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
-                chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-                gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
-                mag_cor = mag + exp_cor + chip_cor + gain_cor
-                diff = mag_cor - mag0
-                _dmag.append(diff)
-                _iexp.append(m.iexp)
-                _ichip.append(m.ichip)
-
-        d_mag = numpy.array(_dmag)
-        iexp = numpy.array(_iexp)
-        ichip = numpy.array(_ichip)
-
-        mag_std = self.clippedStd(d_mag, 3)[0]
-
-        _r = []
-        _dm = []
-        for ccd in self.ccdSet.values():
-            w = ccd.getAllPixels(True).getWidth()
-            h = ccd.getAllPixels(True).getHeight()
-            _x0 = ccd.getCenter().getPixels(ccd.getPixelSize())[0] + 0.5 * w
-            _y0 = ccd.getCenter().getPixels(ccd.getPixelSize())[1] + 0.5 * h
-            _r.append(math.sqrt(_x0*_x0 + _y0*_y0))
-            _dm.append(-2.5 * math.log10(self.fchip[ccd.getId().getSerial()]))
-
-        r = numpy.array(_r)
-        dm = numpy.array(_dm)
-
-        plt.clf()
-        plt.rc('text', usetex=True)
-
-        ax = plt.subplot(2, 2, 1)
-        plt.hist(d_mag, bins=100, normed=True, histtype='step')
-        plt.text(0.1, 0.7, r"$\sigma=$%7.5f" % (mag_std), transform=ax.transAxes)
-        plt.xlabel(r'$\Delta mag$ (mag)')
-
-        ax = plt.subplot(2, 2, 2)
-        plt.plot(r, dm, 'o')
-        plt.xlabel(r'Distance from center (pixel)')
-        plt.ylabel(r'Offset in magnitude')
-
-        ax = plt.subplot(2, 2, 3)
-        plt.plot(iexp, d_mag, ',', markeredgewidth=0)
-        plt.xlabel(r'Exposure ID')
-        plt.ylabel(r'$\Delta mag$ (mag)')
-        plt.xlim(iexp.min()-1, iexp.max()+1)
-        plt.ylim(-0.2, 0.2)
-
-        ax = plt.subplot(2, 2, 4)
-        plt.plot(ichip, d_mag, ',', markeredgewidth=0)
-        plt.xlabel(r'Chip ID')
-        plt.ylabel(r'$\Delta mag$ (mag)')
-        plt.xlim(ichip.min()-1, ichip.max()+1)
-        plt.ylim(-0.2, 0.2)
-
-        plt.savefig(os.path.join(self.outputDir, "ResFlux.png"), format='png')
-
-    def plotDFlux2D(self):
-        _dmag = []
-        _u = []
-        _v = []
-        for m in self.matchVec:
-            if (m.good == True and m.mag != -9999 and m.jstar != -1):
-                mag = m.mag
-                mag0 = m.mag0
-                exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
-                chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-                gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
-                mag_cor = mag + exp_cor + chip_cor + gain_cor
-                diff = mag_cor - mag0
-                _dmag.append(diff)
-                _u.append(m.u)
-                _v.append(m.v)
-
-        d_mag = numpy.array(_dmag)
-        u = numpy.array(_u)
-        v = numpy.array(_v)
-
-        s = numpy.absolute(d_mag) * 10
-
-        u1 = [u[i] for i in range(len(d_mag)) if d_mag[i] > 0]
-        v1 = [v[i] for i in range(len(d_mag)) if d_mag[i] > 0]
-        s1 = [math.fabs(d_mag[i])*20 for i in range(len(d_mag)) if d_mag[i] > 0]
-        u2 = [u[i] for i in range(len(d_mag)) if d_mag[i] < 0]
-        v2 = [v[i] for i in range(len(d_mag)) if d_mag[i] < 0]
-        s2 = [math.fabs(d_mag[i])*20 for i in range(len(d_mag)) if d_mag[i] < 0]
-
-        plt.clf()
-        plt.rc('text', usetex=True)
-
-        plt.scatter(u1, v1, s1, color='blue')
-        plt.scatter(u2, v2, s2, color='red')
-        plt.axes().set_aspect('equal')
-
-        plt.savefig(os.path.join(self.outputDir, "DFlux2D.png"), format='png')
-
     def outputDiagWcs(self):
-        self.log.info("Output Diagnostic Figures...")
+        self.log.info("Output WCS Diagnostic Figures...")
 
         if not os.path.isdir(self.outputDir):
             os.makedirs(self.outputDir)
 
-        f = open(os.path.join(self.outputDir, "coeffs.dat"), "wt")
+        mosaicUtils.writeWcsData(self.coeffSet, self.ccdSet, self.outputDir)
         for iexp in self.coeffSet.keys():
-            c = self.coeffSet[iexp]
-            f.write("%ld %12.5e %12.5e\n" % (iexp, c.A,  c.D));
-            f.write("%ld %12.5f %12.5f\n" % (iexp, c.x0, c.y0));
-            for k in range(c.getNcoeff()):
-                f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" % (iexp, c.get_a(k), c.get_b(k), c.get_ap(k), c.get_bp(k)));
-        f.close()
+            mosaicUtils.plotJCont(self.ccdSet, self.coeffSet, iexp, self.outputDir)
+            mosaicUtils.plotResPosArrow2D(self.ccdSet, iexp, self.matchVec, self.sourceVec, self.outputDir)
 
-        f = open(os.path.join(self.outputDir, "ccd.dat"), "wt")
-        for ichip in self.ccdSet.keys():
-            ccd = self.ccdSet[ichip]
-            center = ccd.getCenter().getPixels(ccd.getPixelSize())
-            orient = ccd.getOrientation()
-            f.write("%3ld %10.3f %10.3f %10.7f\n" % (ichip, center[0], center[1], orient.getYaw()))
-        f.close()
-
-        for iexp in self.coeffSet.keys():
-            self.plotJCont(iexp)
-            self.plotResPosArrow2D(iexp)
-
-        self.plotResPosScatter()
-        self.plotPosDPos()
+        mosaicUtils.plotResPosScatter(self.matchVec, self.sourceVec, self.outputDir)
+        mosaicUtils.plotPosDPos(self.matchVec, self.sourceVec, self.outputDir)
 
     def outputDiagFlux(self):
-        self.log.info("Output Diagnostic Figures...")
+        self.log.info("Output Flux Diagnostic Figures...")
 
         if not os.path.isdir(self.outputDir):
             os.makedirs(self.outputDir)
 
+        mosaicUtils.writeFluxData(self.fchip, self.outputDir)
+
         for iexp in self.wcsDic.keys():
-            self.plotFCorCont(iexp)
+            mosaicUtils.plotFCorCont(self.ccdSet, self.ffpSet, self.coeffSet, iexp, self.outputDir)
 
-        f = open(os.path.join(self.outputDir, "ccdScale.dat"), "wt")
-        for ichip in self.fchip.keys():
-            scale = self.fchip[ichip]
-            f.write("%3ld %6.3f\n" % (ichip, scale))
-        f.close()
-
-        self.plotMdM()
-        self.plotResFlux()
-        self.plotDFlux2D()
+        mosaicUtils.plotMdM(self.ffpSet, self.fexp, self.fchip, self.matchVec, self.sourceVec, self.outputDir)
+        mosaicUtils.plotResFlux(self.ccdSet, self.ffpSet, self.fexp, self.fchip, self.matchVec, self.sourceVec,
+                                self.outputDir)
+        mosaicUtils.plotDFlux2D(self.ccdSet, self.ffpSet, self.fexp, self.fchip, self.matchVec, self.outputDir)
 
     def flagSuspect(self, allMat, allSource, wcsDic):
         # Wrongly matched objects between visits will destroy ubar-calibration fitting.
@@ -1102,9 +693,9 @@ class MosaicTask(pipeBase.CmdLineTask):
         # flag (set flux to negative value to be flagged as bad object) objects which
         # show large magnitude difference from median value.
         visits = wcsDic.keys()
-        for j in range(len(visits)-1):
+        for j in range(len(visits) - 1):
             visit_ref = visits[j]
-            for i in range(j+1, len(visits)):
+            for i in range(j + 1, len(visits)):
                 visit_targ = visits[i]
                 refs = list()
                 targs = list()
@@ -1139,7 +730,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
                 # There is no overlapping sources
                 if len(mref) < 10:
-                    print '%d %d' % (visit_ref, visit_targ)
+                    print "%d %d" % (visit_ref, visit_targ)
                     continue
 
                 mref = -2.5*numpy.log10(mref)
@@ -1149,21 +740,22 @@ class MosaicTask(pipeBase.CmdLineTask):
                 med = numpy.median(dm)
                 Q1 = numpy.percentile(dm, 10)
                 Q3 = numpy.percentile(dm, 90)
-                SIQR = 0.5 * (Q3 - Q1)
+                SIQR = 0.5*(Q3 - Q1)
 
                 del dm
 
                 ngood = 0
                 nbad  = 0
                 for mr, mt, ref, targ in zip(mref, mtarg, refs, targs):
-                    if math.fabs(mt-mr-med) > 3.0 * SIQR:
+                    if math.fabs(mt-mr-med) > 3.0*SIQR:
                         ref.setFlux(-9999)
                         targ.setFlux(-9999)
                         nbad += 1
                     else:
                         ngood += 1
 
-                print '%d %d %6.3f %5.3f %5d %5d' % (visit_ref, visit_targ, med, SIQR, ngood, nbad)
+                print "visit_ref visit_targ med SIQR ngood nbad"
+                print "%10d %10d %6.3f %5.3f %5d %5d" % (visit_ref, visit_targ, med, SIQR, ngood, nbad)
 
                 del mref
                 del mtarg
@@ -1177,16 +769,17 @@ class MosaicTask(pipeBase.CmdLineTask):
         tractWcs = tractInfo.getWcs()
         for dataRef in dataRefList:
             try:
-                if not dataRef.datasetExists('calexp_md'):
+                if not dataRef.datasetExists("calexp_md"):
                     raise RuntimeError("no data for calexp_md %s" % (dataRef.dataId))
-                md = dataRef.get('calexp_md', immediate=True)
+                md = dataRef.get("calexp_md", immediate=True)
                 wcs = afwImage.makeWcs(md)
 
                 dataRefListExists.append(dataRef)
 
                 if self.config.requireTractOverlap:
-                    naxis1, naxis2 = md.get('NAXIS1'), md.get('NAXIS2')
-                    bbox = afwGeom.Box2D(afwGeom.Box2I(afwGeom.Point2I(0,0), afwGeom.Extent2I(naxis1, naxis2)))
+                    naxis1, naxis2 = md.get("NAXIS1"), md.get("NAXIS2")
+                    bbox = afwGeom.Box2D(afwGeom.Box2I(
+                            afwGeom.Point2I(0, 0), afwGeom.Extent2I(naxis1, naxis2)))
                     overlap = False
                     for corner in bbox.getCorners():
                         if tractBBox.contains(tractWcs.skyToPixel(wcs.pixelToSky(corner))):
@@ -1196,17 +789,18 @@ class MosaicTask(pipeBase.CmdLineTask):
                         dataRefListOverlapWithTract.append(dataRef)
                     else:  # when there's no break i.e. no corner was in the tract
                         if verbose:
-                            self.log.warn("Image %s does not overlap tract %s" % (dataRef.dataId, tractInfo.getId()))
+                            self.log.warn("Image %s does not overlap tract %s" %
+                                          (dataRef.dataId, tractInfo.getId()))
                 else:
                     dataRefListOverlapWithTract.append(dataRef)
             except Exception as e:
                 print e
 
-        visitListOverlapWithTract = list(set([d.dataId['visit'] for d in dataRefListOverlapWithTract]))
+        visitListOverlapWithTract = list(set([d.dataId["visit"] for d in dataRefListOverlapWithTract]))
 
         dataRefListToUse = list()
         for dataRef in dataRefListExists:
-            if dataRef.dataId['visit'] in visitListOverlapWithTract:
+            if dataRef.dataId["visit"] in visitListOverlapWithTract:
                 dataRefListToUse.append(dataRef)
 
         return dataRefListOverlapWithTract, dataRefListToUse
@@ -1222,9 +816,9 @@ class MosaicTask(pipeBase.CmdLineTask):
             os.makedirs(self.outputDir)
 
         if self.config.nBrightest != 0:
-            self.log.fatal('Config paremeter nBrightest is deprecated.')
-            self.log.fatal('Please use cellSize and nStarPerCell.')
-            self.log.fatal('Exiting ...')
+            self.log.fatal("Config paremeter nBrightest is deprecated.")
+            self.log.fatal("Please use cellSize and nStarPerCell.")
+            self.log.fatal("Exiting ...")
             return []
 
         dataRefListOverlapWithTract, dataRefListToUse = self.checkOverlapWithTract(tractInfo, dataRefList)
@@ -1238,8 +832,8 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         if debug:
             for ccd in ccdSet.values():
-                self.log.info(str(ccd.getId().getSerial())+" "+
-                              str(ccd.getCenter().getPixels(ccd.getPixelSize()))+" "+
+                self.log.info(str(ccd.getId().getSerial()) + " " +
+                              str(ccd.getCenter().getPixels(ccd.getPixelSize())) + " " +
                               str(ccd.getOrientation().getYaw()))
 
         wcsDic = self.readWcs(dataRefListUsed, ccdSet)
@@ -1248,11 +842,11 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         if debug:
             for iexp, wcs in wcsDic.iteritems():
-                self.log.info(str(iexp)+" "+str(wcs.getPixelOrigin())+" "+
+                self.log.info(str(iexp) + " " + str(wcs.getPixelOrigin()) + " " +
                               str(wcs.getSkyOrigin().getPosition(afwGeom.degrees)))
 
-        self.log.info("frameIds : "+str(wcsDic.keys()))
-        self.log.info("ccdIds : "+str(ccdSet.keys()))
+        self.log.info("frameIds : " + str(wcsDic.keys()))
+        self.log.info("ccdIds : " + str(ccdSet.keys()))
 
         d_lim = afwGeom.Angle(self.config.radXMatch, afwGeom.arcseconds)
         if debug:
@@ -1266,7 +860,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         if self.config.clipSourcesOutsideTract:
             tractBBox = afwGeom.Box2D(tractInfo.getBBox())
             tractWcs = tractInfo.getWcs()
-            allSourceClipped = measMosaic.SourceGroup([ss for ss in allSource if tractBBox.contains(tractWcs.skyToPixel(ss[0].getSky()))])
+            allSourceClipped = measMosaic.SourceGroup(
+                [ss for ss in allSource if tractBBox.contains(tractWcs.skyToPixel(ss[0].getSky()))])
             self.log.info("Num of allSources: %d" % (len(allSource)))
             self.log.info("Num of clipped allSources: %d" % (len(allSourceClipped)))
             allSource = allSourceClipped
@@ -1274,7 +869,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.log.info("Make obsVec")
         nmatch  = allMat.size()
         nsource = allSource.size()
-        matchVec  = measMosaic.obsVecFromSourceGroup(allMat,    wcsDic, ccdSet)
+        matchVec  = measMosaic.obsVecFromSourceGroup(allMat, wcsDic, ccdSet)
         sourceVec = measMosaic.obsVecFromSourceGroup(allSource, wcsDic, ccdSet)
 
         self.log.info("Solve mosaic ...")
@@ -1292,7 +887,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             sourceVec = measMosaic.ObsVec()
 
         if debug:
-            self.log.info("order : %d" % ffp.order)
+            self.log.info("order : %d" % order)
             self.log.info("internal : %r" % internal)
             self.log.info("solveCcd : %r " % solveCcd)
             self.log.info("allowRotation : %r" % allowRotation)
@@ -1303,7 +898,6 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.ccdSet = ccdSet
 
         if self.config.doSolveWcs:
-
             if internal:
                 coeffSet = measMosaic.solveMosaic_CCD(order, nmatch, nsource,
                                                       matchVec, sourceVec,
@@ -1312,7 +906,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                                                       verbose, catRMS,
                                                       snapshots, self.outputDir)
             else:
-                coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec, 
+                coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec,
                                                            wcsDic, ccdSet,
                                                            solveCcd, allowRotation,
                                                            verbose, catRMS,
@@ -1328,34 +922,34 @@ class MosaicTask(pipeBase.CmdLineTask):
             for m in matchVec:
                 coeff = coeffSet[m.iexp]
                 scale = coeff.pixelScale()
-                m.mag -= 2.5 * math.log10(coeff.detJ(m.u, m.v) / scale**2)
+                m.mag -= 2.5*math.log10(coeff.detJ(m.u, m.v)/scale**2)
 
             if sourceVec.size() != 0:
                 for s in sourceVec:
                     coeff = coeffSet[s.iexp]
                     scale = coeff.pixelScale()
-                    s.mag -= 2.5 * math.log10(coeff.detJ(s.u, s.v) / scale**2)
+                    s.mag -= 2.5*math.log10(coeff.detJ(s.u, s.v)/scale**2)
 
         else:
 
             wcsAll = dict()
 
             for dataRef in dataRefListUsed:
-                frameId = '%07d-%03d' % (dataRef.dataId['visit'], dataRef.dataId['ccd'])
-                md = dataRef.get('calexp_md')
+                frameId = "%07d-%03d" % (dataRef.dataId["visit"], dataRef.dataId["ccd"])
+                md = dataRef.get("calexp_md")
                 wcsAll[frameId] = afwImage.makeWcs(md)
                 del md
 
             for m in matchVec:
-                wcs = wcsAll['%07d-%03d' % (m.iexp, m.ichip)]
+                wcs = wcsAll["%07d-%03d" % (m.iexp, m.ichip)]
                 scale = wcs.pixelScale().asDegrees()
-                m.mag -= 2.5 * math.log10(wcs.pixArea(afwGeom.Point2D(m.x, m.y)) / scale**2)
+                m.mag -= 2.5*math.log10(wcs.pixArea(afwGeom.Point2D(m.x, m.y))/scale**2)
 
             if sourceVec.size() != 0:
                 for s in sourceVec:
-                    wcs = wcsAll['%07d-%03d' % (s.iexp, s.ichip)]
+                    wcs = wcsAll["%07d-%03d" % (s.iexp, s.ichip)]
                     scale = wcs.pixelScale().asDegrees()
-                    s.mag -= 2.5 * math.log10(wcs.pixArea(afwGeom.Point2D(s.x, s.y)) / scale**2)
+                    s.mag -= 2.5*math.log10(wcs.pixArea(afwGeom.Point2D(s.x, s.y))/scale**2)
 
             del wcsAll
 
@@ -1364,16 +958,16 @@ class MosaicTask(pipeBase.CmdLineTask):
             ffpSet = measMosaic.FfpSet()
             for visit in wcsDic.keys():
                 ffp = measMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
-                u_max, v_max = self.getExtent(matchVec)
-                ffp.u_max = (math.floor(u_max / 10.) + 1) * 10
-                ffp.v_max = (math.floor(v_max / 10.) + 1) * 10
+                u_max, v_max = mosaicUtils.getExtent(matchVec)
+                ffp.u_max = (math.floor(u_max/10.0) + 1)*10
+                ffp.v_max = (math.floor(v_max/10.0) + 1)*10
                 ffpSet[visit] = ffp
 
             fexp = measMosaic.map_int_float()
             fchip = measMosaic.map_int_float()
 
-            measMosaic.fluxFit(absolute, self.config.commonFluxCorr, matchVec, nmatch, sourceVec, nsource, wcsDic, ccdSet,
-                               fexp, fchip, ffpSet, solveCcdScale)
+            measMosaic.fluxFit(absolute, self.config.commonFluxCorr, matchVec, nmatch, sourceVec,
+                               nsource, wcsDic, ccdSet, fexp, fchip, ffpSet, solveCcdScale)
 
             self.ffpSet = ffpSet
             self.fexp = fexp
@@ -1386,124 +980,10 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         if diagnostics and self.config.doSolveWcs and self.config.doSolveFlux:
             if sourceVec.size() != 0:
-                self.writeCatalog(matchVec, sourceVec, coeffSet,
-                                  os.path.join(self.outputDir, "catalog.fits"))
+                mosaicUtils.writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec,
+                                         os.path.join(self.outputDir, "catalog.fits"))
 
         return wcsDic.keys()
-
-    def writeCatalog(self, matchVec, sourceVec, coeffSet, name):
-        # count number of unique objects
-        idList = list()
-        for m in matchVec:
-            if not m.istar in idList:
-                idList.append(m.istar)
-        num_m = len(idList)
-        idList = list()
-        for s in sourceVec:
-            if not s.istar in idList:
-                idList.append(s.istar)
-        num_s = len(idList)
-        num = num_m + num_s
-
-        ra  = numpy.zeros(num, dtype=numpy.float64)
-        dec = numpy.zeros(num, dtype=numpy.float64)
-        mag = numpy.zeros(num, dtype=numpy.float64)
-        var = numpy.zeros(num, dtype=numpy.float64)
-        err = numpy.zeros(num, dtype=numpy.float64)
-        numbers = numpy.zeros(num, dtype=numpy.int32)
-
-        numGood = 0
-        for m in matchVec:
-            if (not m.good or m.jstar == -1 or
-                m.mag == -9999 or m.err == -9999 or
-                m.mag_cat == -9999):
-                continue
-
-            index = m.istar
-
-            if numbers[index] == 0:
-                numGood += 1
-
-            # Deproject m.{xi,eta}_fit
-            crval = [coeffSet[m.iexp].A, coeffSet[m.iexp].D]
-            x = math.radians(m.xi_fit)
-            y = math.radians(m.eta_fit)
-            radius = math.hypot(x, y)
-            sinPhi, cosPhi = x/radius, y/radius
-            rho = math.sqrt(1.0 + radius**2)
-            sinTheta, cosTheta = 1.0/rho, radius/rho
-            sinD, cosD = math.sin(crval[1]), math.cos(crval[1])
-            dec[index] += math.asin(sinTheta*sinD + cosTheta*cosPhi*cosD)
-            sinAlpha = cosTheta*sinPhi
-            cosAlpha = -cosTheta*cosPhi*sinD + sinTheta*cosD
-            ra[index] += math.atan2(sinAlpha, cosAlpha) + crval[0]
-
-            exp_cor = -2.5 * math.log10(self.fexp[m.iexp])
-            chip_cor = -2.5 * math.log10(self.fchip[m.ichip])
-            gain_cor = self.ffpSet[m.iexp].eval(m.u, m.v)
-            mag_cor = m.mag + exp_cor + chip_cor + gain_cor
-
-            mag[index] += mag_cor / m.err**2
-            var[index] += mag_cor * mag_cor / m.err**2
-            err[index] += (1.0 / m.err**2)
-            numbers[index] += 1
-
-        # Take a mean of individual measurements
-        ra /= numbers
-        dec /= numbers
-        mag /= err
-        err = numpy.sqrt((var - mag * mag * err) / err)
-
-        for s in sourceVec:
-            if (not s.good or s.jstar == -1 or
-                s.mag == -9999 or s.err == -9999):
-                continue
-
-            index = s.istar + num_m
-
-            if numbers[index] == 0:
-                numGood += 1
-
-                # For sourceVec, fitted values are stored.
-                # So simply take them.
-                mag[index] = s.mag0
-                ra[index] = s.ra
-                dec[index] = s.dec
-                err[index] = 0.0
-
-            else:
-                assert mag[index] == numpy.float64(s.mag0), "Discrepancy between solved magnitudes"
-                assert ra[index] == numpy.float64(s.ra), "Discrepancy between solved positions"
-                assert dec[index] == numpy.float64(s.dec), "Discrepancy between solved positions"
-
-            # For error, calculate RMS around fitted values
-            exp_cor = -2.5 * math.log10(self.fexp[s.iexp])
-            chip_cor = -2.5 * math.log10(self.fchip[s.ichip])
-            gain_cor = self.ffpSet[s.iexp].eval(s.u, s.v)
-            mag_cor = s.mag + exp_cor + chip_cor + gain_cor
-            var[index] += ((mag_cor-s.mag0)/s.err)**2
-            err[index] += (1.0 / s.err**2)
-            numbers[index] += 1
-
-        err[num_m:] = numpy.sqrt(var[num_m:]/err[num_m:])
-
-        schema = afwTable.SimpleTable.makeMinimalSchema()
-        magKey = schema.addField("mag", type="F", doc="Magnitude")
-        errKey = schema.addField("err", type="F", doc="Magnitude error")
-        numKey = schema.addField("num", type="I", doc="Number of observations")
-        catalog = afwTable.SimpleCatalog(schema)
-        catalog.reserve(numGood)
-        for i in range(num):
-            if numbers[i] == 0:
-                continue
-            r = catalog.addNew()
-            r.setId(i)
-            r.setCoord(afwCoord.Coord(ra[i]*afwGeom.radians, dec[i]*afwGeom.radians))
-            r.set(magKey, float(mag[i]))
-            r.set(errKey, float(err[i]))
-            r.set(numKey, int(numbers[i]))
-
-        catalog.writeFits(name)
 
 
     def run(self, camera, butler, tract, dataRefList, debug, diagDir=".",
@@ -1514,22 +994,22 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         filters = list()
         for dataRef in dataRefList:
-            if not dataRef.dataId['filter'] in filters:
-                filters.append(dataRef.dataId['filter'])
+            if not dataRef.dataId["filter"] in filters:
+                filters.append(dataRef.dataId["filter"])
 
         if len(filters) != 1:
             self.log.fatal("There are %d filters in input frames" % len(filters))
             return None
 
-        if self.config.doColorTerms:
-            ct = self.config.colorterms.selectColorTerm(filters[0])
+        if self.config.doColorTerms and self.config.photoCatName:
+            ct = self.config.colorterms.getColorterm(filters[0], self.config.photoCatName)
+            self.log.info("color term: " + str(ct))
+        elif self.config.doColorTerms:
+            ct = None
+            self.log.warn("Cannot apply color term: reference catalog not specified")
         else:
             ct = None
-
-        if ct is None:
             self.log.info("Not applying color term")
-        else:
-            self.log.info('color term: '+str(ct))
 
         return self.mosaic(dataRefList, tractInfo, ct, debug, diagDir, diagnostics, snapshots,
                            numCoresForReadSource, readTimeout, verbose)

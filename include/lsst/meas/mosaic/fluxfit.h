@@ -11,7 +11,7 @@ namespace lsst {
 
 	    class FluxFitParams {
 	    public:
-		typedef boost::shared_ptr<FluxFitParams> Ptr;
+		typedef std::shared_ptr<FluxFitParams> Ptr;
 
 		int order;
 		bool chebyshev;
@@ -58,7 +58,7 @@ namespace lsst {
 
 	    FluxFitParams::Ptr
 	      convertFluxFitParams(FluxFitParams::Ptr& ffp,
-				   lsst::afw::cameraGeom::Ccd::Ptr& ccd,
+				   PTR(lsst::afw::cameraGeom::Detector)& ccd,
 				   double x0=0.0, double y0=0.0);
 
 	    lsst::daf::base::PropertySet::Ptr
@@ -66,7 +66,7 @@ namespace lsst {
 
 	    lsst::afw::image::Image<float>::Ptr
 	      getFCorImg(FluxFitParams::Ptr& p,
-			 lsst::afw::cameraGeom::Ccd::Ptr& ccd,
+			 PTR(lsst::afw::cameraGeom::Detector)& ccd,
 			 Coeff::Ptr& coeff);
 
 	    lsst::afw::image::Image<float>::Ptr
@@ -74,7 +74,7 @@ namespace lsst {
 
 	    lsst::afw::image::Image<float>::Ptr
 	      getFCorImg(FluxFitParams::Ptr& p,
-			 lsst::afw::cameraGeom::Ccd::Ptr& ccd);
+			 PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
 #include "chebyshev.h"
     }

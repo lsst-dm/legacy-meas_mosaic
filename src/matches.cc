@@ -37,7 +37,7 @@ namespace lsst { namespace meas { namespace mosaic {
 			  ) {
 	  std::set<std::string> existing = target.getNames();
 	  ProcessSchema f = { &target, existing, targetPrefix, sourcePrefix };
-	  schema.forEach(boost::ref(f));
+	  schema.forEach(f);
 	}
 
 	afw::table::Schema *target;
@@ -91,7 +91,7 @@ namespace lsst { namespace meas { namespace mosaic {
 	    target.addNew();
 	  }
 	  ProcessSimpleCatalog f = { &target, targetSchema, catalog, targetPrefix, sourcePrefix };
-	  sourceSchema.forEach(boost::ref(f));
+	  sourceSchema.forEach(f);
 	}
 
 	afw::table::SimpleCatalog *target;
@@ -146,7 +146,7 @@ namespace lsst { namespace meas { namespace mosaic {
 	    target.addNew();
 	  }
 	  ProcessSourceCatalog f = { &target, targetSchema, catalog, targetPrefix, sourcePrefix };
-	  sourceSchema.forEach(boost::ref(f));
+	  sourceSchema.forEach(f);
 	}
 
 	afw::table::SourceCatalog *target;
@@ -169,14 +169,14 @@ namespace lsst { namespace meas { namespace mosaic {
 
 	afw::table::Schema catSchema = catalog.getSchema();
 	afw::table::Schema simpleMinSchema = afw::table::SimpleTable::makeMinimalSchema();
-	afw::table::Schema refSchema = copySchema(catSchema, simpleMinSchema, "", "ref.");
+	afw::table::Schema refSchema = copySchema(catSchema, simpleMinSchema, "", "ref_");
 	afw::table::SimpleCatalog refCatalog(refSchema);
-	copySimpleCatalog(catalog, refCatalog, "", "ref.");
+	copySimpleCatalog(catalog, refCatalog, "", "ref_");
 
 	afw::table::Schema sourceMinSchema = afw::table::SourceTable::makeMinimalSchema();
-	afw::table::Schema srcSchema = copySchema(catSchema, sourceMinSchema, "", "src.");
+	afw::table::Schema srcSchema = copySchema(catSchema, sourceMinSchema, "", "src_");
 	afw::table::SourceCatalog srcCatalog(srcSchema);
-	copySourceCatalog(catalog, srcCatalog, "", "src.");
+	copySourceCatalog(catalog, srcCatalog, "", "src_");
 
 	afw::table::ReferenceMatchVector matches;
 	afw::table::Key<double> distKey = catalog.getSchema().find<double>("distance").key;
