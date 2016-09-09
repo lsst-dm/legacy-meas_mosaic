@@ -392,8 +392,9 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     plt.plot(d_xi_bad, d_eta_bad, "k+", markersize=2, alpha=0.5, label="bad")
     plt.plot(d_xi_m, d_eta_m, "go", markersize=2, alpha=0.5, label="external")
     plt.plot(d_xi_s, d_eta_s, "ro", markersize=2, alpha=0.5, label="internal")
-    plt.xlim(-0.5, 0.5)
-    plt.ylim(-0.5, 0.5)
+    pltLim = round(5.0*(max(xi_std_m, eta_std_m)), 2) # make plot limits +/- 5.0sigma
+    plt.xlim(-1.0*pltLim, pltLim)
+    plt.ylim(-1.0*pltLim, pltLim)
 
     plt.xlabel(r"$\Delta\xi$ (arcsec)")
     plt.ylabel(r"$\Delta\eta$ (arcsec)")
@@ -402,8 +403,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     binLimit = 0.5
     while d_xi[numpy.fabs(d_xi) < binLimit].size < min(10, d_xi.size):
         binLimit += 0.5
-
-    bins = numpy.arange(-binLimit, binLimit, binLimit*0.02) + binLimit*0.01
+    bins = numpy.arange(-binLimit, binLimit, binLimit*0.005) + binLimit*0.0025
 
     ax = plt.subplot2grid((5,6),(0,0), colspan=4)
     ax.tick_params(axis='both', labelsize=8)
@@ -423,7 +423,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
                  fontsize=9)
         y = mlab.normpdf(bins, xi_mean_s, xi_std_s)
         plt.plot(bins, y*xi_n_s*0.01, "r:")
-    plt.xlim(-binLimit, binLimit)
+    plt.xlim(-pltLim, pltLim)
 
     ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
     ax.tick_params(axis='both', labelsize=8)
@@ -444,7 +444,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
         plt.plot(y*eta_n_s*0.01, bins, "r:")
     plt.xticks(rotation=270)
     plt.yticks(rotation=270)
-    plt.ylim(-binLimit, binLimit)
+    plt.ylim(-pltLim, pltLim)
     plt.tight_layout()
 
     plt.savefig(os.path.join(outputDir, "ResPosScatter.png"), format="png")
@@ -524,24 +524,26 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     mag_std_a, mag_mean_a, mag_n_a  = clippedStd(d_mag_a, 3)
     mag_cat_std_m, mag_cat_mean_m, mag_cat_n_m  = clippedStd(d_mag_cat_m, 3)
 
+    pltLim = round(3.0*mag_std_m, 2)
+
     plt.clf()
     plt.rc("text", usetex=USETEX)
 
     plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
     plt.plot(mag0_bad, d_mag_bad, "kx", markersize=2, alpha=0.5, label="bad")
     plt.plot(mag_cat_m, d_mag_cat_m, "co", markersize=2, alpha=0.5, label="match cat")
+    plt.plot(mag0_m, d_mag_m, "go", markersize=2, alpha=0.5, label="external")
     if sourceVec.size() != 0:
         plt.plot(mag0_s, d_mag_s, "ro", markersize=2, alpha=0.5, label="internal")
-    plt.plot(mag0_m, d_mag_m, "go", markersize=2, alpha=0.5, label="external")
     plt.plot([15,25], [0,0], "k--")
-    plt.xlim(15, 25)
-    plt.ylim(-0.25, 0.25)
+    plt.xlim(14.5, 25)
+    plt.ylim(-1.0*pltLim, pltLim)    # plt.ylim(-0.25, 0.25)
     plt.ylabel(r"$\Delta mag$ (mag)")
     plt.title("LSST: MdM")
     plt.legend(fontsize=7)
 
     bins = numpy.arange(-0.25, 0.25, 0.005) + 0.0025
-    bins2 = numpy.arange(-0.25, 0.25, 0.05) + 0.025
+    bins2 = numpy.arange(-0.25, 0.25, 0.01) + 0.005
 
     ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
     ax.tick_params(axis='both', labelsize=10)
@@ -567,7 +569,7 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     plt.plot(y*mag_cat_n_m*0.05, bins, "c:")
     plt.xticks(rotation=270)
     plt.yticks(rotation=270)
-    plt.ylim(-0.25, 0.25)
+    plt.ylim(-1.0*pltLim, pltLim)
     plt.tight_layout()
     plt.savefig(os.path.join(outputDir, "MdM.png"), format="png")
 
