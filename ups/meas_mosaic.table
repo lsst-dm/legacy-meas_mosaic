@@ -1,5 +1,6 @@
 setupRequired(afw)
 setupRequired(numpy)
+setupRequired(ndarray)
 setupRequired(pex_config)
 setupRequired(pex_logging)
 setupRequired(pipe_tasks)
