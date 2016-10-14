@@ -1,7 +1,6 @@
 setupRequired(python)
 setupRequired(boost)
 setupRequired(gsl)
-setupRequired(cfitsio)
 setupRequired(afw)
 setupRequired(numpy)
 setupRequired(eigen)
