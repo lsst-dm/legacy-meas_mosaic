@@ -4,7 +4,6 @@
 #include <strings.h>
 
 #include "dynamic_lapack.h"
-#include "fitsio.h"
 
 #include "boost/format.hpp"
 #include "boost/filesystem/path.hpp"
