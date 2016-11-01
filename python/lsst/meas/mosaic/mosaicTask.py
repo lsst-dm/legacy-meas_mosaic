@@ -31,11 +31,11 @@ import lsst.afw.image                   as afwImage
 import lsst.afw.math                    as afwMath
 import lsst.afw.table                   as afwTable
 import lsst.meas.algorithms             as measAlg
-import lsst.meas.astrom                 as measAstrom
 import lsst.meas.mosaic.mosaicLib       as measMosaic
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
 
+from lsst.meas.astrom import LoadAstrometryNetObjectsTask, LoadAstrometryNetObjectsConfig
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 from lsst.pex.logging import getDefaultLog
 from lsst.pipe.tasks.colorterms import ColortermLibrary
@@ -147,9 +147,9 @@ class MosaicConfig(pexConfig.Config):
         doc="If True, unmatched sources outside of tract will not be used as constraints",
         dtype=bool,
         default=True)
-    astrom = pexConfig.ConfigField(
-        doc="Configuration for readMatches",
-        dtype=measAstrom.ANetBasicAstrometryConfig)
+    loadAstrom = pexConfig.ConfigField(
+        doc="Configuration for astrometry reference object loading",
+        dtype=LoadAstrometryNetObjectsConfig)
     doColorTerms = pexConfig.Field(
         doc="Apply color terms as part of solution?",
         dtype=bool,
@@ -326,8 +326,7 @@ class SourceReader(object):
                 for lsstName, otherName in self.config.srcSchemaMap.iteritems():
                     aliasMap.set(lsstName, otherName)
 
-            refObjLoader = measAstrom.LoadAstrometryNetObjectsTask(
-                measAstrom.LoadAstrometryNetObjectsTask.ConfigClass())
+            refObjLoader = LoadAstrometryNetObjectsTask(self.config.loadAstrom)
             srcMatch = dataRef.get("srcMatch", immediate=True)
             if hscRun is not None:
                 # The reference object loader grows the bbox by the config parameter pixelMargin.  This
