@@ -35,9 +35,9 @@ import lsst.meas.mosaic.mosaicLib       as measMosaic
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
 
+from lsst.log import Log
 from lsst.meas.astrom import LoadAstrometryNetObjectsTask, LoadAstrometryNetObjectsConfig
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
-from lsst.pex.logging import getDefaultLog
 from lsst.pipe.tasks.colorterms import ColortermLibrary
 from . import utils as mosaicUtils
 
@@ -296,7 +296,7 @@ class SourceReader(object):
         config.nStarPerCell.
         """
 
-        self.log = getDefaultLog()
+        self.log = Log.getDefaultLogger()
 
         dataId = dataRef.dataId
 

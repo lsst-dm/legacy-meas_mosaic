@@ -10,7 +10,6 @@ Python interface to lsst::meas::mosaic
 
 %{
 #include "lsst/afw/image.h"
-#include "lsst/pex/logging.h"
 #include "lsst/afw/detection.h"
 #include "lsst/afw/math.h"
 #include "lsst/afw/table.h"
