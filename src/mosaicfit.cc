@@ -1044,8 +1044,12 @@ Eigen::VectorXd solveMatrix_Eigen(long size, Eigen::MatrixXd &a, Eigen::VectorXd
 }
 
 Eigen::VectorXd solveMatrix(long size, Eigen::MatrixXd &a_data, Eigen::VectorXd &b_data) {
-    // Only solve using Eigen: we do not currently support MKL.
-    return solveMatrix_Eigen(size, a_data, b_data);
+    if(lapack::isLapackAvailable) {
+        return solveMatrix_MKL(size, a_data, b_data);
+    }
+    else {
+        return solveMatrix_Eigen(size, a_data, b_data);
+    }
 }
 
 Eigen::VectorXd solveForCoeff(std::vector<Obs::Ptr>& objList, Poly::Ptr p) {
