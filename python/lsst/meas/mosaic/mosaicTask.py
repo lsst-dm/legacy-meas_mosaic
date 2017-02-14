@@ -147,9 +147,9 @@ class MosaicConfig(pexConfig.Config):
         doc="If True, unmatched sources outside of tract will not be used as constraints",
         dtype=bool,
         default=True)
-    loadAstrom = pexConfig.ConfigField(
+    loadAstrom = pexConfig.ConfigurableField(
         doc="Configuration for astrometry reference object loading",
-        dtype=LoadAstrometryNetObjectsConfig)
+        target=LoadAstrometryNetObjectsTask)
     doColorTerms = pexConfig.Field(
         doc="Apply color terms as part of solution?",
         dtype=bool,
@@ -327,7 +327,7 @@ class SourceReader(object):
                 for lsstName, otherName in self.config.srcSchemaMap.iteritems():
                     aliasMap.set(lsstName, otherName)
 
-            refObjLoader = LoadAstrometryNetObjectsTask(self.config.loadAstrom)
+            refObjLoader = self.config.loadAstrom.apply(butler=dataRef.getButler())
             srcMatch = dataRef.get("srcMatch", immediate=True)
             if hscRun is not None:
                 # The reference object loader grows the bbox by the config parameter pixelMargin.  This
