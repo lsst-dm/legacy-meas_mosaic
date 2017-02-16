@@ -147,9 +147,9 @@ class MosaicConfig(pexConfig.Config):
         doc="If True, unmatched sources outside of tract will not be used as constraints",
         dtype=bool,
         default=True)
-    loadAstrom = pexConfig.ConfigField(
+    loadAstrom = pexConfig.ConfigurableField(
         doc="Configuration for astrometry reference object loading",
-        dtype=LoadAstrometryNetObjectsConfig)
+        target=LoadAstrometryNetObjectsTask)
     doColorTerms = pexConfig.Field(
         doc="Apply color terms as part of solution?",
         dtype=bool,
@@ -211,6 +211,7 @@ class MosaicConfig(pexConfig.Config):
         itemtype=str,
         default=None,
         optional=True)
+    allowMixedFilters = pexConfig.Field(dtype=bool, default=False, doc="Allow multiple filters in input?")
 
 class SourceReader(object):
     """ Object to read source catalog.
@@ -326,7 +327,7 @@ class SourceReader(object):
                 for lsstName, otherName in self.config.srcSchemaMap.iteritems():
                     aliasMap.set(lsstName, otherName)
 
-            refObjLoader = LoadAstrometryNetObjectsTask(self.config.loadAstrom)
+            refObjLoader = self.config.loadAstrom.apply(butler=dataRef.getButler())
             srcMatch = dataRef.get("srcMatch", immediate=True)
             if hscRun is not None:
                 # The reference object loader grows the bbox by the config parameter pixelMargin.  This
@@ -991,17 +992,17 @@ class MosaicTask(pipeBase.CmdLineTask):
         skyMap = butler.get("deepCoadd_skyMap", immediate=True)
         tractInfo = skyMap[tract]
 
-        filters = list()
-        for dataRef in dataRefList:
-            if not dataRef.dataId["filter"] in filters:
-                filters.append(dataRef.dataId["filter"])
+        filters = set(dataRef.dataId['filter'] for dataRef in dataRefList)
 
         if len(filters) != 1:
-            self.log.fatal("There are %d filters in input frames" % len(filters))
-            return None
+            self.log.warn("There are %d filters in input frames: %s" % (len(filters), ", ".join(filters)))
+            if not self.config.allowMixedFilters:
+                raise pipeBase.TaskError("Multiple filters found: %s" % (filters,))
 
         if self.config.doColorTerms and self.config.photoCatName:
-            ct = self.config.colorterms.getColorterm(filters[0], self.config.photoCatName)
+            filterName = sorted(filters)[0]
+            self.log.info("Using color terms for filter %s" % filterName)
+            ct = self.config.colorterms.getColorterm(filterName, self.config.photoCatName)
             self.log.info("color term: " + str(ct))
         elif self.config.doColorTerms:
             ct = None
