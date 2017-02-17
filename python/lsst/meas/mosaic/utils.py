@@ -20,6 +20,8 @@
 # see <https://www.lsstcorp.org/LegalNotices/>.
 #
 """Support utilities for meas_mosaic"""
+from builtins import zip
+from builtins import range
 
 import os
 import math
@@ -36,7 +38,8 @@ import lsst.afw.table as afwTable
 from . import mosaicLib as measMosaic
 
 # Use LaTeX to render figure captions? Requires dvipng (not available on lsst-dev).
-USETEX=False
+USETEX = False
+
 
 def checkHscStack(metadata):
     """!Check to see if data were processed with the HSC stack
@@ -60,6 +63,7 @@ def checkHscStack(metadata):
         hscPipe = None
     return hscPipe
 
+
 def matchJanskyToDn(matches):
     """!Convert fluxes in a list of matches from units of "janskys", as read in by LSST, to DN.
 
@@ -71,6 +75,7 @@ def matchJanskyToDn(matches):
             if "flux" in k or "fluxSigma" in k:
                 m.first[k] /= JANSKYS_PER_AB_FLUX
     return matches
+
 
 def rotatePixelCoords(sources, width, height, nQuarter):
     """!Rotate catalog (x, y) pixel coordinates such that LLC of detector in FP is (0, 0)
@@ -100,6 +105,7 @@ def rotatePixelCoords(sources, width, height, nQuarter):
             s.set(yKey, width - x0 - 1.0)
     return sources
 
+
 def rotatePixelCoordsBack(sources, width, height, nQuarter):
     """!Rotate catalog (x, y) pixel coordinates back LSST orientation
 
@@ -128,6 +134,7 @@ def rotatePixelCoordsBack(sources, width, height, nQuarter):
             s.set(yKey, x0)
     return sources
 
+
 def clippedStd(a, nStd):
     """!Measure standard deviation of array a clipped at n*std
 
@@ -150,6 +157,7 @@ def clippedStd(a, nStd):
 
     return [std, avg, len(b)]
 
+
 def getExtent(matchVec):
     """!Determine the extent of the matchVec in the Focal Plane
 
@@ -167,6 +175,7 @@ def getExtent(matchVec):
 
     return u_max, v_max
 
+
 def getCcdFpExtent(ccdSet):
     """!Determine the extent of the set of CCDs in ccdSet in the Focal Plane for plot limits
 
@@ -178,23 +187,28 @@ def getCcdFpExtent(ccdSet):
     padding = 2500.0 # approx half ccd height + room for CCD spacing
     xMinFp, xMaxFp = 18000, -18000
     yMinFp, yMaxFp = 18000, -18000
-    for ichip in ccdSet.keys():
+    for ichip in list(ccdSet.keys()):
         ccd = ccdSet[ichip]
         center = measMosaic.getCenterInFpPixels(ccd)
-        if center[0] > xMaxFp: xMaxFp = center[0]
-        if center[0] < xMinFp: xMinFp = center[0]
-        if center[1] > yMaxFp: yMaxFp = center[1]
-        if center[1] < yMinFp: yMinFp = center[1]
+        if center[0] > xMaxFp:
+            xMaxFp = center[0]
+        if center[0] < xMinFp:
+            xMinFp = center[0]
+        if center[1] > yMaxFp:
+            yMaxFp = center[1]
+        if center[1] < yMinFp:
+            yMinFp = center[1]
 
     fpMin = afwGeom.Point2D(round(xMinFp - padding, -3), round(yMinFp - padding, -3))
     fpMax = afwGeom.Point2D(round(xMaxFp + padding, -3), round(yMaxFp + padding, -3))
 
     return fpMin, fpMax, deltaFp
 
+
 def plotCcd(ccdSet):
     """!Plot outlines of CCDs in ccdSet
     """
-    for ccd in ccdSet.values():
+    for ccd in list(ccdSet.values()):
         w = measMosaic.getWidth(ccd)
         h = measMosaic.getHeight(ccd)
         nQuarter = ccd.getOrientation().getNQuarter()
@@ -209,10 +223,13 @@ def plotCcd(ccdSet):
             u, v = measMosaic.detPxToFpPxRot(ccd, xy)
             us.append(u)
             vs.append(v)
-            if u < minU : minU = u
-            if v < minV : minV = v
+            if u < minU:
+                minU = u
+            if v < minV:
+                minV = v
         plt.plot(us, vs, "k-")
-        plt.text(minU + w/2, minV + h/2, "%i" % ccd.getId(), ha="center", va= "center")
+        plt.text(minU + w/2, minV + h/2, "%i" % ccd.getId(), ha="center", va="center")
+
 
 def plotJCont(ccdSet, coeffSet, iexp, outputDir):
     coeff = coeffSet[iexp]
@@ -243,13 +260,14 @@ def plotJCont(ccdSet, coeffSet, iexp, outputDir):
 
     plt.savefig(os.path.join(outputDir, "jcont_%d.png" % (iexp)), format="png")
 
+
 def plotFCorCont(ccdSet, ffpSet, coeffSet, iexp, outputDir):
     fpMin, fpMax, deltaFp = getCcdFpExtent(ccdSet)
 
     x = numpy.arange(fpMin[0], fpMax[0], deltaFp)
     y = numpy.arange(fpMin[1], fpMax[1], deltaFp)
     X, Y = numpy.meshgrid(x, y)
-    Z = numpy.zeros((len(y),len(x)))
+    Z = numpy.zeros((len(y), len(x)))
 
     for j in range(len(x)):
         for i in range(len(y)):
@@ -276,6 +294,7 @@ def plotFCorCont(ccdSet, ffpSet, coeffSet, iexp, outputDir):
     plotCcd(ccdSet)
 
     plt.savefig(os.path.join(outputDir, "fcont_%d.png" % (iexp)), format="png")
+
 
 def plotResPosArrow2D(ccdSet, iexp, matchVec, sourceVec, outputDir):
     _xm = []
@@ -328,6 +347,7 @@ def plotResPosArrow2D(ccdSet, iexp, matchVec, sourceVec, outputDir):
     plt.title("LSST: %d" % (iexp))
     plt.savefig(os.path.join(outputDir, "ResPosArrow2D_%d.png" % (iexp)), format="png")
 
+
 def plotResPosScatter(matchVec, sourceVec, outputDir):
     _x = []
     _y = []
@@ -376,11 +396,11 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     d_xi_bad = numpy.array(_xbad)
     d_eta_bad = numpy.array(_ybad)
 
-    xi_std,  xi_mean,  xi_n  = clippedStd(d_xi, 2)
+    xi_std, xi_mean, xi_n = clippedStd(d_xi, 2)
     eta_std, eta_mean, eta_n = clippedStd(d_eta, 2)
-    xi_std_m,  xi_mean_m,  xi_n_m  = clippedStd(d_xi_m, 2)
+    xi_std_m, xi_mean_m, xi_n_m = clippedStd(d_xi_m, 2)
     eta_std_m, eta_mean_m, eta_n_m = clippedStd(d_eta_m, 2)
-    xi_std_s,  xi_mean_s,  xi_n_s  = clippedStd(d_xi_s, 2)
+    xi_std_s, xi_mean_s, xi_n_s = clippedStd(d_xi_s, 2)
     eta_std_s, eta_mean_s, eta_n_s = clippedStd(d_eta_s, 2)
 
     plt.clf()
@@ -388,7 +408,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     plt.rc('xtick', labelsize=10)
     plt.rc('ytick', labelsize=10)
 
-    plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
+    plt.subplot2grid((5, 6), (1, 0), colspan=4, rowspan=4)
     plt.plot(d_xi_bad, d_eta_bad, "k+", markersize=2, alpha=0.5, label="bad")
     plt.plot(d_xi_m, d_eta_m, "go", markersize=2, alpha=0.5, label="external")
     plt.plot(d_xi_s, d_eta_s, "ro", markersize=2, alpha=0.5, label="internal")
@@ -405,7 +425,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
 
     bins = numpy.arange(-binLimit, binLimit, binLimit*0.02) + binLimit*0.01
 
-    ax = plt.subplot2grid((5,6),(0,0), colspan=4)
+    ax = plt.subplot2grid((5, 6), (0, 0), colspan=4)
     ax.tick_params(axis='both', labelsize=8)
     if sourceVec.size() != 0:
         plt.hist([d_xi, d_xi_m, d_xi_s], bins=bins, normed=False, histtype="step")
@@ -425,7 +445,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
         plt.plot(bins, y*xi_n_s*0.01, "r:")
     plt.xlim(-binLimit, binLimit)
 
-    ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
+    ax = plt.subplot2grid((5, 6), (1, 4), rowspan=4)
     ax.tick_params(axis='both', labelsize=8)
     plt.hist(d_eta, bins=bins, normed=False, orientation="horizontal", histtype="step")
     plt.hist(d_eta_m, bins=bins, normed=False, orientation="horizontal", histtype="step")
@@ -448,6 +468,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     plt.tight_layout()
 
     plt.savefig(os.path.join(outputDir, "ResPosScatter.png"), format="png")
+
 
 def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     _dmag_m = []
@@ -473,7 +494,7 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
             mag_cor = mag + exp_cor + chip_cor + gain_cor
             diff = mag_cor - mag0
             if (m.good == True and m.mag != -9999 and m.jstar != -1 and m.mag0 != -9999 and
-                m.mag_cat != -9999):
+                    m.mag_cat != -9999):
                 _dmag_m.append(diff)
                 _dmag_a.append(diff)
                 _mag0_m.append(mag0)
@@ -519,21 +540,21 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     mag0_bad = numpy.array(_mag0_bad)
     mag_cat_bad = numpy.array(_mag_cat_bad)
 
-    mag_std_m, mag_mean_m, mag_n_m  = clippedStd(d_mag_m, 3)
-    mag_std_s, mag_mean_s, mag_n_s  = clippedStd(d_mag_s, 3)
-    mag_std_a, mag_mean_a, mag_n_a  = clippedStd(d_mag_a, 3)
-    mag_cat_std_m, mag_cat_mean_m, mag_cat_n_m  = clippedStd(d_mag_cat_m, 3)
+    mag_std_m, mag_mean_m, mag_n_m = clippedStd(d_mag_m, 3)
+    mag_std_s, mag_mean_s, mag_n_s = clippedStd(d_mag_s, 3)
+    mag_std_a, mag_mean_a, mag_n_a = clippedStd(d_mag_a, 3)
+    mag_cat_std_m, mag_cat_mean_m, mag_cat_n_m = clippedStd(d_mag_cat_m, 3)
 
     plt.clf()
     plt.rc("text", usetex=USETEX)
 
-    plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
+    plt.subplot2grid((5, 6), (1, 0), colspan=4, rowspan=4)
     plt.plot(mag0_bad, d_mag_bad, "kx", markersize=2, alpha=0.5, label="bad")
     plt.plot(mag_cat_m, d_mag_cat_m, "co", markersize=2, alpha=0.5, label="match cat")
     if sourceVec.size() != 0:
         plt.plot(mag0_s, d_mag_s, "ro", markersize=2, alpha=0.5, label="internal")
     plt.plot(mag0_m, d_mag_m, "go", markersize=2, alpha=0.5, label="external")
-    plt.plot([15,25], [0,0], "k--")
+    plt.plot([15, 25], [0, 0], "k--")
     plt.xlim(15, 25)
     plt.ylim(-0.25, 0.25)
     plt.ylabel(r"$\Delta mag$ (mag)")
@@ -543,7 +564,7 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     bins = numpy.arange(-0.25, 0.25, 0.005) + 0.0025
     bins2 = numpy.arange(-0.25, 0.25, 0.05) + 0.025
 
-    ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
+    ax = plt.subplot2grid((5, 6), (1, 4), rowspan=4)
     ax.tick_params(axis='both', labelsize=10)
     plt.hist(d_mag_a, bins=bins, normed=False, orientation="horizontal", histtype="step")
     plt.hist(d_mag_m, bins=bins, normed=False, orientation="horizontal", histtype="step")
@@ -570,6 +591,7 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     plt.ylim(-0.25, 0.25)
     plt.tight_layout()
     plt.savefig(os.path.join(outputDir, "MdM.png"), format="png")
+
 
 def plotPosDPos(matchVec, sourceVec, outputDir):
     _xi = []
@@ -606,7 +628,7 @@ def plotPosDPos(matchVec, sourceVec, outputDir):
     plt.title("LSST: PosDPos")
 
     plt.subplot(2, 2, 3)
-    plt.plot(xi, d_eta, "o", markersize=2, alpha=0.5 )
+    plt.plot(xi, d_eta, "o", markersize=2, alpha=0.5)
     plt.xlabel(r"$\xi$ (arcsec)")
     plt.ylabel(r"$\Delta\eta$ (arcsec)")
 
@@ -621,6 +643,7 @@ def plotPosDPos(matchVec, sourceVec, outputDir):
     plt.ylabel(r"$\Delta\eta$ (arcsec)")
     plt.tight_layout()
     plt.savefig(os.path.join(outputDir, "PosDPos.png"), format="png")
+
 
 def plotResFlux(ccdSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     _dmag = []
@@ -648,7 +671,7 @@ def plotResFlux(ccdSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
 
     _r = []
     _dm = []
-    for ccd in ccdSet.values():
+    for ccd in list(ccdSet.values()):
         w = measMosaic.getWidth(ccd)
         h = measMosaic.getHeight(ccd)
 
@@ -693,6 +716,7 @@ def plotResFlux(ccdSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     plt.tight_layout()
     plt.savefig(os.path.join(outputDir, "ResFlux.png"), format="png")
 
+
 def plotDFlux2D(ccdSet, ffpSet, fexp, fchip, matchVec, outputDir):
     _dmag = []
     _u = []
@@ -735,6 +759,7 @@ def plotDFlux2D(ccdSet, ffpSet, fexp, fchip, matchVec, outputDir):
     plt.title("LSST: DFlux2D")
     plt.savefig(os.path.join(outputDir, "DFlux2D.png"), format="png")
 
+
 def writeWcsData(coeffSet, ccdSet, outputDir):
     """!Write out diagnostic meas_mosaic Wcs solution data files
     """
@@ -742,29 +767,31 @@ def writeWcsData(coeffSet, ccdSet, outputDir):
         f.write("# iexp     c.A          c.D\n")
         f.write("# iexp     c.x0         c.y0\n")
         f.write("# iexp     c.a(k)       c.b(k)           c.ap(k)         c.bp(k)\n")
-        for iexp in coeffSet.keys():
+        for iexp in list(coeffSet.keys()):
             c = coeffSet[iexp]
-            f.write("%ld %12.5e %12.5e\n" % (iexp, c.A,  c.D))
+            f.write("%ld %12.5e %12.5e\n" % (iexp, c.A, c.D))
             f.write("%ld %12.5f %12.5f\n" % (iexp, c.x0, c.y0))
             for k in range(c.getNcoeff()):
                 f.write("%ld %15.8e %15.8e %15.8e %15.8e\n" %
-                        (iexp, c.get_a(k), c.get_b(k), c.get_ap(k), c.get_bp(k)));
+                        (iexp, c.get_a(k), c.get_b(k), c.get_ap(k), c.get_bp(k)))
 
     with open(os.path.join(outputDir, "ccd.dat"), "wt") as f:
         f.write("#chip   centerXFp    centerYFp   yaw (rad)\n")
-        for ichip in ccdSet.keys():
+        for ichip in list(ccdSet.keys()):
             ccd = ccdSet[ichip]
             center = measMosaic.getCenterInFpPixels(ccd)
             f.write("%4ld %12.4f %12.4f %10.7f\n" % (ichip, center[0], center[1], measMosaic.getYaw(ccd)))
+
 
 def writeFluxData(fchip, outputDir):
     """!Write out diagnostic meas_mosaic photometric solution data files
     """
     with open(os.path.join(outputDir, "ccdScale.dat"), "wt") as f:
         f.write("#chip scale\n")
-        for ichip in fchip.keys():
+        for ichip in list(fchip.keys()):
             scale = fchip[ichip]
             f.write("%4ld %7.5f\n" % (ichip, scale))
+
 
 def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile):
     # count number of unique objects
@@ -780,7 +807,7 @@ def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile)
     num_s = len(idList)
     num = num_m + num_s
 
-    ra  = numpy.zeros(num, dtype=numpy.float64)
+    ra = numpy.zeros(num, dtype=numpy.float64)
     dec = numpy.zeros(num, dtype=numpy.float64)
     mag = numpy.zeros(num, dtype=numpy.float64)
     var = numpy.zeros(num, dtype=numpy.float64)

@@ -1,3 +1,6 @@
+from __future__ import print_function
+from builtins import zip
+from builtins import range
 import os
 import math
 import numpy
@@ -7,25 +10,27 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 
-import lsst.pex.config                  as pexConfig
-import lsst.pipe.base                   as pipeBase
+import lsst.pex.config as pexConfig
+import lsst.pipe.base as pipeBase
 from lsst.meas.mosaic.mosaicTask import MosaicTask
 from lsst.meas.mosaic.mosaicTask import MosaicConfig
 from lsst.meas.mosaic.mosaicTask import MosaicRunner
-import lsst.meas.mosaic.mosaicLib       as measMosaic
-import lsst.meas.algorithms             as measAlg
-import lsst.meas.astrom                 as measAstrom
-import lsst.afw.image                   as afwImage
-import lsst.afw.geom                    as afwGeom
-import lsst.afw.table                   as afwTable
+import lsst.meas.mosaic.mosaicLib as measMosaic
+import lsst.meas.algorithms as measAlg
+import lsst.meas.astrom as measAstrom
+import lsst.afw.image as afwImage
+import lsst.afw.geom as afwGeom
+import lsst.afw.table as afwTable
 
 from lsst.pipe.tasks.colorterms import ColortermLibrary
+
 
 class CheckMosaicConfig(MosaicConfig):
     maxMag = pexConfig.Field(
         doc="Maximum magnitude for delta mag histogram",
         dtype=float,
         default=21.0)
+
 
 class CheckMosaicTask(MosaicTask):
 
@@ -43,14 +48,14 @@ class CheckMosaicTask(MosaicTask):
         dx_s = list()
         dy_s = list()
         m0_m = list()
-        dm_m  = list()
+        dm_m = list()
         m0_s = list()
-        dm_s  = list()
+        dm_s = list()
         for ss in allMat:
             ra_cat = ss[0].getRa().asDegrees()
             dec_cat = ss[0].getDec().asDegrees()
             mag_cat = -2.5*math.log10(ss[0].getFlux())
-            for j in range(1,len(ss)):
+            for j in range(1, len(ss)):
                 if (ss[j].getFlux() > 0 and ss[j].getFlux() != float('inf')):
                     iexp = ss[j].getExp()
                     ichip = ss[j].getChip()
@@ -59,8 +64,9 @@ class CheckMosaicTask(MosaicTask):
                     dx_m.append((ra - ra_cat) * 3600)
                     dy_m.append((dec - dec_cat) * 3600)
                     mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
-                    mcor = ffpDic[iexp][ichip].eval(x,y)
-                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
+                    mcor = ffpDic[iexp][ichip].eval(x, y)
+                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)
+                                                                       ) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
                     m0_m.append(mag_cat)
                     dm_m.append(mag+mcor+jcor-mag_cat)
 
@@ -68,12 +74,12 @@ class CheckMosaicTask(MosaicTask):
                 n = 0
                 ra_cat = 0.0
                 dec_cat = 0.0
-                S  = 0.0
+                S = 0.0
                 Sx = 0.0
                 ra_source = list()
                 dec_source = list()
                 mag_source = list()
-                for j in range(1,len(ss)):
+                for j in range(1, len(ss)):
                     if (ss[j].getFlux() > 0 and ss[j].getFlux() != float('inf')):
                         iexp = ss[j].getExp()
                         ichip = ss[j].getChip()
@@ -87,11 +93,12 @@ class CheckMosaicTask(MosaicTask):
 
                         mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
                         err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
-                        mcor = ffpDic[iexp][ichip].eval(x,y)
-                        jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
+                        mcor = ffpDic[iexp][ichip].eval(x, y)
+                        jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)
+                                                                           ) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
                         mag_source.append(mag+mcor+jcor)
                         Sx += (mag+mcor+jcor) / (err*err)
-                        S  += 1. / (err*err)
+                        S += 1. / (err*err)
 
                 if n != 0 and S != 0:
                     ra_cat /= n
@@ -113,11 +120,11 @@ class CheckMosaicTask(MosaicTask):
             ra_cat = 0.0
             dec_cat = 0.0
             Sx = 0.0
-            S  = 0.0
+            S = 0.0
             ra_source = list()
             dec_source = list()
             mag_source = list()
-            for j in range(1,len(ss)):
+            for j in range(1, len(ss)):
                 if (ss[j].getFlux() > 0 and ss[j].getFlux() != float('inf')):
                     iexp = ss[j].getExp()
                     ichip = ss[j].getChip()
@@ -131,11 +138,12 @@ class CheckMosaicTask(MosaicTask):
 
                     mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
                     err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
-                    mcor = ffpDic[iexp][ichip].eval(x,y)
-                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
+                    mcor = ffpDic[iexp][ichip].eval(x, y)
+                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)
+                                                                       ) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
                     mag_source.append(mag+mcor+jcor)
                     Sx += (mag+mcor+jcor) / (err*err)
-                    S  += 1. / (err*err)
+                    S += 1. / (err*err)
 
             if n != 0:
                 ra_cat /= n
@@ -163,12 +171,12 @@ class CheckMosaicTask(MosaicTask):
         id = list()
         for ss in allMat:
             Sxx = 0.0
-            Sx  = 0.0
-            S   = 0.0
-            Sr  = 0.0
-            Sd  = 0.0
+            Sx = 0.0
+            S = 0.0
+            Sr = 0.0
+            Sd = 0.0
             if len(ss) > 2:
-                for j in range(1,len(ss)):
+                for j in range(1, len(ss)):
                     iexp = ss[j].getExp()
                     ichip = ss[j].getChip()
                     if ss[j].getFlux() > 0.0:
@@ -176,10 +184,11 @@ class CheckMosaicTask(MosaicTask):
                         err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
                         xs, ys = ss[j].getX(), ss[j].getY()
                         mcor = ffpDic[iexp][ichip].eval(xs, ys)
-                        jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(xs, ys)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
+                        jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(xs, ys)
+                                                                           ) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
                         Sxx += (mag+mcor+jcor)*(mag+mcor+jcor) / (err*err)
-                        Sx  += (mag+mcor+jcor) / (err*err)
-                        S   += 1. / (err*err)
+                        Sx += (mag+mcor+jcor) / (err*err)
+                        S += 1. / (err*err)
                         Sr += ss[j].getRa().asDegrees()
                         Sd += ss[j].getDec().asDegrees()
                 avg = Sx / S
@@ -192,10 +201,10 @@ class CheckMosaicTask(MosaicTask):
         for ss in allSource:
             Sxx = 0.0
             Sx = 0.0
-            S  = 0.0
-            Sr  = 0.0
-            Sd  = 0.0
-            for j in range(1,len(ss)):
+            S = 0.0
+            Sr = 0.0
+            Sd = 0.0
+            for j in range(1, len(ss)):
                 iexp = ss[j].getExp()
                 ichip = ss[j].getChip()
                 #print iexp, ichip, calibDic[iexp][ichip].getFluxMag0()[0], ss[j].getFlux()
@@ -204,10 +213,11 @@ class CheckMosaicTask(MosaicTask):
                     err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
                     xs, ys = ss[j].getX(), ss[j].getY()
                     mcor = ffpDic[iexp][ichip].eval(xs, ys)
-                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(xs, ys)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
+                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(xs, ys)
+                                                                       ) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
                     Sxx += (mag+mcor+jcor)*(mag+mcor+jcor) / (err*err)
-                    Sx  += (mag+mcor+jcor) / (err*err)
-                    S   += 1. / (err*err)
+                    Sx += (mag+mcor+jcor) / (err*err)
+                    S += 1. / (err*err)
                     Sr += ss[j].getRa().asDegrees()
                     Sd += ss[j].getDec().asDegrees()
             if S > 0:
@@ -218,7 +228,7 @@ class CheckMosaicTask(MosaicTask):
                     y.append(sig)
                     ra.append(Sr / (len(ss)-1))
                     dec.append(Sd / (len(ss)-1))
-                except Exception, e:
+                except Exception as e:
                     #print Sxx, S, avg, Sxx/S - avg*avg, len(ss)-1
                     pass
 
@@ -234,7 +244,7 @@ class CheckMosaicTask(MosaicTask):
             plt.savefig('fluxMean.png')
         else:
             for r, d, m, dm in zip(ra, dec, x, y):
-                print '%9.5f %9.5f %7.4f %7.4f' % (r, d, m ,dm)
+                print('%9.5f %9.5f %7.4f %7.4f' % (r, d, m, dm))
 
     def plotPos(self, dx_m, dy_m, dx_s, dy_s):
 
@@ -246,7 +256,7 @@ class CheckMosaicTask(MosaicTask):
         plt.clf()
         plt.rc('text', usetex=True)
 
-        plt.subplot2grid((5,6), (1,0), colspan=4, rowspan=4)
+        plt.subplot2grid((5, 6), (1, 0), colspan=4, rowspan=4)
         plt.plot(dx_m, dy_m, 'g,', markeredgecolor='green')
         plt.plot(dx_s, dy_s, 'r,', markeredgecolor='red')
         plt.xlim(-0.5, 0.5)
@@ -256,7 +266,7 @@ class CheckMosaicTask(MosaicTask):
 
         bins = numpy.arange(-0.5, 0.5, 0.01) + 0.005
 
-        ax = plt.subplot2grid((5,6),(0,0), colspan=4)
+        ax = plt.subplot2grid((5, 6), (0, 0), colspan=4)
         plt.hist([dx_m, dx_s], bins=bins, normed=False, histtype='step', color=['green', 'red'])
         plt.text(0.75, 0.7, r"$\sigma=$%5.3f" % (x_std_m), transform=ax.transAxes, color='green')
         plt.text(0.75, 0.5, r"$\sigma=$%5.3f" % (x_std_s), transform=ax.transAxes, color='red')
@@ -266,10 +276,11 @@ class CheckMosaicTask(MosaicTask):
         plt.plot(bins, gauss*x_n_s*0.01, 'r:')
         plt.xlim(-0.5, 0.5)
 
-        ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
+        ax = plt.subplot2grid((5, 6), (1, 4), rowspan=4)
         plt.hist(dy_m, bins=bins, normed=False, orientation='horizontal', histtype='step', color='green')
         plt.hist(dy_s, bins=bins, normed=False, orientation='horizontal', histtype='step', color='red')
-        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (y_std_m), rotation=270, transform=ax.transAxes, color='green')
+        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (y_std_m),
+                 rotation=270, transform=ax.transAxes, color='green')
         plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (y_std_s), rotation=270, transform=ax.transAxes, color='red')
         gauss = mlab.normpdf(bins, y_mean_m, y_std_m)
         plt.plot(gauss*y_n_m*0.01, bins, 'g:')
@@ -285,7 +296,7 @@ class CheckMosaicTask(MosaicTask):
 
         m0Sub = m0_s[m0_s < self.config.maxMag]
         dmSub = dm_s[m0_s < self.config.maxMag]
-        
+
         mag_std_m, mag_mean_m, mag_n_m = self.clippedStd(dm_m, 3)
         mag_std_s, mag_mean_s, mag_n_s = self.clippedStd(dm_s, 3)
         mag_std_sub, mag_mean_sub, mag_n_sub = self.clippedStd(dmSub, 3)
@@ -296,11 +307,11 @@ class CheckMosaicTask(MosaicTask):
         plt.clf()
         plt.rc('text', usetex=True)
 
-        plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
+        plt.subplot2grid((5, 6), (1, 0), colspan=4, rowspan=4)
         plt.plot(m0_m, dm_m, 'g,', markeredgecolor='green')
         plt.plot(m0_s, dm_s, 'r,', markeredgecolor='red')
         plt.plot(m0Sub, dmSub, 'b,', markeredgecolor='blue')
-        plt.plot([15,25], [0,0], 'k--')
+        plt.plot([15, 25], [0, 0], 'k--')
         plt.xlim(15, 25)
         plt.ylim(-0.25, 0.25)
         plt.plot([15, 25], [-0.01, -0.01], 'k--')
@@ -309,13 +320,16 @@ class CheckMosaicTask(MosaicTask):
         plt.xlabel(r'$m_{cat}$ (mag)')
         plt.ylabel(r'$\Delta m$ (mag)')
 
-        ax = plt.subplot2grid((5,6),(1,4), rowspan=4)
+        ax = plt.subplot2grid((5, 6), (1, 4), rowspan=4)
         plt.hist(dm_s, bins=bins_s, normed=False, orientation='horizontal', histtype='step', color='red')
         plt.hist(dm_m, bins=bins_m, normed=False, orientation='horizontal', histtype='step', color='green')
         plt.hist(dmSub, bins=bins_s, normed=False, orientation='horizontal', histtype='step', color='blue')
-        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (mag_std_m), rotation=270, transform=ax.transAxes, color='green')
-        plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes, color='red')
-        plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (mag_std_sub), rotation=270, transform=ax.transAxes, color='blue')
+        plt.text(0.7, 0.25, r"$\sigma=$%5.3f" % (mag_std_m),
+                 rotation=270, transform=ax.transAxes, color='green')
+        plt.text(0.5, 0.25, r"$\sigma=$%5.3f" % (mag_std_s),
+                 rotation=270, transform=ax.transAxes, color='red')
+        plt.text(0.3, 0.25, r"$\sigma=$%5.3f" % (mag_std_sub),
+                 rotation=270, transform=ax.transAxes, color='blue')
         gauss = mlab.normpdf(bins_m+0.0125, mag_mean_m, mag_std_m)
         plt.plot(gauss*mag_n_m*0.025, bins_m+0.0125, 'g:')
         gauss = mlab.normpdf(bins_s+0.0025, mag_mean_s, mag_std_s)
@@ -330,21 +344,21 @@ class CheckMosaicTask(MosaicTask):
 
     def plotPosAsMag(self, m0_s, dx_s, dy_s):
 
-        plt.subplot2grid((2,5),(0,0), colspan=4)
+        plt.subplot2grid((2, 5), (0, 0), colspan=4)
         plt.plot(m0_s, dx_s, ',', markeredgewidth=0)
-        plt.plot([15,25], [0,0], 'k--')
-        plt.plot([15,25], [0.01,0.01], 'k--')
-        plt.plot([15,25], [-0.01,-0.01], 'k--')
+        plt.plot([15, 25], [0, 0], 'k--')
+        plt.plot([15, 25], [0.01, 0.01], 'k--')
+        plt.plot([15, 25], [-0.01, -0.01], 'k--')
         plt.xlabel('mag')
         plt.ylabel(r'$\Delta\alpha$ (arcsec)')
         plt.xlim(15, 25)
         plt.ylim(-0.15, 0.15)
 
         mlim = 24
-        ax = plt.subplot2grid((2,5),(0,4))
+        ax = plt.subplot2grid((2, 5), (0, 4))
         bins = numpy.arange(-0.15, 0.15, 0.01) + 0.005
-        plt.hist(dx_s[m0_s<mlim], bins=bins, normed=False, orientation='horizontal', histtype='step')
-        std, mean, n = self.clippedStd(dx_s[m0_s<mlim], 3)
+        plt.hist(dx_s[m0_s < mlim], bins=bins, normed=False, orientation='horizontal', histtype='step')
+        std, mean, n = self.clippedStd(dx_s[m0_s < mlim], 3)
         plt.text(0.7, 0.3, r"$\sigma=$%5.3f" % (std), rotation=270, transform=ax.transAxes, fontsize=10)
         bins = numpy.arange(-0.15, 0.15, 0.001) + 0.0005
         gauss = mlab.normpdf(bins, mean, std)
@@ -353,20 +367,20 @@ class CheckMosaicTask(MosaicTask):
         plt.xticks(rotation=270, fontsize=10)
         plt.yticks(rotation=270, fontsize=10)
 
-        plt.subplot2grid((2,5),(1,0), colspan=4)
+        plt.subplot2grid((2, 5), (1, 0), colspan=4)
         plt.plot(m0_s, dy_s, ',', markeredgewidth=0)
-        plt.plot([15,25], [0,0], 'k--')
-        plt.plot([15,25], [0.01,0.01], 'k--')
-        plt.plot([15,25], [-0.01,-0.01], 'k--')
+        plt.plot([15, 25], [0, 0], 'k--')
+        plt.plot([15, 25], [0.01, 0.01], 'k--')
+        plt.plot([15, 25], [-0.01, -0.01], 'k--')
         plt.xlabel('mag')
         plt.ylabel(r'$\Delta\delta$ (arcsec)')
         plt.xlim(15, 25)
         plt.ylim(-0.15, 0.15)
 
-        ax = plt.subplot2grid((2,5),(1,4))
+        ax = plt.subplot2grid((2, 5), (1, 4))
         bins = numpy.arange(-0.15, 0.15, 0.01) + 0.005
-        plt.hist(dy_s[m0_s<mlim], bins=bins, normed=False, orientation='horizontal', histtype='step')
-        std, mean, n = self.clippedStd(dy_s[m0_s<mlim], 3)
+        plt.hist(dy_s[m0_s < mlim], bins=bins, normed=False, orientation='horizontal', histtype='step')
+        std, mean, n = self.clippedStd(dy_s[m0_s < mlim], 3)
         plt.text(0.7, 0.3, r"$\sigma=$%5.3f" % (std), rotation=270, transform=ax.transAxes, fontsize=10)
         bins = numpy.arange(-0.15, 0.15, 0.001) + 0.0005
         gauss = mlab.normpdf(bins, mean, std)
@@ -378,7 +392,7 @@ class CheckMosaicTask(MosaicTask):
         plt.savefig('posAsMag.png')
 
     def writeCatalog(self, allSource, wcsDic, calibDic, ffpDic):
-        num = sum(sum(1 for src in ss if src.getExp() >=0 and src.getChip() >= 0) for ss in allSource)
+        num = sum(sum(1 for src in ss if src.getExp() >= 0 and src.getChip() >= 0) for ss in allSource)
 
         import pyfits
 
@@ -410,14 +424,14 @@ class CheckMosaicTask(MosaicTask):
                 flux = src.getFlux()
                 if flux > 0 and fluxMag0 > 0:
                     mcor = ffpDic[iexp][ichip].eval(x, y)
-                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
+                    jcor = -2.5*math.log10(wcsDic[iexp][ichip].pixArea(afwGeom.Point2D(x, y)
+                                                                       ) / wcsDic[iexp][ichip].pixelScale().asDegrees()**2)
                     outData.mag[i] = -2.5*math.log10(flux/fluxMag0) + mcor + jcor
                     outData.err[i] = 2.5/math.log(10) * src.getFluxErr() / flux
                     outData.corr[i] = mcor + jcor
                     i += 1
 
         outHdu.writeto("catalog_check.fits", clobber=True)
-
 
     def check(self, dataRefList, ct=None, debug=False, verbose=False):
         ccdSet = self.readCcd(dataRefList)
@@ -433,7 +447,7 @@ class CheckMosaicTask(MosaicTask):
         calibDic = dict()
         ffpDic = dict()
         for dataRef in dataRefList:
-            if not ssVisit.has_key(dataRef.dataId['visit']):
+            if dataRef.dataId['visit'] not in ssVisit:
                 ssVisit[dataRef.dataId['visit']] = list()
                 mlVisit[dataRef.dataId['visit']] = list()
                 wcsDic[dataRef.dataId['visit']] = dict()
@@ -461,12 +475,12 @@ class CheckMosaicTask(MosaicTask):
                 calib = afwImage.Calib(md)
 
                 sources = dataRef.get('src',
-                              flags=afwTable.SOURCE_IO_NO_FOOTPRINTS,
-                              immediate=True)
+                                      flags=afwTable.SOURCE_IO_NO_FOOTPRINTS,
+                                      immediate=True)
 
                 icSrces = dataRef.get('icSrc',
-                              flags=afwTable.SOURCE_IO_NO_FOOTPRINTS,
-                              immediate=True)
+                                      flags=afwTable.SOURCE_IO_NO_FOOTPRINTS,
+                                      immediate=True)
                 packedMatches = dataRef.get('icMatch')
                 matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces)
 
@@ -505,8 +519,8 @@ class CheckMosaicTask(MosaicTask):
 
                 sources = self.selectStars(sources)
                 matches = self.selectStars(matches, True)
-            except Exception, e:
-                print "Failed to read: %s" % (e)
+            except Exception as e:
+                print("Failed to read: %s" % (e))
                 sources = None
                 continue
 
@@ -529,7 +543,7 @@ class CheckMosaicTask(MosaicTask):
                 ffpDic[dataRef.dataId['visit']][dataRef.dataId['ccd']] = ffp
                 dataRefListUsed.append(dataRef)
 
-        for visit in ssVisit.keys():
+        for visit in list(ssVisit.keys()):
             sourceSet.push_back(ssVisit[visit])
             matchList.push_back(mlVisit[visit])
 
@@ -537,8 +551,9 @@ class CheckMosaicTask(MosaicTask):
         nbrightest = self.config.nBrightest
 
         allMat, allSource = self.mergeCatalog(sourceSet, matchList, ccdSet, d_lim)
- 
-        dx_m, dy_m, dx_s, dy_s, m0_m, dm_m, m0_s, dm_s  = self.makeDiffPosFlux(allMat, allSource, wcsDic, calibDic, ffpDic)
+
+        dx_m, dy_m, dx_s, dy_s, m0_m, dm_m, m0_s, dm_s = self.makeDiffPosFlux(
+            allMat, allSource, wcsDic, calibDic, ffpDic)
         self.plotFlux(m0_m, dm_m, m0_s, dm_s)
         self.makeFluxStat(allMat, allSource, calibDic, ffpDic, wcsDic)
         self.plotPos(dx_m, dy_m, dx_s, dy_s)

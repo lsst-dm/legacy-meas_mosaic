@@ -1,3 +1,4 @@
+from builtins import zip
 #!/usr/bin/env python
 #
 # LSST Data Management System
@@ -34,8 +35,10 @@ except ImportError:
 # Hard-coded numerical results included below were calculated with cameraGeom
 # and obs_subaru from hscPipe 3.8.6 using the incantations given.
 
+
 @unittest.skipUnless(obsHsc, "lsst.obs.hsc is required")
 class ShimCameraGeomTestCase(utilsTests.TestCase):
+
     def setUp(self):
         self.camera = obsHsc.HscMapper(root=".").camera
         self.ccds = [self.camera[49],   # 0_12; no rotation
@@ -55,7 +58,7 @@ class ShimCameraGeomTestCase(utilsTests.TestCase):
 
     def testGetYaw(self):
         # HSC camGeom: ccd.getOrientation().getYaw().asDegrees()
-        known_results = [ 0.0073295, 0.0296679, -0.0075553, -0.0112589]
+        known_results = [0.0073295, 0.0296679, -0.0075553, -0.0112589]
         for ccd, yaw in zip(self.ccds, known_results):
             self.assertAlmostEqual(measMosaic.getYaw(ccd).asDegrees(), yaw)
 

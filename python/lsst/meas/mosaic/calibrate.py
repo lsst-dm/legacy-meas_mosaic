@@ -4,6 +4,7 @@ from .updateExposure import applyMosaicResultsExposure, applyMosaicResultsCatalo
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 from . import utils as mosaicUtils
 
+
 class CalibrateCatalogConfig(Config):
     doApplyCalib = Field(dtype=bool, default=True, doc="Calibrate fluxes to magnitudes?")
     srcSchemaMap = DictField(
@@ -12,6 +13,7 @@ class CalibrateCatalogConfig(Config):
         itemtype=str,
         default=None,
         optional=True)
+
 
 class CalibrateCatalogTask(CmdLineTask):
     ConfigClass = CalibrateCatalogConfig
@@ -32,7 +34,7 @@ class CalibrateCatalogTask(CmdLineTask):
         # Set the aliap map for the source catalog
         if self.config.srcSchemaMap is not None and hscRun is not None:
             aliasMap = catalog.schema.getAliasMap()
-            for lsstName, otherName in self.config.srcSchemaMap.iteritems():
+            for lsstName, otherName in self.config.srcSchemaMap.items():
                 aliasMap.set(lsstName, otherName)
         results = applyMosaicResultsCatalog(dataRef, catalog)
         catalog = results.catalog
@@ -42,8 +44,10 @@ class CalibrateCatalogTask(CmdLineTask):
 
     def writeConfig(self, *args, **kwargs):
         pass
+
     def writeSchema(self, *args, **kwargs):
         pass
+
     def writeMetadata(self, dataRef):
         pass
 
@@ -65,8 +69,9 @@ class CalibrateExposureTask(CmdLineTask):
 
     def writeConfig(self, *args, **kwargs):
         pass
+
     def writeSchema(self, *args, **kwargs):
         pass
+
     def writeMetadata(self, dataRef):
         pass
-

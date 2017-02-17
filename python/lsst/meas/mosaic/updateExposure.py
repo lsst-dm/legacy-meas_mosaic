@@ -1,3 +1,5 @@
+from builtins import zip
+from builtins import range
 #
 # LSST Data Management System
 # Copyright 2008-2016 AURA/LSST.
@@ -33,6 +35,7 @@ from . import utils as mosaicUtils
 __all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog",
            "applyCalib")
 
+
 def applyMosaicResults(dataRef, calexp=None):
     """Deprecated function to apply the results to an exposure
 
@@ -40,6 +43,7 @@ def applyMosaicResults(dataRef, calexp=None):
     one kind of target, so it's worth changing the name to be specific.
     """
     return applyMosaicResultsExposure(dataRef, calexp).exposure
+
 
 def applyMosaicResultsExposure(dataRef, calexp=None):
     """Update an Exposure with the Wcs, Calib, and flux scaling from meas_mosaic.
@@ -53,7 +57,7 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
     # meas_mosaic solution is done in coords assuming LLC is pixel 0,0, so rotate image
     # to match that assumption before applying the wcs solution to it
     nQuarter = calexp.getDetector().getOrientation().getNQuarter()
-    if nQuarter %4 != 0:
+    if nQuarter % 4 != 0:
         calexp.setMaskedImage(afwMath.rotateImageBy90(calexp.getMaskedImage(), nQuarter))
 
     mosaic = getMosaicResults(dataRef, calexp.getDimensions())
@@ -65,6 +69,7 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
         mi = calexp.getMaskedImage()
         mi *= mosaic.fcor
     return Struct(exposure=calexp, mosaic=mosaic)
+
 
 def getFluxFitParams(dataRef):
     """Retrieve the flux correction parameters determined by meas_mosaic"""
@@ -80,6 +85,7 @@ def getFluxFitParams(dataRef):
         ffp = None
     return Struct(ffp=ffp, calib=calib, wcs=getWcs(dataRef))
 
+
 def getWcs(dataRef):
     """Retrieve the Wcs determined by meas_mosaic"""
     # If meas_mosaic was configured to only solve photometry (doSolveWcs=False),
@@ -89,6 +95,7 @@ def getWcs(dataRef):
     except FitsError:
         return None
     return afwImage.makeWcs(wcsHeader)
+
 
 def getMosaicResults(dataRef, dims=None):
     """Retrieve the results of meas_mosaic
@@ -146,18 +153,18 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
         catalog = outCatalog
 
     fluxKeys, errKeys = getFluxKeys(catalog.schema, hscRun=hscRun)
-    for name, key in fluxKeys.items():
+    for name, key in list(fluxKeys.items()):
         if key.getElementCount() == 1:
             catalog[key][:] *= corr
         else:
             for i in range(key.getElementCount()):
-                catalog[key][:,i] *= corr
+                catalog[key][:, i] *= corr
         if name in errKeys:
             if key.getElementCount() == 1:
                 catalog[errKeys[name]][:] *= corr
             else:
                 for i in range(key.getElementCount()):
-                    catalog[errKeys[name]][:,i] *= corr
+                    catalog[errKeys[name]][:, i] *= corr
 
     wcs = getWcs(dataRef)
     for rec in catalog:
@@ -225,18 +232,19 @@ def applyCalib(catalog, calib, hscRun=None):
     newCatalog = afwTable.SourceCatalog(mapper.getOutputSchema())
     newCatalog.extend(catalog, mapper=mapper)
 
-    for name, key in newFluxKeys.items():
+    for name, key in list(newFluxKeys.items()):
         flux = newCatalog[key]
         if name in newErrKeys:
             fluxErr = newCatalog[newErrKeys[name]]
             magArray = numpy.array([calib.getMagnitude(f, e) for f, e in zip(flux, fluxErr)])
-            mag = magArray[:,0]
-            fluxErr[:] = magArray[:,1]
+            mag = magArray[:, 0]
+            fluxErr[:] = magArray[:, 1]
         else:
             mag = numpy.array([calib.getMagnitude(f) for f in flux])
         flux[:] = mag
 
     return newCatalog
+
 
 def getFluxKeys(schema, hscRun=None):
     """Retrieve the flux and flux error keys from a schema
@@ -246,15 +254,15 @@ def getFluxKeys(schema, hscRun=None):
     schemaKeys = dict((s.field.getName(), s.key) for s in schema)
 
     if hscRun is None:
-        fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
+        fluxKeys = dict((name, key) for name, key in list(schemaKeys.items()) if
                         re.search(r"^(\w+_flux)$", name) and key.getTypeString() != "Flag")
-        errKeys = dict((name + "Sigma", schemaKeys[name + "Sigma"]) for name in fluxKeys.keys() if
+        errKeys = dict((name + "Sigma", schemaKeys[name + "Sigma"]) for name in list(fluxKeys.keys()) if
                        name + "Sigma" in schemaKeys)
     else:
-        fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
+        fluxKeys = dict((name, key) for name, key in list(schemaKeys.items()) if
                         re.search(r"^(flux\_\w+|\w+\_flux)$", name)
                         and not re.search(r"^(\w+\_apcorr)$", name) and name + "_err" in schemaKeys)
-        errKeys = dict((name + "_err" , schemaKeys[name + "_err"]) for name in fluxKeys.keys() if
+        errKeys = dict((name + "_err", schemaKeys[name + "_err"]) for name in list(fluxKeys.keys()) if
                        name + "_err" in schemaKeys)
 
     if len(fluxKeys) == 0:
