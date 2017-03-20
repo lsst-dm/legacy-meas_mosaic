@@ -26,8 +26,10 @@ from .mosaicLib import getFCorImg, FluxFitParams, getJImg, calculateJacobian
 from lsst.pipe.base import Struct
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
+import lsst.afw.geom as afwGeom
 import lsst.afw.math as afwMath
 from lsst.afw.fits import FitsError
+import lsst.meas.astrom as measAstrom
 from . import utils as mosaicUtils
 
 __all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog",
@@ -78,7 +80,19 @@ def getFluxFitParams(dataRef):
     except FitsError:
         calib = None
         ffp = None
-    return Struct(ffp=ffp, calib=calib, wcs=getWcs(dataRef))
+    wcs = getWcs(dataRef)
+    # If we get the wcs persisted in LSST coords: this is required for the wcs attached
+    # to the flux fit results, ffp, since they are calculated in the meas_mosaic coords
+    #
+    calexp_md = dataRef.get('calexp_md', immediate=True)
+    hscRun = mosaicUtils.checkHscStack(calexp_md)
+    if hscRun is None:
+         calexp = dataRef.get("calexp", immediate=True)
+         nQuarter = calexp.getDetector().getOrientation().getNQuarter()
+         if nQuarter%4 != 0:
+             wcs = measAstrom.rotateWcsPixels(wcs, calexp.getBBox(), nQuarter*90.0*afwGeom.degrees)
+
+    return Struct(ffp=ffp, calib=calib, wcs=wcs)
 
 def getWcs(dataRef):
     """Retrieve the Wcs determined by meas_mosaic"""
@@ -88,7 +102,7 @@ def getWcs(dataRef):
         wcsHeader = dataRef.get("wcs_md", immediate=True)
     except FitsError:
         return None
-    return afwImage.makeWcs(wcsHeader)
+    return afwImage.TanWcs.cast(afwImage.makeWcs(wcsHeader))
 
 def getMosaicResults(dataRef, dims=None):
     """Retrieve the results of meas_mosaic
@@ -123,12 +137,12 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
 
     The coordinates and all fluxes are updated in-place with the meas_mosaic solution.
     """
-    ffp = getFluxFitParams(dataRef)
     calexp_md = dataRef.get('calexp_md', immediate=True)
-    calexp = dataRef.get('calexp', immediate=True)
-    nQuarter = calexp.getDetector().getOrientation().getNQuarter()
     hscRun = mosaicUtils.checkHscStack(calexp_md)
+    ffp = getFluxFitParams(dataRef)
     if hscRun is None:
+        calexp = dataRef.get('calexp', immediate=True)
+        nQuarter = calexp.getDetector().getOrientation().getNQuarter()
         if nQuarter%4 != 0:
             catalog = mosaicUtils.rotatePixelCoords(catalog, calexp.getWidth(), calexp.getHeight(), nQuarter)
     xx, yy = catalog.getX(), catalog.getY()
@@ -159,15 +173,15 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
                 for i in range(key.getElementCount()):
                     catalog[errKeys[name]][:,i] *= corr
 
-    wcs = getWcs(dataRef)
-    for rec in catalog:
-        rec.updateCoord(wcs)
-
     # Now rotate them back to the LSST coord system
+    # If we get the wcs persisted in LSST coords move the follwing 4 lines above wcs = getWcs(dataRef)
     if hscRun is None:
         if nQuarter%4 != 0:
             catalog = mosaicUtils.rotatePixelCoordsBack(catalog, calexp.getWidth(), calexp.getHeight(),
                                                         nQuarter)
+    wcs = getWcs(dataRef)
+    for rec in catalog:
+        rec.updateCoord(wcs)
 
     return Struct(catalog=catalog, wcs=wcs, ffp=ffp)
 

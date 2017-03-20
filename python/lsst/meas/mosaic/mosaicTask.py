@@ -30,6 +30,7 @@ import lsst.afw.geom                    as afwGeom
 import lsst.afw.image                   as afwImage
 import lsst.afw.math                    as afwMath
 import lsst.afw.table                   as afwTable
+import lsst.meas.astrom                 as measAstrom
 import lsst.meas.algorithms             as measAlg
 import lsst.meas.mosaic.mosaicLib       as measMosaic
 import lsst.pex.config                  as pexConfig
@@ -613,6 +614,22 @@ class MosaicTask(pipeBase.CmdLineTask):
             ichip = dataRef.dataId["ccd"]
             c = measMosaic.convertCoeff(self.coeffSet[iexp], self.ccdSet[ichip]);
             wcs = measMosaic.wcsFromCoeff(c);
+            # Jim: this is where I want to rotate the wcs, i.e. right before it is persisted
+            #      Without this rotation, the wcs is output in the meas_mosaic coords (LLC
+            #      w.r.t. FP is 0,0) as opposed to the LSST coords (0,0 attached to the
+            #      electronics, so 0,0 is the associated with the LLC of amp 1 (or 0, can't
+            #      remember where the numbering starts).  I think the 4-nQuarter is the right
+            #      number of turns (i.e. to rotate it "back"), but the odd nQuarter CCDs will
+            #      tell the tale.
+            calexp_md = dataRef.get("calexp_md", immediate=True)
+            hscRun = mosaicUtils.checkHscStack(calexp_md)
+            if hscRun is None:
+                calexp = dataRef.get("calexp", immediate=True)
+                nQuarter = calexp.getDetector().getOrientation().getNQuarter()
+                if nQuarter %4 != 0:
+                    wcs = measAstrom.rotateWcsPixels(wcs, calexp.getBBox(),
+                                                     (4 - nQuarter)*90.0*afwGeom.degrees)
+
             exp.setWcs(wcs)
             try:
                 dataRef.put(exp, "wcs")
