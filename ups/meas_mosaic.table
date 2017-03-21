@@ -1,3 +1,5 @@
+setupRequired(sconsUtils)
+setupRequired(pybind11)
 setupRequired(python)
 setupRequired(boost)
 setupRequired(gsl)

@@ -12,7 +12,7 @@ import lsst.pipe.base                   as pipeBase
 from lsst.meas.mosaic.mosaicTask import MosaicTask
 from lsst.meas.mosaic.mosaicTask import MosaicConfig
 from lsst.meas.mosaic.mosaicTask import MosaicRunner
-import lsst.meas.mosaic.mosaicLib       as measMosaic
+import lsst.meas.mosaic                 as measMosaic
 import lsst.meas.algorithms             as measAlg
 import lsst.meas.astrom                 as measAstrom
 import lsst.afw.image                   as afwImage
@@ -423,8 +423,8 @@ class CheckMosaicTask(MosaicTask):
         ccdSet = self.readCcd(dataRefList)
         self.removeNonExistCcd(dataRefList, ccdSet)
 
-        sourceSet = measMosaic.SourceGroup()
-        matchList = measMosaic.SourceMatchGroup()
+        sourceSet = []
+        matchList = []
         astrom = measAstrom.ANetBasicAstrometryTask(self.config.astrom)
         ssVisit = dict()
         mlVisit = dict()
@@ -470,10 +470,10 @@ class CheckMosaicTask(MosaicTask):
                 packedMatches = dataRef.get('icMatch')
                 matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces)
 
-                matches = [m for m in matches if m.first != None]
+                matches = [m for m in matches if m[0] != None]
 
                 if matches:
-                    refSchema = matches[0].first.schema
+                    refSchema = matches[0][0].schema
                     if ct:
                         # Add a "flux" field to the match records which contains the
                         # colorterm-corrected reference flux. The field name is hard-coded in
@@ -486,13 +486,13 @@ class CheckMosaicTask(MosaicTask):
                         table.preallocate(len(matches))
                         for match in matches:
                             newMatch = table.makeRecord()
-                            newMatch.assign(match.first, mapper)
-                            match.first = newMatch
+                            newMatch.assign(match[0], mapper)
+                            match[0] = newMatch
 
                         key_p = refSchema.find(refSchema.join(ct.primary, "flux")).key
                         key_s = refSchema.find(refSchema.join(ct.secondary, "flux")).key
-                        refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
-                        refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
+                        refFlux1 = numpy.array([m[0].get(key_p) for m in matches])
+                        refFlux2 = numpy.array([m[0].get(key_s) for m in matches])
                         refMag1 = -2.5*numpy.log10(refFlux1)
                         refMag2 = -2.5*numpy.log10(refFlux2)
                         refMag = ct.transformMags(refMag1, refMag2)
@@ -518,11 +518,10 @@ class CheckMosaicTask(MosaicTask):
                         src.setChip(dataRef.dataId['ccd'])
                         ssVisit[dataRef.dataId['visit']].append(src)
                 for m in matches:
-                    if m.first != None and m.second != None:
-                        match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs),
-                                                       measMosaic.Source(m.second))
-                        match.second.setExp(dataRef.dataId['visit'])
-                        match.second.setChip(dataRef.dataId['ccd'])
+                    if m[0] != None and m[1] != None:
+                        match = (measMosaic.Source(m[0], wcs), measMosaic.Source(m[1]))
+                        match[1].setExp(dataRef.dataId['visit'])
+                        match[1].setChip(dataRef.dataId['ccd'])
                         mlVisit[dataRef.dataId['visit']].append(match)
                 wcsDic[dataRef.dataId['visit']][dataRef.dataId['ccd']] = wcs
                 calibDic[dataRef.dataId['visit']][dataRef.dataId['ccd']] = calib
@@ -530,8 +529,8 @@ class CheckMosaicTask(MosaicTask):
                 dataRefListUsed.append(dataRef)
 
         for visit in ssVisit.keys():
-            sourceSet.push_back(ssVisit[visit])
-            matchList.push_back(mlVisit[visit])
+            sourceSet.append(ssVisit[visit])
+            matchList.append(mlVisit[visit])
 
         d_lim = afwGeom.Angle(self.config.radXMatch, afwGeom.arcseconds)
         nbrightest = self.config.nBrightest

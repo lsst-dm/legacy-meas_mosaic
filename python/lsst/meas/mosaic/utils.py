@@ -33,7 +33,7 @@ import matplotlib.mlab as mlab
 import lsst.afw.coord as afwCoord
 import lsst.afw.geom as afwGeom
 import lsst.afw.table as afwTable
-from . import mosaicLib as measMosaic
+from .shimCameraGeom import getCenterInFpPixels, getWidth, getHeight, detPxToFpPxRot, getYaw
 
 # Use LaTeX to render figure captions? Requires dvipng (not available on lsst-dev).
 USETEX=False
@@ -63,7 +63,7 @@ def checkHscStack(metadata):
 def matchJanskyToDn(matches):
     """!Convert fluxes in a list of matches from units of "janskys", as read in by LSST, to DN.
 
-    @param[in] matches  match list (an lsst.afw.table.ReferenceMatchVector) to be updated in place.
+    @param[in] matches  match list to be updated in place.
     """
     JANSKYS_PER_AB_FLUX = 3631.0
     for m in matches:
@@ -180,7 +180,7 @@ def getCcdFpExtent(ccdSet):
     yMinFp, yMaxFp = 18000, -18000
     for ichip in ccdSet.keys():
         ccd = ccdSet[ichip]
-        center = measMosaic.getCenterInFpPixels(ccd)
+        center = getCenterInFpPixels(ccd)
         if center[0] > xMaxFp: xMaxFp = center[0]
         if center[0] < xMinFp: xMinFp = center[0]
         if center[1] > yMaxFp: yMaxFp = center[1]
@@ -195,18 +195,18 @@ def plotCcd(ccdSet):
     """!Plot outlines of CCDs in ccdSet
     """
     for ccd in ccdSet.values():
-        w = measMosaic.getWidth(ccd)
-        h = measMosaic.getHeight(ccd)
+        w = getWidth(ccd)
+        h = getHeight(ccd)
         nQuarter = ccd.getOrientation().getNQuarter()
         if nQuarter%2 != 0:
-            w = measMosaic.getHeight(ccd)
-            h = measMosaic.getWidth(ccd)
+            w = getHeight(ccd)
+            h = getWidth(ccd)
         us = list()
         vs = list()
         minU, minV = 18000.0, 18000.0
         for x, y in zip([0, w, w, 0, 0], [0, 0, h, h, 0]):
             xy = afwGeom.Point2D(x, y)
-            u, v = measMosaic.detPxToFpPxRot(ccd, xy)
+            u, v = detPxToFpPxRot(ccd, xy)
             us.append(u)
             vs.append(v)
             if u < minU : minU = u
@@ -292,7 +292,7 @@ def plotResPosArrow2D(ccdSet, iexp, matchVec, sourceVec, outputDir):
     _ys = []
     _dxs = []
     _dys = []
-    if (sourceVec.size() != 0):
+    if (len(sourceVec) != 0):
         for s in sourceVec:
             if (s.good == True and s.iexp == iexp):
                 _xs.append(s.u)
@@ -352,7 +352,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
                                                                              m.xi, m.eta, m.u, m.v))
         _xs = []
         _ys = []
-        if (sourceVec.size() != 0):
+        if (len(sourceVec) != 0):
             for s in sourceVec:
                 if (s.good == True):
                     _x.append((s.xi_fit - s.xi)*3600)
@@ -407,7 +407,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
 
     ax = plt.subplot2grid((5,6),(0,0), colspan=4)
     ax.tick_params(axis='both', labelsize=8)
-    if sourceVec.size() != 0:
+    if len(sourceVec) != 0:
         plt.hist([d_xi, d_xi_m, d_xi_s], bins=bins, normed=False, histtype="step")
     else:
         plt.hist([d_xi, d_xi_m], bins=bins, normed=False, histtype="step")
@@ -418,7 +418,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
              fontsize=9)
     y = mlab.normpdf(bins, xi_mean_m, xi_std_m)
     plt.plot(bins, y*xi_n_m*0.01, "g:")
-    if sourceVec.size() != 0:
+    if len(sourceVec) != 0:
         plt.text(0.77, 0.3, r"$\sigma_{int}=$%5.3f" % (xi_std_s), transform=ax.transAxes, color="red",
                  fontsize=9)
         y = mlab.normpdf(bins, xi_mean_s, xi_std_s)
@@ -429,7 +429,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     ax.tick_params(axis='both', labelsize=8)
     plt.hist(d_eta, bins=bins, normed=False, orientation="horizontal", histtype="step")
     plt.hist(d_eta_m, bins=bins, normed=False, orientation="horizontal", histtype="step")
-    if sourceVec.size() != 0:
+    if len(sourceVec) != 0:
         plt.hist(d_eta_s, bins=bins, normed=False, orientation="horizontal", histtype="step")
     plt.text(0.7, 0.22, r"$\sigma_{all}=$%5.3f" % (eta_std), rotation=270, transform=ax.transAxes,
              color="blue", fontsize=9)
@@ -437,7 +437,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
              color="green", fontsize=9)
     y = mlab.normpdf(bins, eta_mean_m, eta_std_m)
     plt.plot(y*eta_n_m*0.01, bins, "g:")
-    if sourceVec.size() != 0:
+    if len(sourceVec) != 0:
         plt.text(0.3, 0.22, r"$\sigma_{int}=$%5.3f" % (eta_std_s), rotation=270, transform=ax.transAxes,
                  color="red", fontsize=9)
         y = mlab.normpdf(bins, eta_mean_s, eta_std_s)
@@ -487,7 +487,7 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
                 _mag_cat_bad.append(mag_cat)
                 f.write("m %9.6f %9.6f %9.6f %14.6f %14.6f 0\n" % (mag_cor, mag0, mag_cat, m.u, m.v))
 
-        if sourceVec.size() != 0:
+        if len(sourceVec) != 0:
             for s in sourceVec:
                 mag = s.mag
                 mag0 = s.mag0
@@ -530,7 +530,7 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     plt.subplot2grid((5,6),(1,0), colspan=4, rowspan=4)
     plt.plot(mag0_bad, d_mag_bad, "kx", markersize=2, alpha=0.5, label="bad")
     plt.plot(mag_cat_m, d_mag_cat_m, "co", markersize=2, alpha=0.5, label="match cat")
-    if sourceVec.size() != 0:
+    if len(sourceVec) != 0:
         plt.plot(mag0_s, d_mag_s, "ro", markersize=2, alpha=0.5, label="internal")
     plt.plot(mag0_m, d_mag_m, "go", markersize=2, alpha=0.5, label="external")
     plt.plot([15,25], [0,0], "k--")
@@ -547,7 +547,7 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     ax.tick_params(axis='both', labelsize=10)
     plt.hist(d_mag_a, bins=bins, normed=False, orientation="horizontal", histtype="step")
     plt.hist(d_mag_m, bins=bins, normed=False, orientation="horizontal", histtype="step")
-    if sourceVec.size() != 0:
+    if len(sourceVec) != 0:
         plt.hist(d_mag_s, bins=bins, normed=False, orientation="horizontal", histtype="step")
     plt.hist(d_mag_cat_m, bins=bins2, normed=False, orientation="horizontal", histtype="step")
     plt.text(0.7, 0.22, r"$\sigma_{all}=$%5.3f" % (mag_std_a), rotation=270, transform=ax.transAxes,
@@ -558,7 +558,7 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
              color="cyan", fontsize=9)
     y = mlab.normpdf(bins, mag_mean_m, mag_std_m)
     plt.plot(y*mag_n_m*0.005, bins, "g:")
-    if sourceVec.size() != 0:
+    if len(sourceVec) != 0:
         plt.text(0.3, 0.22, r"$\sigma_{int}=$%5.3f" % (mag_std_s), rotation=270, transform=ax.transAxes,
                  color="red", fontsize=9)
         y = mlab.normpdf(bins, mag_mean_s, mag_std_s)
@@ -582,7 +582,7 @@ def plotPosDPos(matchVec, sourceVec, outputDir):
             _y.append((m.eta_fit - m.eta)*3600)
             _xi.append(m.xi*3600)
             _eta.append(m.eta*3600)
-    if (sourceVec.size() != 0):
+    if (len(sourceVec) != 0):
         for s in sourceVec:
             if (s.good == True):
                 _x.append((s.xi_fit - s.xi)*3600)
@@ -649,11 +649,11 @@ def plotResFlux(ccdSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     _r = []
     _dm = []
     for ccd in ccdSet.values():
-        w = measMosaic.getWidth(ccd)
-        h = measMosaic.getHeight(ccd)
+        w = getWidth(ccd)
+        h = getHeight(ccd)
 
-        _x0 = measMosaic.getCenterInFpPixels(ccd)[0] + 0.5*w
-        _y0 = measMosaic.getCenterInFpPixels(ccd)[1] + 0.5*h
+        _x0 = getCenterInFpPixels(ccd)[0] + 0.5*w
+        _y0 = getCenterInFpPixels(ccd)[1] + 0.5*h
 
         _r.append(math.sqrt(_x0*_x0 + _y0*_y0))
         _dm.append(-2.5*math.log10(fchip[int(ccd.getSerial())]))
@@ -754,8 +754,8 @@ def writeWcsData(coeffSet, ccdSet, outputDir):
         f.write("#chip   centerXFp    centerYFp   yaw (rad)\n")
         for ichip in ccdSet.keys():
             ccd = ccdSet[ichip]
-            center = measMosaic.getCenterInFpPixels(ccd)
-            f.write("%4ld %12.4f %12.4f %10.7f\n" % (ichip, center[0], center[1], measMosaic.getYaw(ccd)))
+            center = getCenterInFpPixels(ccd)
+            f.write("%4ld %12.4f %12.4f %10.7f\n" % (ichip, center[0], center[1], getYaw(ccd)))
 
 def writeFluxData(fchip, outputDir):
     """!Write out diagnostic meas_mosaic photometric solution data files
