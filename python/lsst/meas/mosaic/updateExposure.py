@@ -22,7 +22,7 @@
 import re
 import numpy
 
-from .mosaicLib import getFCorImg, FluxFitParams, getJImg, calculateJacobian
+from . import getFCorImg, FluxFitParams, getJImg, calculateJacobian
 from lsst.pipe.base import Struct
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage

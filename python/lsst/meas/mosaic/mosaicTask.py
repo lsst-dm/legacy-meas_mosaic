@@ -31,7 +31,7 @@ import lsst.afw.image                   as afwImage
 import lsst.afw.math                    as afwMath
 import lsst.afw.table                   as afwTable
 import lsst.meas.algorithms             as measAlg
-import lsst.meas.mosaic.mosaicLib       as measMosaic
+import lsst.meas.mosaic                 as measMosaic
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
 
@@ -234,9 +234,8 @@ class SourceReader(object):
             return []
 
         psfKey = None                       # Table key for classification.psfstar
-        if (isinstance(sources, afwTable.ReferenceMatchVector) or
-            isinstance(sources[0], afwTable.ReferenceMatch)):
-            sourceList = [s.second for s in sources]
+        if isinstance(sources[0], afwTable.ReferenceMatch):
+            sourceList = [s[1] for s in sources]
             psfKey = sourceList[0].schema.find(self.config.psfStarForStarSelection).getKey()
         else:
             sourceList = sources
@@ -273,8 +272,8 @@ class SourceReader(object):
         return stars
 
     def setCatFlux(self, m, flux, fluxKey, fluxSigma, fluxSigmaKey):
-        m.first.set(fluxKey, flux)
-        m.first.set(fluxSigmaKey, fluxSigma)
+        m[0].set(fluxKey, flux)
+        m[0].set(fluxSigmaKey, fluxSigma)
         return m
 
     def readSrc(self, dataRef):
@@ -340,23 +339,23 @@ class SourceReader(object):
                 matchmeta.setDouble("RADIUS", rad*1.05, "field radius in degrees, approximate, padded")
             matches = refObjLoader.joinMatchListWithCatalog(srcMatch, sources)
 
-            # Set the aliap map for the matched sources (i.e. the .second attribute schema for each match)
+            # Set the aliap map for the matched sources (i.e. the [1] attribute schema for each match)
             if self.config.srcSchemaMap is not None and hscRun is not None:
                 for mm in matches:
-                    aliasMap = mm.second.schema.getAliasMap()
+                    aliasMap = mm[1].schema.getAliasMap()
                     for lsstName, otherName in self.config.srcSchemaMap.iteritems():
                         aliasMap.set(lsstName, otherName)
 
             if hscRun is not None:
                 for slot in ("PsfFlux", "ModelFlux", "ApFlux", "InstFlux", "Centroid", "Shape"):
-                    getattr(matches[0].second.getTable(), "define" + slot)(
+                    getattr(matches[0][1].getTable(), "define" + slot)(
                         getattr(sources, "get" + slot + "Definition")())
                     # For some reason, the CalibFlux slot in sources is coming up as centroid_sdss, so
                     # set it to flux_naive explicitly
                     for slot in ("CalibFlux", ):
-                        getattr(matches[0].second.getTable(), "define" + slot)("flux_naive")
-            matches = [m for m in matches if m.first is not None]
-            refSchema = matches[0].first.schema if matches else None
+                        getattr(matches[0][1].getTable(), "define" + slot)("flux_naive")
+            matches = [m for m in matches if m[0] is not None]
+            refSchema = matches[0][0].schema if matches else None
 
             if self.cterm is not None and len(matches) != 0:
                 # Add a "flux" field to the input schema of the first element
@@ -371,16 +370,16 @@ class SourceReader(object):
                 table.preallocate(len(matches))
                 for match in matches:
                     newMatch = table.makeRecord()
-                    newMatch.assign(match.first, mapper)
-                    match.first = newMatch
+                    newMatch.assign(match[0], mapper)
+                    match[0] = newMatch
                 primaryFluxKey = refSchema.find(refSchema.join(self.cterm.primary, "flux")).key
                 secondaryFluxKey = refSchema.find(refSchema.join(self.cterm.secondary, "flux")).key
                 primaryFluxSigmaKey = refSchema.find(refSchema.join(self.cterm.primary, "fluxSigma")).key
                 secondaryFluxSigmaKey = refSchema.find(refSchema.join(self.cterm.secondary, "fluxSigma")).key
-                refFlux1 = numpy.array([m.first.get(primaryFluxKey) for m in matches])
-                refFlux2 = numpy.array([m.first.get(secondaryFluxKey) for m in matches])
-                refFluxSigma1 = numpy.array([m.first.get(primaryFluxSigmaKey) for m in matches])
-                refFluxSigma2 = numpy.array([m.first.get(secondaryFluxSigmaKey) for m in matches])
+                refFlux1 = numpy.array([m[0].get(primaryFluxKey) for m in matches])
+                refFlux2 = numpy.array([m[0].get(secondaryFluxKey) for m in matches])
+                refFluxSigma1 = numpy.array([m[0].get(primaryFluxSigmaKey) for m in matches])
+                refFluxSigma2 = numpy.array([m[0].get(secondaryFluxSigmaKey) for m in matches])
                 refMag1 = -2.5*numpy.log10(refFlux1)
                 refMag2 = -2.5*numpy.log10(refFlux2)
                 refMag = self.cterm.transformMags(refMag1, refMag2)
@@ -415,7 +414,8 @@ class SourceReader(object):
                         src.setExp(dataId["visit"])
                         src.setChip(dataId["ccd"])
                         try:
-                            cellSet.insertCandidate(measMosaic.SpatialCellSource(src))
+                            tmp = measMosaic.SpatialCellSource(src)
+                            cellSet.insertCandidate(tmp)
                         except:
                             self.log.info("FAILED TO INSERT CANDIDATE: visit=%d ccd=%d x=%f y=%f" %
                                           (dataRef.dataId["visit"], dataRef.dataId["ccd"],
@@ -423,17 +423,15 @@ class SourceReader(object):
                 for cell in cellSet.getCellList():
                     cell.sortCandidates()
                     for i, cand in enumerate(cell):
-                        cand = measMosaic.cast_SpatialCellSource(cand)
                         src = cand.getSource()
                         retSrc.append(src)
                         if i == self.config.nStarPerCell - 1:
                             break
                 for m in selMatches:
-                    if m.first is not None and m.second is not None:
-                        match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcs),
-                                                       measMosaic.Source(m.second))
-                        match.second.setExp(dataId["visit"])
-                        match.second.setChip(dataId["ccd"])
+                    if m[0] is not None and m[1] is not None:
+                        match = (measMosaic.Source(m[0], wcs), measMosaic.Source(m[1]))
+                        match[1].setExp(dataId["visit"])
+                        match[1].setChip(dataId["ccd"])
                         retMatch.append(match)
             else:
                 self.log.info("%8d %3d : %d/%d matches  Suspicious to wrong match. Ignore this CCD" %
@@ -482,7 +480,7 @@ class MosaicTask(pipeBase.CmdLineTask):
     def readCcd(self, dataRefList):
         self.log.info("Reading CCD info ...")
 
-        ccds = measMosaic.CcdSet()
+        ccds = {}
         for dataRef in dataRefList:
             if not dataRef.dataId["ccd"] in ccds.keys():
                 ccd = dataRef.get("camera")[int(dataRef.dataId["ccd"])]
@@ -501,7 +499,7 @@ class MosaicTask(pipeBase.CmdLineTask):
     def readWcs(self, dataRefList, ccdSet):
         self.log.info("Reading WCS ...")
 
-        wcsDic = measMosaic.WcsDic()
+        wcsDic = {}
         for dataRef in dataRefList:
             if not dataRef.dataId["visit"] in wcsDic.keys():
                 if (dataRef.datasetExists("calexp") and
@@ -533,8 +531,8 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.log.info("Reading catalogs ...")
         self.log.info("Use %d cores for reading source catalog" % (numCoresForReadSource))
 
-        sourceSet = measMosaic.SourceGroup()
-        matchList = measMosaic.SourceMatchGroup()
+        sourceSet = []
+        matchList = []
 
         sourceReader = SourceReader(ct, self.config)
 
@@ -573,8 +571,8 @@ class MosaicTask(pipeBase.CmdLineTask):
                         dataRefListUsed.append(dataRef)
 
         for visit in ssVisit.keys():
-            sourceSet.push_back(ssVisit[visit])
-            matchList.push_back(mlVisit[visit])
+            sourceSet.append(ssVisit[visit])
+            matchList.append(mlVisit[visit])
 
         return sourceSet, matchList, dataRefListUsed
 
@@ -860,15 +858,14 @@ class MosaicTask(pipeBase.CmdLineTask):
         if self.config.clipSourcesOutsideTract:
             tractBBox = afwGeom.Box2D(tractInfo.getBBox())
             tractWcs = tractInfo.getWcs()
-            allSourceClipped = measMosaic.SourceGroup(
-                [ss for ss in allSource if tractBBox.contains(tractWcs.skyToPixel(ss[0].getSky()))])
+            allSourceClipped = [ss for ss in allSource if tractBBox.contains(tractWcs.skyToPixel(ss[0].getSky()))]
             self.log.info("Num of allSources: %d" % (len(allSource)))
             self.log.info("Num of clipped allSources: %d" % (len(allSourceClipped)))
             allSource = allSourceClipped
 
         self.log.info("Make obsVec")
-        nmatch  = allMat.size()
-        nsource = allSource.size()
+        nmatch  = len(allMat)
+        nsource = len(allSource)
         matchVec  = measMosaic.obsVecFromSourceGroup(allMat, wcsDic, ccdSet)
         sourceVec = measMosaic.obsVecFromSourceGroup(allSource, wcsDic, ccdSet)
 
@@ -884,7 +881,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         catRMS = self.config.catRMS
 
         if not internal:
-            sourceVec = measMosaic.ObsVec()
+            sourceVec = []
 
         if debug:
             self.log.info("order : %d" % order)
@@ -924,7 +921,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 scale = coeff.pixelScale()
                 m.mag -= 2.5*math.log10(coeff.detJ(m.u, m.v)/scale**2)
 
-            if sourceVec.size() != 0:
+            if len(sourceVec) != 0:
                 for s in sourceVec:
                     coeff = coeffSet[s.iexp]
                     scale = coeff.pixelScale()
@@ -945,7 +942,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 scale = wcs.pixelScale().asDegrees()
                 m.mag -= 2.5*math.log10(wcs.pixArea(afwGeom.Point2D(m.x, m.y))/scale**2)
 
-            if sourceVec.size() != 0:
+            if len(sourceVec) != 0:
                 for s in sourceVec:
                     wcs = wcsAll["%07d-%03d" % (s.iexp, s.ichip)]
                     scale = wcs.pixelScale().asDegrees()
@@ -955,7 +952,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         if self.config.doSolveFlux:
 
-            ffpSet = measMosaic.FfpSet()
+            ffpSet = {}
             for visit in wcsDic.keys():
                 ffp = measMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
                 u_max, v_max = mosaicUtils.getExtent(matchVec)
@@ -963,11 +960,10 @@ class MosaicTask(pipeBase.CmdLineTask):
                 ffp.v_max = (math.floor(v_max/10.0) + 1)*10
                 ffpSet[visit] = ffp
 
-            fexp = measMosaic.map_int_float()
-            fchip = measMosaic.map_int_float()
+            fexp = {}
+            fchip = {}
 
-            measMosaic.fluxFit(absolute, self.config.commonFluxCorr, matchVec, nmatch, sourceVec,
-                               nsource, wcsDic, ccdSet, fexp, fchip, ffpSet, solveCcdScale)
+            matchVec, sourceVec, wcsDic, ccdSet, fexp, fchip, ffpSet = measMosaic.fluxFit(absolute, self.config.commonFluxCorr, matchVec, len(matchVec), sourceVec, len(sourceVec), wcsDic, ccdSet, fexp, fchip, ffpSet, solveCcdScale)
 
             self.ffpSet = ffpSet
             self.fexp = fexp
@@ -979,7 +975,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 self.outputDiagFlux()
 
         if diagnostics and self.config.doSolveWcs and self.config.doSolveFlux:
-            if sourceVec.size() != 0:
+            if len(sourceVec) != 0:
                 mosaicUtils.writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec,
                                          os.path.join(self.outputDir, "catalog.fits"))
 

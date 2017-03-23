@@ -1,10 +1,11 @@
 import math, numpy
 import lsst.pex.config                  as pexConfig
-import lsst.meas.mosaic.mosaicLib       as measMosaic
+import lsst.meas.mosaic                 as measMosaic
 import lsst.afw.cameraGeom              as cameraGeom
 import lsst.afw.cameraGeom.utils        as cameraGeomUtils
 import lsst.afw.geom                    as afwGeom
 import lsst.afw.image                   as afwImage
+import lsst.afw.table                   as afwTable
 from lsst.meas.photocal import PhotoCalTask
 
 class PhotometricSolutionConfig(PhotoCalTask.ConfigClass):
@@ -37,11 +38,11 @@ class PhotometricSolutionTask(PhotoCalTask):
         return ccdId/200, ccdId%200
 
     def setCatFlux(self, m, f, key):
-        m.first.set(key, f)
+        m[0].set(key, f)
         return m
 
     def selectStars(self, matches):
-        sourceList = [m.second for m in matches]
+        sourceList = [m[1] for m in matches]
         psfKey = sourceList[0].schema.find("calib.psf.used").getKey()
         extKey = sourceList[0].schema.find("classification.extendedness").getKey()
         stars = list()
@@ -67,19 +68,19 @@ class PhotometricSolutionTask(PhotoCalTask):
             visit, ccd = self.decodeCcdExposureId(ccdId)
             if not visit in mlVisit.keys():
                 mlVisit[visit] = list()
-            matches = [m for m in matchLists[ccdId] if m.first != None]
-            keys = self.getKeys(matches[0].second.schema)
+            matches = [m for m in matchLists[ccdId] if m[0] != None]
+            keys = self.getKeys(matches[0][1].schema)
             matches = self.selectMatches(matches, keys)
             matches = self.selectStars(matches)
 
             # Apply color term
             if ct != None and len(matches) != 0:
-                refSchema = matches[0].first.schema
+                refSchema = matches[0][0].schema
                 key_p = refSchema.find(ct.primary).key
                 key_s = refSchema.find(ct.secondary).key
                 key_f = refSchema.find("flux").key
-                refFlux1 = numpy.array([m.first.get(key_p) for m in matches])
-                refFlux2 = numpy.array([m.first.get(key_s) for m in matches])
+                refFlux1 = numpy.array([m[0].get(key_p) for m in matches])
+                refFlux2 = numpy.array([m[0].get(key_s) for m in matches])
                 refMag1 = -2.5*numpy.log10(refFlux1)
                 refMag2 = -2.5*numpy.log10(refFlux2)
                 refMag = ct.transformMags(refMag1, refMag2)
@@ -87,22 +88,22 @@ class PhotometricSolutionTask(PhotoCalTask):
                 matches = [self.setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
 
             for m in matches:
-                if m.first != None and m.second != None:
-                    match = measMosaic.SourceMatch(measMosaic.Source(m.first, wcsList[ccdId]), measMosaic.Source(m.second))
-                    match.second.setExp(visit)
-                    match.second.setChip(ccd)
+                if m[0] != None and m[1] != None:
+                    match = (measMosaic.Source(m[0], wcsList[ccdId]), measMosaic.Source(m[1]))
+                    match[1].setExp(visit)
+                    match[1].setChip(ccd)
                     mlVisit[visit].append(match)
 
 
-        matchList = measMosaic.SourceMatchGroup()
+        matchList = []
         for visit in mlVisit.keys():
-            matchList.push_back(mlVisit[visit])
+            matchList.append(mlVisit[visit])
 
         rootMat = measMosaic.kdtreeMat(matchList)
         allMat = rootMat.mergeMat()
 
         # Read CCD information
-        ccdSet = measMosaic.CcdSet()
+        ccdSet = {}
         for ccdId in matchLists.keys():
             if matchLists[ccdId] == None:
                 continue
@@ -112,7 +113,7 @@ class PhotometricSolutionTask(PhotoCalTask):
                 ccdSet[ccd] = ccdDev
 
         # meas_mosaic specific wcs information
-        wcsDic = measMosaic.WcsDic()
+        wcsDic = {}
         for ccdId in wcsList.keys():
             visit, ccd = self.decodeCcdExposureId(ccdId)
             if not visit in wcsDic.keys() and wcsList[ccdId] != None:
@@ -124,7 +125,7 @@ class PhotometricSolutionTask(PhotoCalTask):
 
         # meas_mosaic specific object list
         matchVec  = measMosaic.obsVecFromSourceGroup(allMat, wcsDic, ccdSet)
-        sourceVec = measMosaic.ObsVec()
+        sourceVec = []
 
         # Apply Jocabian correction calculated from wcs
         for m in matchVec:
@@ -137,7 +138,7 @@ class PhotometricSolutionTask(PhotoCalTask):
         chebyshev = True
         commonFluxCorr = False
         solveCcdScale = True
-        ffpSet = measMosaic.FfpSet()
+        ffpSet = {}
         for visit in wcsDic.keys():
             ffp = measMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
             u_max, v_max = self.getExtent(matchVec)
@@ -145,14 +146,10 @@ class PhotometricSolutionTask(PhotoCalTask):
             ffp.v_max = (math.floor(v_max / 10.) + 1) * 10
             ffpSet[visit] = ffp
 
-        fexp = measMosaic.map_int_float()
-        fchip = measMosaic.map_int_float()
+        fexp = {}
+        fchip = {}
 
-        measMosaic.fluxFit(absolute, commonFluxCorr,
-                           matchVec, matchVec.size(),
-                           sourceVec, sourceVec.size(),
-                           wcsDic, ccdSet,
-                           fexp, fchip, ffpSet, solveCcdScale)
+        matchVec, sourceVec, wcsDic, ccdSet, fexp, fchip, ffpSet = measMosaic.fluxFit(absolute, commonFluxCorr, matchVec, len(matchVec), sourceVec, len(sourceVec), wcsDic, ccdSet, fexp, fchip, ffpSet, solveCcdScale)
 
         self.writeFcr(butler, matchLists.keys(), ccdSet, filterName,
                       fexp, fchip, ffpSet)
