@@ -28,8 +28,8 @@ import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 import lsst.afw.math as afwMath
+from lsst.afw.cameraGeom import rotateBBoxBy90
 from lsst.afw.fits import FitsError
-import lsst.meas.astrom as measAstrom
 from . import utils as mosaicUtils
 
 __all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog",
@@ -87,10 +87,14 @@ def getFluxFitParams(dataRef):
     calexp_md = dataRef.get('calexp_md', immediate=True)
     hscRun = mosaicUtils.checkHscStack(calexp_md)
     if hscRun is None:
-         calexp = dataRef.get("calexp", immediate=True)
-         nQuarter = calexp.getDetector().getOrientation().getNQuarter()
-         if nQuarter%4 != 0:
-             wcs = measAstrom.rotateWcsPixels(wcs, calexp.getBBox(), nQuarter*90.0*afwGeom.degrees)
+        detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
+        nQuarter = detector.getOrientation().getNQuarter()
+        if nQuarter%4 != 0:
+            import lsst.meas.astrom as measAstrom
+            dimensions = afwGeom.Extent2I(calexp_md.get('NAXIS1'), calexp_md.get('NAXIS2'))
+            bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), dimensions)
+            bboxRot = rotateBBoxBy90(bbox, nQuarter, dimensions)
+            wcs = measAstrom.rotateWcsPixels(wcs, bboxRot, nQuarter*90.0*afwGeom.degrees, bbox)
 
     return Struct(ffp=ffp, calib=calib, wcs=wcs)
 

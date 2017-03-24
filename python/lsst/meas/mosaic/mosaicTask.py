@@ -36,6 +36,7 @@ import lsst.meas.mosaic.mosaicLib       as measMosaic
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
 
+from lsst.afw.cameraGeom import rotateBBoxBy90
 from lsst.log import Log
 from lsst.meas.astrom import LoadAstrometryNetObjectsTask, LoadAstrometryNetObjectsConfig
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
@@ -309,9 +310,9 @@ class SourceReader(object):
                 raise RuntimeError("no data for calexp_md %s" % (dataId))
 
             calexp_md = dataRef.get("calexp_md", immediate=True)
-            calexp = dataRef.get("calexp", immediate=True)
+            detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
             wcs = afwImage.makeWcs(calexp_md)
-            nQuarter = calexp.getDetector().getOrientation().getNQuarter()
+            nQuarter = detector.getOrientation().getNQuarter()
             sources = dataRef.get("src", immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
 
             # Check if we are looking at HSC stack outputs: if so, no pixel rotation of sources is
@@ -319,8 +320,8 @@ class SourceReader(object):
             hscRun = mosaicUtils.checkHscStack(calexp_md)
             if hscRun is None:
                 if nQuarter%4 != 0:
-                    sources = mosaicUtils.rotatePixelCoords(sources, calexp.getWidth(), calexp.getHeight(),
-                                                            nQuarter)
+                    sources = mosaicUtils.rotatePixelCoords(sources, calexp_md.get("NAXIS1"),
+                                                            calexp_md.get("NAXIS2"), nQuarter)
 
             # Set the aliap map for the source catalog
             if self.config.srcSchemaMap is not None and hscRun is not None:
@@ -624,11 +625,13 @@ class MosaicTask(pipeBase.CmdLineTask):
             calexp_md = dataRef.get("calexp_md", immediate=True)
             hscRun = mosaicUtils.checkHscStack(calexp_md)
             if hscRun is None:
-                calexp = dataRef.get("calexp", immediate=True)
-                nQuarter = calexp.getDetector().getOrientation().getNQuarter()
+                detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
+                nQuarter = detector.getOrientation().getNQuarter()
                 if nQuarter %4 != 0:
-                    wcs = measAstrom.rotateWcsPixels(wcs, calexp.getBBox(),
-                                                     (4 - nQuarter)*90.0*afwGeom.degrees)
+                    dimensions = afwGeom.Extent2I(calexp_md.get('NAXIS1'), calexp_md.get('NAXIS2'))
+                    bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), dimensions)
+                    bboxRot = rotateBBoxBy90(bbox, 4 - nQuarter, dimensions)
+                    wcs = measAstrom.rotateWcsPixels(wcs, bbox, (4 - nQuarter)*90.0*afwGeom.degrees, bboxRot)
 
             exp.setWcs(wcs)
             try:
