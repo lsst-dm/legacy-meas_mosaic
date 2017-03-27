@@ -24,6 +24,7 @@ import numpy
 
 from . import getFCorImg, FluxFitParams, getJImg, calculateJacobian
 from lsst.pipe.base import Struct
+import lsst.afw.geom as afwGeom
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
@@ -78,7 +79,20 @@ def getFluxFitParams(dataRef):
     except FitsError:
         calib = None
         ffp = None
-    return Struct(ffp=ffp, calib=calib, wcs=getWcs(dataRef))
+
+    wcs = getWcs(dataRef)
+
+    calexp_md = dataRef.get("calexp_md", immediate=True)
+    hscRun = mosaicUtils.checkHscStack(calexp_md)
+    if hscRun is None:
+         detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
+         nQuarter = detector.getOrientation().getNQuarter()
+         if nQuarter%4 != 0:
+             # Have to put this import here due to circular dependence in forcedPhotCcd.py in meas_base
+             import lsst.meas.astrom as measAstrom
+             dimensions = afwGeom.Extent2I(calexp_md.get("NAXIS1"), calexp_md.get("NAXIS2"))
+             wcs = measAstrom.rotateWcsPixelsBy90(wcs, nQuarter, dimensions)
+    return Struct(ffp=ffp, calib=calib, wcs=wcs)
 
 def getWcs(dataRef):
     """Retrieve the Wcs determined by meas_mosaic"""
@@ -88,7 +102,7 @@ def getWcs(dataRef):
         wcsHeader = dataRef.get("wcs_md", immediate=True)
     except FitsError:
         return None
-    return afwImage.makeWcs(wcsHeader)
+    return afwImage.TanWcs.cast(afwImage.makeWcs(wcsHeader))
 
 def getMosaicResults(dataRef, dims=None):
     """Retrieve the results of meas_mosaic
@@ -159,15 +173,15 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
                 for i in range(key.getElementCount()):
                     catalog[errKeys[name]][:,i] *= corr
 
-    wcs = getWcs(dataRef)
-    for rec in catalog:
-        rec.updateCoord(wcs)
-
     # Now rotate them back to the LSST coord system
     if hscRun is None:
         if nQuarter%4 != 0:
             catalog = mosaicUtils.rotatePixelCoordsBack(catalog, calexp.getWidth(), calexp.getHeight(),
                                                         nQuarter)
+
+    wcs = getWcs(dataRef)
+    for rec in catalog:
+        rec.updateCoord(wcs)
 
     return Struct(catalog=catalog, wcs=wcs, ffp=ffp)
 
