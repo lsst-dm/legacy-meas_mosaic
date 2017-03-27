@@ -138,13 +138,14 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     The coordinates and all fluxes are updated in-place with the meas_mosaic solution.
     """
     ffp = getFluxFitParams(dataRef)
-    calexp_md = dataRef.get('calexp_md', immediate=True)
-    calexp = dataRef.get('calexp', immediate=True)
-    nQuarter = calexp.getDetector().getOrientation().getNQuarter()
+    calexp_md = dataRef.get("calexp_md", immediate=True)
     hscRun = mosaicUtils.checkHscStack(calexp_md)
     if hscRun is None:
+        detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
+        nQuarter = detector.getOrientation().getNQuarter()
         if nQuarter%4 != 0:
-            catalog = mosaicUtils.rotatePixelCoords(catalog, calexp.getWidth(), calexp.getHeight(), nQuarter)
+            catalog = mosaicUtils.rotatePixelCoords(catalog, calexp_md.get("NAXIS1"), calexp_md.get("NAXIS2"),
+                                                    nQuarter)
     xx, yy = catalog.getX(), catalog.getY()
     corr = numpy.power(10.0, -0.4*ffp.ffp.eval(xx, yy))*calculateJacobian(ffp.wcs, xx, yy)
 
@@ -176,8 +177,8 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     # Now rotate them back to the LSST coord system
     if hscRun is None:
         if nQuarter%4 != 0:
-            catalog = mosaicUtils.rotatePixelCoordsBack(catalog, calexp.getWidth(), calexp.getHeight(),
-                                                        nQuarter)
+            catalog = mosaicUtils.rotatePixelCoordsBack(catalog, calexp_md.get("NAXIS1"),
+                                                        calexp_md.get("NAXIS2"), nQuarter)
 
     wcs = getWcs(dataRef)
     for rec in catalog:
