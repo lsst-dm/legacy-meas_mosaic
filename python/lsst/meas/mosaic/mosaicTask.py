@@ -573,8 +573,6 @@ class MosaicTask(pipeBase.CmdLineTask):
                     if dataRef.dataId == dataId:
                         dataRefListUsed.append(dataRef)
 
-        sourceSet.reserve(len(ssVisit))
-        matchList.reserve(len(ssVisit))
         for visit in ssVisit.keys():
             sourceSet.append(ssVisit[visit])
             matchList.append(mlVisit[visit])
