@@ -102,7 +102,7 @@ def getWcs(dataRef):
         wcsHeader = dataRef.get("wcs_md", immediate=True)
     except FitsError:
         return None
-    return afwImage.TanWcs.cast(afwImage.makeWcs(wcsHeader))
+    return afwImage.makeWcs(wcsHeader)
 
 def getMosaicResults(dataRef, dims=None):
     """Retrieve the results of meas_mosaic
