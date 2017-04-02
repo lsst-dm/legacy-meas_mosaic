@@ -28,3 +28,4 @@ from .mosaicfit import *
 from .shimCameraGeom import *
 from .snapshot import *
 from .spatialCellSource import *
+from .updateExposure import *
