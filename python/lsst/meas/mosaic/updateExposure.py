@@ -71,9 +71,15 @@ def getFluxFitParams(dataRef):
     """Retrieve the flux correction parameters determined by meas_mosaic"""
     # If meas_mosaic was configured to only solve astrometry (doSolveFlux=False),
     # this data will not have been saved. We use None as a placeholder.
+    calexp_md = dataRef.get("calexp_md", immediate=True)
+    hscRun = mosaicUtils.checkHscStack(calexp_md)
     try:
-        wcsHeader = dataRef.get("wcs_md", immediate=True)
-        ffpHeader = dataRef.get("fcr_md", immediate=True)
+        if hscRun is not None:
+            wcsHeader = dataRef.get("wcs_hsc_md", immediate=True)
+            ffpHeader = dataRef.get("fcr_hsc_md", immediate=True)
+        else:
+            wcsHeader = dataRef.get("wcs_md", immediate=True)
+            ffpHeader = dataRef.get("fcr_md", immediate=True)
         calib = afwImage.Calib(ffpHeader)
         ffp = FluxFitParams(ffpHeader)
     except FitsError:
@@ -82,8 +88,6 @@ def getFluxFitParams(dataRef):
 
     wcs = getWcs(dataRef)
 
-    calexp_md = dataRef.get("calexp_md", immediate=True)
-    hscRun = mosaicUtils.checkHscStack(calexp_md)
     if hscRun is None:
          detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
          nQuarter = detector.getOrientation().getNQuarter()
@@ -99,7 +103,12 @@ def getWcs(dataRef):
     # If meas_mosaic was configured to only solve photometry (doSolveWcs=False),
     # this data will not have been saved. We catch the error and return None.
     try:
-        wcsHeader = dataRef.get("wcs_md", immediate=True)
+        calexp_md = dataRef.get("calexp_md", immediate=True)
+        hscRun = mosaicUtils.checkHscStack(calexp_md)
+        if hscRun is not None:
+            wcsHeader = dataRef.get("wcs_hsc_md", immediate=True)
+        else:
+            wcsHeader = dataRef.get("wcs_md", immediate=True)
     except FitsError:
         return None
     return afwImage.makeWcs(wcsHeader)
@@ -162,17 +171,12 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
 
     fluxKeys, errKeys = getFluxKeys(catalog.schema, hscRun=hscRun)
     for name, key in fluxKeys.items():
-        if key.getElementCount() == 1:
+        # Note this skips correcting the aperture fluxes in HSC processed data, but that's ok because
+        # we are using the flux_sinc as our comparison to base_CircularApertureFlux_12_0_flux
+        if key.subfields is None:
             catalog[key][:] *= corr
-        else:
-            for i in range(key.getElementCount()):
-                catalog[key][:,i] *= corr
-        if name in errKeys:
-            if key.getElementCount() == 1:
+            if name in errKeys:
                 catalog[errKeys[name]][:] *= corr
-            else:
-                for i in range(key.getElementCount()):
-                    catalog[errKeys[name]][:,i] *= corr
 
     # Now rotate them back to the LSST coord system
     if hscRun is None:
