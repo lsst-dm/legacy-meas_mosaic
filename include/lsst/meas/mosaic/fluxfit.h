@@ -31,10 +31,10 @@ namespace lsst {
 		~FluxFitParams();
 		FluxFitParams(const FluxFitParams &p);
 		double eval(double u, double v) const;
-                ndarray::Array<double, 1> eval(
-                    ndarray::Array<double const, 1> const& x,
-                    ndarray::Array<double const, 1> const& y
-                    ) const;
+        ndarray::Array<double, 1> eval(
+            ndarray::Array<double const, 1> const& x,
+            ndarray::Array<double const, 1> const& y
+        ) const;
 		int getXorder(int i) const { return xorder[i]; }
 		int getYorder(int i) const { return yorder[i]; }
 		double getCoeff(int i) const { return coeff[i]; }

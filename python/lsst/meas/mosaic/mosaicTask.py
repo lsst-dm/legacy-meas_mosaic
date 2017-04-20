@@ -31,6 +31,7 @@ import lsst.afw.image                   as afwImage
 import lsst.afw.math                    as afwMath
 import lsst.afw.table                   as afwTable
 import lsst.meas.algorithms             as measAlg
+import lsst.meas.astrom                 as measAstrom
 import lsst.meas.mosaic                 as measMosaic
 import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
@@ -572,8 +573,6 @@ class MosaicTask(pipeBase.CmdLineTask):
                     if dataRef.dataId == dataId:
                         dataRefListUsed.append(dataRef)
 
-        sourceSet.reserve(len(ssVisit))
-        matchList.reserve(len(ssVisit))
         for visit in ssVisit.keys():
             sourceSet.append(ssVisit[visit])
             matchList.append(mlVisit[visit])
@@ -615,6 +614,17 @@ class MosaicTask(pipeBase.CmdLineTask):
             ichip = dataRef.dataId["ccd"]
             c = measMosaic.convertCoeff(self.coeffSet[iexp], self.ccdSet[ichip]);
             wcs = measMosaic.wcsFromCoeff(c);
+            calexp_md = dataRef.get("calexp_md", immediate=True)
+            hscRun = mosaicUtils.checkHscStack(calexp_md)
+            if hscRun is None:
+                detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
+                nQuarter = detector.getOrientation().getNQuarter()
+                if nQuarter%4 != 0:
+                    dimensions = afwGeom.Extent2I(calexp_md.get("NAXIS1"), calexp_md.get("NAXIS2"))
+                    if nQuarter%2 != 0:
+                        dimensions = afwGeom.Extent2I(calexp_md.get("NAXIS2"), calexp_md.get("NAXIS1"))
+                    wcs = measAstrom.rotateWcsPixelsBy90(wcs, 4 - nQuarter, dimensions)
+
             exp.setWcs(wcs)
             try:
                 dataRef.put(exp, "wcs")

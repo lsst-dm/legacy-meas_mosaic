@@ -22,6 +22,9 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 
+#include "numpy/arrayobject.h"
+#include "ndarray/pybind11.h"
+
 #include "lsst/meas/mosaic/fluxfit.h"
 
 namespace py = pybind11;
@@ -37,6 +40,11 @@ PYBIND11_PLUGIN(fluxfit) {
     py::module::import("lsst.daf.base");
 
     py::module mod("fluxfit");
+
+    if (_import_array() < 0) {
+        PyErr_SetString(PyExc_ImportError, "numpy.core.multiarray failed to import");
+        return nullptr;
+    }
 
     py::class_<FluxFitParams, std::shared_ptr<FluxFitParams>> clsFluxFitParams(mod, "FluxFitParams");
 
@@ -55,6 +63,14 @@ PYBIND11_PLUGIN(fluxfit) {
 
     clsFluxFitParams.def("eval", (double (FluxFitParams::*)(double, double) const) & FluxFitParams::eval,
                          "u"_a, "v"_a);
+    clsFluxFitParams.def(
+        "eval",
+        (ndarray::Array<double, 1> (FluxFitParams::*)(
+            ndarray::Array<double const, 1> const &,
+            ndarray::Array<double const, 1> const &
+        ) const) & FluxFitParams::eval,
+        "u"_a, "v"_a
+    );
     clsFluxFitParams.def("getXorder", &FluxFitParams::getXorder);
     clsFluxFitParams.def("getYorder", &FluxFitParams::getYorder);
     clsFluxFitParams.def("getCoeff", &FluxFitParams::getCoeff);
