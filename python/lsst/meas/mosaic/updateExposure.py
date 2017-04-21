@@ -51,19 +51,33 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
     if calexp is None:
         calexp = dataRef.get("calexp", immediate=True)
 
-    # meas_mosaic solution is done in coords assuming LLC is pixel 0,0, so rotate image
-    # to match that assumption before applying the wcs solution to it
     nQuarter = calexp.getDetector().getOrientation().getNQuarter()
-    if nQuarter %4 != 0:
-        calexp.setMaskedImage(afwMath.rotateImageBy90(calexp.getMaskedImage(), nQuarter))
+    dims = calexp.getDimensions()
+    hscRun = mosaicUtils.checkHscStack(calexp.getMetadata())
 
-    mosaic = getMosaicResults(dataRef, calexp.getDimensions())
+    # Need the dimensions in coordinates used by meas_mosaic which defines 0,0 as the
+    # lower-left hand corner on the sky
+    if hscRun is None:
+        if nQuarter%2 != 0:
+            width, height = calexp.getDimensions()
+            dims = afwGeom.Extent2I(height, width)
+
+    # return results in meas_mosaic coordinate system
+    mosaic = getMosaicResults(dataRef, dims)
+
     if mosaic.wcs is not None:
+        # rotate wcs back to LSST coordinate system
+        if nQuarter%4 != 0 and hscRun is None:
+            import lsst.meas.astrom as measAstrom
+            mosaic.wcs = measAstrom.rotateWcsPixelsBy90(mosaic.wcs, 4 - nQuarter, dims)
         calexp.setWcs(mosaic.wcs)
     if mosaic.calib is not None:
         calexp.getCalib().setFluxMag0(mosaic.calib.getFluxMag0())
     if mosaic.fcor is not None:
         mi = calexp.getMaskedImage()
+        # rotate photometric correction to LSST coordiantes
+        if nQuarter%4 != 0 and hscRun is None:
+            mosaic.fcor = afwMath.rotateImageBy90(mosaic.fcor, 4 - nQuarter)
         mi *= mosaic.fcor
     return Struct(exposure=calexp, mosaic=mosaic)
 
