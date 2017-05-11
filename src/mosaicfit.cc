@@ -3048,7 +3048,7 @@ lsst::meas::mosaic::convertCoeff(Coeff::Ptr& coeff, PTR(lsst::afw::cameraGeom::D
     return newC;
 }
 
-lsst::afw::image::TanWcs::Ptr
+std::shared_ptr<lsst::afw::image::TanWcs>
 lsst::meas::mosaic::wcsFromCoeff(Coeff::Ptr& coeff)
 {
     int order = coeff->p->order;
@@ -3090,9 +3090,7 @@ lsst::meas::mosaic::wcsFromCoeff(Coeff::Ptr& coeff)
     //std::cout << sipAp << std::endl;
     //std::cout << sipBp << std::endl;
 
-    lsst::afw::image::TanWcs::Ptr wcs = lsst::afw::image::TanWcs::Ptr(new lsst::afw::image::TanWcs(crval, crpix, cd, sipA, sipB, sipAp, sipBp));
-
-    return wcs;
+    return std::make_shared<lsst::afw::image::TanWcs>(crval, crpix, cd, sipA, sipB, sipAp, sipBp);
 }
 
 // wholesale copied from afw::image::TanWcs.cc
@@ -3118,8 +3116,8 @@ static void decodeSipHeader(CONST_PTR(lsst::daf::base::PropertySet) const& fitsM
     }
 }
 
-//hsc::meas::mosaic::coeffFromTanWcs(lsst::afw::image::TanWcs::Ptr& tanwcs)
-Coeff::Ptr lsst::meas::mosaic::coeffFromTanWcs(lsst::afw::image::Wcs::Ptr& wcs)
+//hsc::meas::mosaic::coeffFromTanWcs(std::shared_ptr<lsst::afw::image::TanWcs>& tanwcs)
+Coeff::Ptr lsst::meas::mosaic::coeffFromTanWcs(std::shared_ptr<lsst::afw::image::Wcs>& wcs)
 {
 
 //    lsst::daf::base::PropertyList::Ptr fitsMetadata = tanwcs->getFitsMetadata();
@@ -3198,7 +3196,7 @@ Coeff::Ptr lsst::meas::mosaic::coeffFromTanWcs(lsst::afw::image::Wcs::Ptr& wcs)
     return coeff;
 }
 
-lsst::afw::image::Image<float>::Ptr
+std::shared_ptr<lsst::afw::image::Image<float>>
 lsst::meas::mosaic::getJImg(Coeff::Ptr& coeff,
 			   PTR(lsst::afw::cameraGeom::Detector)& ccd)
 {
@@ -3208,7 +3206,7 @@ lsst::meas::mosaic::getJImg(Coeff::Ptr& coeff,
     int width  = getWidth(ccd);
     int height = getHeight(ccd);
 
-    lsst::afw::image::Image<float>::Ptr img(new lsst::afw::image::Image<float>(width, height));
+    std::shared_ptr<lsst::afw::image::Image<float>> img(new lsst::afw::image::Image<float>(width, height));
 
     Eigen::VectorXd vals(width);
 
@@ -3249,14 +3247,14 @@ lsst::meas::mosaic::getJImg(Coeff::Ptr& coeff,
     return img;
 }
 
-lsst::afw::image::Image<float>::Ptr
-lsst::meas::mosaic::getJImg(lsst::afw::image::Wcs::Ptr& wcs,
+std::shared_ptr<lsst::afw::image::Image<float>>
+lsst::meas::mosaic::getJImg(std::shared_ptr<lsst::afw::image::Wcs>& wcs,
 			   int width, int height)
 {
     double scale = wcs->pixelScale().asDegrees();
     double deg2pix = 1.0/scale;
 
-    lsst::afw::image::Image<float>::Ptr img(new lsst::afw::image::Image<float>(width, height));
+    std::shared_ptr<lsst::afw::image::Image<float>> img(new lsst::afw::image::Image<float>(width, height));
 
     Eigen::VectorXd vals(width);
 
@@ -3298,8 +3296,8 @@ lsst::meas::mosaic::getJImg(lsst::afw::image::Wcs::Ptr& wcs,
     return img;
 }
 
-lsst::afw::image::Image<float>::Ptr
-lsst::meas::mosaic::getJImg(lsst::afw::image::Wcs::Ptr& wcs,
+std::shared_ptr<lsst::afw::image::Image<float>>
+lsst::meas::mosaic::getJImg(std::shared_ptr<lsst::afw::image::Wcs>& wcs,
 			   PTR(lsst::afw::cameraGeom::Detector)& ccd)
 {
     int width  = getWidth(ccd);

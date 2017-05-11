@@ -64,15 +64,15 @@ namespace lsst {
 	    lsst::daf::base::PropertySet::Ptr
 	      metadataFromFluxFitParams(FluxFitParams::Ptr& ffp);
 
-	    lsst::afw::image::Image<float>::Ptr
+        std::shared_ptr<lsst::afw::image::Image<float>>
 	      getFCorImg(FluxFitParams::Ptr& p,
 			 PTR(lsst::afw::cameraGeom::Detector)& ccd,
 			 Coeff::Ptr& coeff);
 
-	    lsst::afw::image::Image<float>::Ptr
+        std::shared_ptr<lsst::afw::image::Image<float>>
 	      getFCorImg(FluxFitParams::Ptr& p, int width, int height);
 
-	    lsst::afw::image::Image<float>::Ptr
+        std::shared_ptr<lsst::afw::image::Image<float>>
 	      getFCorImg(FluxFitParams::Ptr& p,
 			 PTR(lsst::afw::cameraGeom::Detector)& ccd);
 

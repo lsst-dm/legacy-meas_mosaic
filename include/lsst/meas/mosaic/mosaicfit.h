@@ -107,7 +107,7 @@ namespace lsst {
             typedef std::vector<SourceMatch> SourceMatchSet;
 	    typedef std::vector<std::vector<SourceMatch> > SourceMatchGroup;
 
-	    typedef std::map<int, lsst::afw::image::Wcs::Ptr> WcsDic;
+	    typedef std::map<int, std::shared_ptr<lsst::afw::image::Wcs>> WcsDic;
 
 	    class Poly {
 	    public:
@@ -316,20 +316,20 @@ namespace lsst {
 	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff,
 				    PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
-	    lsst::afw::image::TanWcs::Ptr wcsFromCoeff(Coeff::Ptr& coeff);
+	    std::shared_ptr<lsst::afw::image::TanWcs> wcsFromCoeff(Coeff::Ptr& coeff);
 
-            Coeff::Ptr coeffFromTanWcs(lsst::afw::image::Wcs::Ptr& wcs);
+            Coeff::Ptr coeffFromTanWcs(std::shared_ptr<lsst::afw::image::Wcs>& wcs);
 
-	    lsst::afw::image::Image<float>::Ptr
+	    std::shared_ptr<lsst::afw::image::Image<float>>
 	      getJImg(Coeff::Ptr& coeff,
 		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
-	    lsst::afw::image::Image<float>::Ptr
-	      getJImg(lsst::afw::image::Wcs::Ptr& wcs,
+	    std::shared_ptr<lsst::afw::image::Image<float>>
+	      getJImg(std::shared_ptr<lsst::afw::image::Wcs>& wcs,
 		      int width, int height);
 
-	    lsst::afw::image::Image<float>::Ptr
-	      getJImg(lsst::afw::image::Wcs::Ptr& wcs,
+	    std::shared_ptr<lsst::afw::image::Image<float>>
+	      getJImg(std::shared_ptr<lsst::afw::image::Wcs>& wcs,
 		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
             //{

@@ -262,12 +262,12 @@ PYBIND11_PLUGIN(mosaicfit) {
     mod.def("wcsFromCoeff", wcsFromCoeff);
     mod.def("coeffFromTanWcs", coeffFromTanWcs);
 
-    mod.def("getJImg", (lsst::afw::image::Image<float>::Ptr(*)(
+    mod.def("getJImg", (std::shared_ptr<lsst::afw::image::Image<float>>(*)(
                                Coeff::Ptr &, PTR(lsst::afw::cameraGeom::Detector) &))getJImg);
     mod.def("getJImg",
-            (lsst::afw::image::Image<float>::Ptr(*)(lsst::afw::image::Wcs::Ptr &, int, int))getJImg);
-    mod.def("getJImg", (lsst::afw::image::Image<float>::Ptr(*)(
-                               lsst::afw::image::Wcs::Ptr &, PTR(lsst::afw::cameraGeom::Detector) &))getJImg);
+            (std::shared_ptr<lsst::afw::image::Image<float>>(*)(std::shared_ptr<lsst::afw::image::Wcs> &, int, int))getJImg);
+    mod.def("getJImg", (std::shared_ptr<lsst::afw::image::Image<float>>(*)(
+                               std::shared_ptr<lsst::afw::image::Wcs> &, PTR(lsst::afw::cameraGeom::Detector) &))getJImg);
     mod.def("calculateJacobian",
             (double (*)(afw::image::Wcs const &, afw::geom::Point2D const &))calculateJacobian);
     mod.def("calculateJacobian",

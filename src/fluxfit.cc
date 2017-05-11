@@ -1907,7 +1907,7 @@ lsst::meas::mosaic::metadataFromFluxFitParams(FluxFitParams::Ptr& ffp)
     return metadata;
 }
 
-lsst::afw::image::Image<float>::Ptr
+std::shared_ptr<lsst::afw::image::Image<float>>
 lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 			      PTR(lsst::afw::cameraGeom::Detector)& ccd,
 			      Coeff::Ptr& coeff)
@@ -1915,7 +1915,7 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
     int width = getWidth(ccd);
     int height = getHeight(ccd);
 
-    lsst::afw::image::Image<float>::Ptr img(new lsst::afw::image::Image<float>(width, height));
+    std::shared_ptr<lsst::afw::image::Image<float>> img(new lsst::afw::image::Image<float>(width, height));
 
     Eigen::VectorXd vals(width);
 
@@ -1954,10 +1954,10 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
     return img;
 }
 
-lsst::afw::image::Image<float>::Ptr
+std::shared_ptr<lsst::afw::image::Image<float>>
 lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p, int width, int height)
 {
-    lsst::afw::image::Image<float>::Ptr img(new lsst::afw::image::Image<float>(width, height));
+    std::shared_ptr<lsst::afw::image::Image<float>> img(new lsst::afw::image::Image<float>(width, height));
 
     Eigen::VectorXd vals(width);
 
@@ -1998,7 +1998,7 @@ lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p, int width, int height)
     return img;
 }
 
-lsst::afw::image::Image<float>::Ptr
+std::shared_ptr<lsst::afw::image::Image<float>>
 lsst::meas::mosaic::getFCorImg(FluxFitParams::Ptr& p,
 			      PTR(lsst::afw::cameraGeom::Detector)& ccd)
 {
