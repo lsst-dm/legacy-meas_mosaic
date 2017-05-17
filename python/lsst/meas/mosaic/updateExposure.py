@@ -47,6 +47,9 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
 
     If None, the calexp will be loaded from the dataRef.  Otherwise it is
     updated in-place.
+
+    This assumes that the mosaic solution exists; an exception will be raised
+    in the event that it does not.
     """
     if calexp is None:
         calexp = dataRef.get("calexp", immediate=True)
@@ -65,40 +68,38 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
     # return results in meas_mosaic coordinate system
     mosaic = getMosaicResults(dataRef, dims)
 
-    if mosaic.wcs is not None:
-        # rotate wcs back to LSST coordinate system
-        if nQuarter%4 != 0 and hscRun is None:
-            import lsst.meas.astrom as measAstrom
-            mosaic.wcs = measAstrom.rotateWcsPixelsBy90(mosaic.wcs, 4 - nQuarter, dims)
-        calexp.setWcs(mosaic.wcs)
-    if mosaic.calib is not None:
-        calexp.getCalib().setFluxMag0(mosaic.calib.getFluxMag0())
-    if mosaic.fcor is not None:
-        mi = calexp.getMaskedImage()
-        # rotate photometric correction to LSST coordiantes
-        if nQuarter%4 != 0 and hscRun is None:
-            mosaic.fcor = afwMath.rotateImageBy90(mosaic.fcor, 4 - nQuarter)
-        mi *= mosaic.fcor
+    # rotate wcs back to LSST coordinate system
+    if nQuarter%4 != 0 and hscRun is None:
+        import lsst.meas.astrom as measAstrom
+        mosaic.wcs = measAstrom.rotateWcsPixelsBy90(mosaic.wcs, 4 - nQuarter, dims)
+    calexp.setWcs(mosaic.wcs)
+
+    calexp.getCalib().setFluxMag0(mosaic.calib.getFluxMag0())
+
+    mi = calexp.getMaskedImage()
+    # rotate photometric correction to LSST coordiantes
+    if nQuarter%4 != 0 and hscRun is None:
+        mosaic.fcor = afwMath.rotateImageBy90(mosaic.fcor, 4 - nQuarter)
+    mi *= mosaic.fcor
+
     return Struct(exposure=calexp, mosaic=mosaic)
 
 def getFluxFitParams(dataRef):
-    """Retrieve the flux correction parameters determined by meas_mosaic"""
-    # If meas_mosaic was configured to only solve astrometry (doSolveFlux=False),
-    # this data will not have been saved. We use None as a placeholder.
+    """Retrieve the flux correction parameters determined by meas_mosaic
+
+    If the flux correction parameters do not exist, an exception will
+    be raised.
+    """
     calexp_md = dataRef.get("calexp_md", immediate=True)
     hscRun = mosaicUtils.checkHscStack(calexp_md)
-    try:
-        if hscRun is not None:
-            wcsHeader = dataRef.get("wcs_hsc_md", immediate=True)
-            ffpHeader = dataRef.get("fcr_hsc_md", immediate=True)
-        else:
-            wcsHeader = dataRef.get("wcs_md", immediate=True)
-            ffpHeader = dataRef.get("fcr_md", immediate=True)
-        calib = afwImage.Calib(ffpHeader)
-        ffp = FluxFitParams(ffpHeader)
-    except FitsError:
-        calib = None
-        ffp = None
+    if hscRun is not None:
+        wcsHeader = dataRef.get("wcs_hsc_md", immediate=True)
+        ffpHeader = dataRef.get("fcr_hsc_md", immediate=True)
+    else:
+        wcsHeader = dataRef.get("wcs_md", immediate=True)
+        ffpHeader = dataRef.get("fcr_md", immediate=True)
+    calib = afwImage.Calib(ffpHeader)
+    ffp = FluxFitParams(ffpHeader)
 
     wcs = getWcs(dataRef)
 
@@ -113,18 +114,16 @@ def getFluxFitParams(dataRef):
     return Struct(ffp=ffp, calib=calib, wcs=wcs)
 
 def getWcs(dataRef):
-    """Retrieve the Wcs determined by meas_mosaic"""
-    # If meas_mosaic was configured to only solve photometry (doSolveWcs=False),
-    # this data will not have been saved. We catch the error and return None.
-    try:
-        calexp_md = dataRef.get("calexp_md", immediate=True)
-        hscRun = mosaicUtils.checkHscStack(calexp_md)
-        if hscRun is not None:
-            wcsHeader = dataRef.get("wcs_hsc_md", immediate=True)
-        else:
-            wcsHeader = dataRef.get("wcs_md", immediate=True)
-    except FitsError:
-        return None
+    """Retrieve the Wcs determined by meas_mosaic
+
+    If the Wcs does not exist, an exception will be raised.
+    """
+    calexp_md = dataRef.get("calexp_md", immediate=True)
+    hscRun = mosaicUtils.checkHscStack(calexp_md)
+    if hscRun is not None:
+        wcsHeader = dataRef.get("wcs_hsc_md", immediate=True)
+    else:
+        wcsHeader = dataRef.get("wcs_md", immediate=True)
     return afwImage.makeWcs(wcsHeader)
 
 def getMosaicResults(dataRef, dims=None):
@@ -134,23 +133,16 @@ def getMosaicResults(dataRef, dims=None):
     """
     ffp = getFluxFitParams(dataRef)
 
-    if dims is None or ffp.wcs is None:
-        calexpHeader = dataRef.get("calexp_md", immediate=True)
     if dims is None:
+        calexpHeader = dataRef.get("calexp_md", immediate=True)
         width, height = calexpHeader.get("NAXIS1"), calexpHeader.get("NAXIS2")
     else:
         width, height = dims
 
-    if ffp.ffp is not None:
-        fcor = getFCorImg(ffp.ffp, width, height)
-        if ffp.wcs is not None:
-            jcor = getJImg(ffp.wcs, width, height)
-        else:
-            jcor = getJImg(afwImage.makeWcs(calexpHeader), width, height)
-        fcor *= jcor
-        del jcor
-    else:
-        fcor = None
+    fcor = getFCorImg(ffp.ffp, width, height)
+    jcor = getJImg(ffp.wcs, width, height)
+    fcor *= jcor
+    del jcor
 
     return Struct(wcs=ffp.wcs, calib=ffp.calib, fcor=fcor)
 
@@ -159,6 +151,9 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     """!Apply the results of meas_mosaic to a source catalog
 
     The coordinates and all fluxes are updated in-place with the meas_mosaic solution.
+
+    This assumes that the mosaic solution exists; an exception will be raised
+    in the event that it does not.
     """
     ffp = getFluxFitParams(dataRef)
     calexp_md = dataRef.get("calexp_md", immediate=True)
