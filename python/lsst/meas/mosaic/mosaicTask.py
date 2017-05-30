@@ -903,26 +903,25 @@ class MosaicTask(pipeBase.CmdLineTask):
             self.log.info("solveCcd : %r " % solveCcd)
             self.log.info("allowRotation : %r" % allowRotation)
 
-        self.matchVec = matchVec
-        self.sourceVec = sourceVec
-        self.wcsDic = wcsDic
-        self.ccdSet = ccdSet
-
         if self.config.doSolveWcs:
             if internal:
-                coeffSet = measMosaic.solveMosaic_CCD(order, nmatch, nsource,
+                coeffSet, matchVec, sourceVec, wcsDic, ccdSet = measMosaic.solveMosaic_CCD(order, nmatch, nsource,
                                                       matchVec, sourceVec,
                                                       wcsDic, ccdSet,
                                                       solveCcd, allowRotation,
                                                       verbose, catRMS,
                                                       snapshots, self.outputDir)
             else:
-                coeffSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec,
+                coeffSet, matchVec, wcsDic, ccdSet = measMosaic.solveMosaic_CCD_shot(order, nmatch, matchVec,
                                                            wcsDic, ccdSet,
                                                            solveCcd, allowRotation,
                                                            verbose, catRMS,
                                                            snapshots, self.outputDir)
 
+            self.matchVec = matchVec
+            self.sourceVec = sourceVec
+            self.wcsDic = wcsDic
+            self.ccdSet = ccdSet
             self.coeffSet = coeffSet
 
             self.writeNewWcs(dataRefListToOutput)
