@@ -37,7 +37,7 @@ import lsst.pex.config                  as pexConfig
 import lsst.pipe.base                   as pipeBase
 
 from lsst.log import Log
-from lsst.meas.astrom import LoadAstrometryNetObjectsTask, LoadAstrometryNetObjectsConfig
+from lsst.meas.algorithms import LoadIndexedReferenceObjectsTask
 from lsst.meas.base.forcedPhotCcd import PerTractCcdDataIdContainer
 from lsst.pipe.tasks.colorterms import ColortermLibrary
 from . import utils as mosaicUtils
@@ -150,7 +150,7 @@ class MosaicConfig(pexConfig.Config):
         default=True)
     loadAstrom = pexConfig.ConfigurableField(
         doc="Configuration for astrometry reference object loading",
-        target=LoadAstrometryNetObjectsTask)
+        target=LoadIndexedReferenceObjectsTask)
     doColorTerms = pexConfig.Field(
         doc="Apply color terms as part of solution?",
         dtype=bool,
@@ -172,6 +172,7 @@ class MosaicConfig(pexConfig.Config):
         dtype=ColortermLibrary)
     photoCatName = pexConfig.Field(
         doc="Name of photometric reference catalog; used to select a color term dict in colorterm library.",
+        default="ps1_pv3_3pi_20170110",
         dtype=str,
         optional=True)
     includeSaturated = pexConfig.Field(
@@ -213,6 +214,10 @@ class MosaicConfig(pexConfig.Config):
         default=None,
         optional=True)
     allowMixedFilters = pexConfig.Field(dtype=bool, default=False, doc="Allow multiple filters in input?")
+
+    def setDefaults(self):
+        self.loadAstrom.ref_dataset_name = "ps1_pv3_3pi_20170110"
+
 
 class SourceReader(object):
     """ Object to read source catalog.
