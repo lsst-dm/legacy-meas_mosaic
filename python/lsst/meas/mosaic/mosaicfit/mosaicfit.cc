@@ -252,12 +252,32 @@ PYBIND11_PLUGIN(mosaicfit) {
     mod.def("kdtreeMat", kdtreeMat);
     mod.def("kdtreeSource", kdtreeSource);
     mod.def("obsVecFromSourceGroup", obsVecFromSourceGroup);
-    mod.def("solveMosaic_CCD_shot", solveMosaic_CCD_shot, "order"_a, "nmatch"_a, "matchVec"_a, "wcsDic"_a,
-            "ccdSet"_a, "solveCcd"_a = true, "allowRotation"_a = true, "verbose"_a = false, "catRMS"_a = 0.0,
+    // Workaround because solveMosaic_CCD_shot uses in/out arguments of STL container types
+    mod.def("solveMosaic_CCD_shot",
+            [](int order, int nmatch, ObsVec &matchVec, WcsDic &wcsDic, CcdSet &ccdSet, bool solveCcd = true,
+               bool allowRotation = true, bool verbose = false, double catRMS = 0.0,
+               bool writeSnapshots = false, std::string const &snapshotDir = ".") {
+                auto coeffSet =
+                        solveMosaic_CCD_shot(order, nmatch, matchVec, wcsDic, ccdSet, solveCcd, allowRotation,
+                                             verbose, catRMS, writeSnapshots, snapshotDir);
+                return std::make_tuple(coeffSet, matchVec, wcsDic, ccdSet);
+            },
+            "order"_a, "nmatch"_a, "matchVec"_a, "wcsDic"_a, "ccdSet"_a, "solveCcd"_a = true,
+            "allowRotation"_a = true, "verbose"_a = false, "catRMS"_a = 0.0, "writeSnapshots"_a = false,
+            "snapshotDir"_a = ".");
+    // Workaround because solveMosaic_CCD uses in/out arguments of STL container types
+    mod.def("solveMosaic_CCD",
+            [](int order, int nmatch, int nsource, ObsVec &matchVec, ObsVec &sourceVec, WcsDic &wcsDic,
+               CcdSet &ccdSet, bool solveCcd = true, bool allowRotation = true, bool verbose = false,
+               double catRMS = 0.0, bool writeSnapshots = false, std::string const &snapshotDir = ".") {
+                auto coeffSet =
+                        solveMosaic_CCD(order, nmatch, nsource, matchVec, sourceVec, wcsDic, ccdSet, solveCcd,
+                                        allowRotation, verbose, catRMS, writeSnapshots, snapshotDir);
+                return std::make_tuple(coeffSet, matchVec, sourceVec, wcsDic, ccdSet);
+            },
+            "order"_a, "nmatch"_a, "nsource"_a, "matchVec"_a, "sourceVec"_a, "wcsDic"_a, "ccdSet"_a,
+            "solveCcd"_a = true, "allowRotation"_a = true, "verbose"_a = false, "catRMS"_a = 0.0,
             "writeSnapshots"_a = false, "snapshotDir"_a = ".");
-    mod.def("solveMosaic_CCD", solveMosaic_CCD, "order"_a, "nmatch"_a, "nsource"_a, "matchVec"_a,
-            "sourceVec"_a, "wcsDic"_a, "ccdSet"_a, "solveCcd"_a = true, "allowRotation"_a = true,
-            "verbose"_a = false, "catRMS"_a = 0.0, "writeSnapshots"_a = false, "snapshotDir"_a = ".");
     mod.def("convertCoeff", convertCoeff);
     mod.def("wcsFromCoeff", wcsFromCoeff);
     mod.def("coeffFromTanWcs", coeffFromTanWcs);
