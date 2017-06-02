@@ -24,6 +24,7 @@
 import os
 import math
 import numpy
+import glob
 
 import matplotlib
 matplotlib.use("Agg")
@@ -33,7 +34,11 @@ import matplotlib.mlab as mlab
 import lsst.afw.coord as afwCoord
 import lsst.afw.geom as afwGeom
 import lsst.afw.table as afwTable
+import lsst.afw.image as afwImage
+import lsst.afw.math as afwMath
 from .shimCameraGeom import getCenterInFpPixels, getWidth, getHeight, detPxToFpPxRot, getYaw
+from .fluxfit import FluxFitParams, getFCorImg
+from .mosaicfit import getJImg
 
 # Use LaTeX to render figure captions? Requires dvipng (not available on lsst-dev).
 USETEX=False
@@ -877,3 +882,61 @@ def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile)
         r.set(numKey, int(numbers[i]))
 
     catalog.writeFits(outputFile)
+
+
+class CorrectionImageSource(object):
+
+    @classmethod
+    def fromDir(cls, root, visit, **kwds):
+        ffp = {}
+        wcs = {}
+        fcrPattern = os.path.join(root, "fcr-%07d-*.fits" % visit)
+        wcsPattern = os.path.join(root, "wcs-%07d-*.fits" % visit)
+        start = fcrPattern.index("*")
+        for filename in glob.glob(fcrPattern):
+            ccd = int(filename[start:start+3])
+            md = afwImage.readMetadata(filename)
+            ffp[ccd] = FluxFitParams(md)
+        for filename in glob.glob(wcsPattern):
+            ccd = int(filename[start:start+3])
+            md = afwImage.readMetadata(filename)
+            wcs[ccd] = afwImage.makeWcs(md)
+        return CorrectionImageSource(ffp, wcs, **kwds)
+
+    def __init__(self, ffp, wcs, fcor=True, jacobian=True):
+        self.fcor = True
+        self.jacobian = True
+        self.ffp = ffp
+        self.wcs = wcs
+        self.isTrimmed = True
+        self.background = 0.0
+
+    def getCcdImage(self, ccd, imageFactory=afwImage.ImageF, binSize=1):
+        bbox = ccd.getBBox()
+        try:
+            ffp = self.ffp[ccd.getId()]
+            wcs = self.wcs[ccd.getId()]
+        except KeyError:
+            result = imageFactory(bbox)
+            return afwMath.binImage(result, binSize), ccd
+
+        nQuarter = ccd.getOrientation().getNQuarter()
+        if nQuarter % 2:
+            width, height = bbox.getHeight(), bbox.getWidth()
+        else:
+            width, height = bbox.getWidth(), bbox.getHeight()
+        if self.fcor:
+            result = getFCorImg(ffp, width, height)
+            if self.jacobian:
+                result *= getJImg(wcs, width, height)
+        elif self.jacobian:
+            result = getJImg(wcs, width, height)
+        else:
+            result = imageFactory(bbox)
+            return afwMath.binImage(result, binSize), ccd
+
+        result = afwMath.rotateImageBy90(result, 4 - nQuarter)
+        result.setXY0(bbox.getMin())
+        assert bbox == result.getBBox(), "%s != %s" % (bbox, result.getBBox())
+        assert type(result) == imageFactory
+        return afwMath.binImage(result, binSize), ccd
