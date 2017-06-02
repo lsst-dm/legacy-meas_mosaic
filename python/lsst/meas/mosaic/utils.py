@@ -24,6 +24,7 @@
 import os
 import math
 import numpy
+import glob
 
 import matplotlib
 matplotlib.use("Agg")
@@ -33,7 +34,11 @@ import matplotlib.mlab as mlab
 import lsst.afw.coord as afwCoord
 import lsst.afw.geom as afwGeom
 import lsst.afw.table as afwTable
+import lsst.afw.image as afwImage
+import lsst.afw.math as afwMath
 from .shimCameraGeom import getCenterInFpPixels, getWidth, getHeight, detPxToFpPxRot, getYaw
+from .fluxfit import FluxFitParams, getFCorImg
+from .mosaicfit import getJImg
 
 # Use LaTeX to render figure captions? Requires dvipng (not available on lsst-dev).
 USETEX=False
@@ -877,3 +882,92 @@ def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile)
         r.set(numKey, int(numbers[i]))
 
     catalog.writeFits(outputFile)
+
+
+class CorrectionImageSource(object):
+    """Create an ImageSource from the persisted fcr fit for displaying with showCamera
+
+       Note: fcr refers to the original persistance format of meas_mosaic.  This format will
+       be superceded with a persisted photoCalib object.
+
+       Example usage:
+
+       import lsst.afw.cameraGeom.utils as cgUtils
+       import lsst.afw.display as afwDisplay
+       import lsst.afw.image as afwImage
+       import lsst.daf.persistence as dafPersist
+       import lsst.meas.mosaic.utils as mosaicUtils
+
+       disp = afwDisplay.Display(1, 'ds9')
+       tract = 1234
+       visit = 4567
+       rerunDir = "/full/path/to/rerun/"
+       jointcalDir = rerun + "jointcal-results/" + str(tract) + "/"
+       butler = dafPersist.Butler(rerunDir)
+       camera = butler.get("camera")
+       imageSource = mosaicUtils.CorrectionImageSource.fromDir(jointcalDir, visit)
+       cgUtils.showCamera(camera, imageSource=imageSource, display=disp, binSize=10)
+    """
+
+    @classmethod
+    def fromDir(cls, root, visit, **kwds):
+        ffp = {}
+        wcs = {}
+        fcrPattern = os.path.join(root, "fcr-%07d-*.fits" % visit)  # meas_mosaic coords
+        wcsPattern = os.path.join(root, "wcs-%07d-*.fits" % visit)  # LSST coords
+        start = fcrPattern.index("*")
+        for filename in glob.glob(fcrPattern):
+            ccd = int(filename[start:start+3])
+            md = afwImage.readMetadata(filename)
+            ffp[ccd] = FluxFitParams(md)
+        for filename in glob.glob(wcsPattern):
+            ccd = int(filename[start:start+3])
+            md = afwImage.readMetadata(filename)
+            wcs[ccd] = afwImage.makeWcs(md)
+        return CorrectionImageSource(ffp, wcs, **kwds)
+
+    def __init__(self, ffp, wcs, fcor=True, jacobian=True):
+        self.ffp = ffp
+        self.wcs = wcs
+        self.fcor = fcor
+        self.jacobian = jacobian
+        self.isTrimmed = True
+        self.background = 0.0
+
+    def getCcdImage(self, ccd, imageFactory=afwImage.ImageF, binSize=1):
+        bbox = ccd.getBBox()
+        try:
+            ffp = self.ffp[ccd.getId()]
+            wcs = self.wcs[ccd.getId()]
+        except KeyError:
+            result = imageFactory(bbox)
+            return afwMath.binImage(result, binSize), ccd
+
+        nQuarter = ccd.getOrientation().getNQuarter()
+        # Rotate WCS from persisted LSST coords to meas_mosaic coords
+        if nQuarter%4 != 0:
+            # Have to put this import here due to circular dependencies
+            import lsst.meas.astrom as measAstrom
+            wcs = measAstrom.rotateWcsPixelsBy90(wcs, nQuarter, bbox.getDimensions())
+
+        if nQuarter%2:
+            width, height = bbox.getHeight(), bbox.getWidth()
+        else:
+            width, height = bbox.getWidth(), bbox.getHeight()
+        if self.fcor:
+            result = getFCorImg(ffp, width, height)
+            if self.jacobian:
+                result *= getJImg(wcs, width, height)
+        elif self.jacobian:
+            result = getJImg(wcs, width, height)
+        else:
+            result = imageFactory(bbox)
+            return afwMath.binImage(result, binSize), ccd
+
+        # Rotate images to LSST coords
+        if nQuarter%4 != 0:
+            result = afwMath.rotateImageBy90(result, 4 - nQuarter)
+        result.setXY0(bbox.getMin())
+        assert bbox == result.getBBox(), "%s != %s" % (bbox, result.getBBox())
+        assert type(result) == imageFactory
+        return afwMath.binImage(result, binSize), ccd
