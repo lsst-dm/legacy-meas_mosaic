@@ -201,7 +201,7 @@ Eigen::VectorXd fluxFit_rel(std::vector<Obs::Ptr> &m, int nmatch, std::vector<Ob
         }
     }
 
-    int ncoeff_offset = 3;  // Fit from 2nd order only
+    int ncoeff_offset = 3;	// Fit from 2nd order only
     // In some cases (small number of visits or small dithering),
     // fitting from 1st order will degenerate and fails.
     // Currently I'm fitting from 2nd order
@@ -963,7 +963,7 @@ Eigen::VectorXd fluxFit_abs(std::vector<Obs::Ptr> &m, int nmatch, std::vector<Ob
         }
     }
 
-    int ncoeff_offset = 1;  // Fit from 1st order only
+    int ncoeff_offset = 1;	// Fit from 1st order only
     FluxFitParams::Ptr p = ffpSet[ffpSet.begin()->first];
     int ncoeff = p->ncoeff - ncoeff_offset;
     int *xorder = &p->xorder[ncoeff_offset];
@@ -1862,10 +1862,12 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getFCorImg(
     for (int y = 0; y != height; y++) {
         for (int x = 0; x < width + interpLength; x += interpLength) {
             int interval = interpLength;
-            int xend = x + interval - 1;
+            int xend = x + interval;
+            int stop = interval;
             if (xend >= width) {
                 xend = width - 1;
-                interval = xend - x + 1;
+                interval = xend - x;
+                stop = interval + 1;
             }
 
             afw::geom::Point2D uv =
@@ -1874,8 +1876,8 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getFCorImg(
             uv = detPxToFpPxRot(ccd, afw::geom::Point2D(xend, y)) + afw::geom::Extent2D(coeff->x0, coeff->y0);
             double val1 = p->eval(uv.getX(), uv.getY());
 
-            for (int i = 0; i < interval; i++) {
-                vals(x + i) = val0 + (val1 - val0) / interval * i;
+            for (int i = 0; i < stop; i++) {
+                vals[x + i] = val0 + (val1 - val0) / interval * i;
             }
         }
 
@@ -1902,10 +1904,12 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getFCorImg(F
     for (int y = 0; y != height; y++) {
         for (int x = 0; x < width + interpLength; x += interpLength) {
             int interval = interpLength;
-            int xend = x + interval - 1;
+            int xend = x + interval;
+            int stop = interval;
             if (xend >= width) {
                 xend = width - 1;
-                interval = xend - x + 1;
+                interval = xend - x;
+                stop = interval + 1;
             }
 
             double u = x;
@@ -1914,8 +1918,8 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getFCorImg(F
             u = xend;
             v = y;
             double val1 = p->eval(u, v);
-            for (int i = 0; i < interval; i++) {
-                vals(x + i) = val0 + (val1 - val0) / interval * i;
+            for (int i = 0; i < stop; i++) {
+                vals[x + i] = val0 + (val1 - val0) / interval * i;
             }
         }
 

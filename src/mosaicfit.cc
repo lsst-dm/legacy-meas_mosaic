@@ -3105,10 +3105,12 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
     for (int y = 0; y != height; y++) {
         for (int x = 0; x < width + interpLength; x += interpLength) {
             int interval = interpLength;
-            int xend = x + interval - 1;
+            int xend = x + interval;
+            int stop = interval;
             if (xend >= width) {
                 xend = width - 1;
-                interval = xend - x + 1;
+                interval = xend - x;
+                stop = interval + 1;
             }
 
             afw::geom::Point2D uv =
@@ -3117,7 +3119,7 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
             uv = detPxToFpPxRot(ccd, afw::geom::Point2D(xend, y)) + afw::geom::Extent2D(coeff->x0, coeff->y0);
             double val1 = coeff->detJ(uv.getX(), uv.getY()) * deg2pix * deg2pix;
 
-            for (int i = 0; i < interval; i++) {
+            for (int i = 0; i < stop; i++) {
                 vals(x + i) = val0 + (val1 - val0) / interval * i;
             }
         }
@@ -3149,10 +3151,12 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
     for (int y = 0; y != height; y++) {
         for (int x = 0; x < width + interpLength; x += interpLength) {
             int interval = interpLength;
-            int xend = x + interval - 1;
+            int xend = x + interval;
+            int stop = interval;
             if (xend >= width) {
                 xend = width - 1;
-                interval = xend - x + 1;
+                interval = xend - x;
+                stop = interval + 1;
             }
 
             double u = x;
@@ -3162,7 +3166,7 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
             v = y;
             double val1 = wcs->pixArea(lsst::afw::geom::Point2D(u, v)) * deg2pix * deg2pix;
 
-            for (int i = 0; i < interval; i++) {
+            for (int i = 0; i < stop; i++) {
                 vals(x + i) = val0 + (val1 - val0) / interval * i;
             }
         }
