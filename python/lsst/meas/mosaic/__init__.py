@@ -22,6 +22,7 @@
 
 from __future__ import absolute_import
 
+from .version import *
 from .fluxfit import *
 from .matches import *
 from .mosaicfit import *
