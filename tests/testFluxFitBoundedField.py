@@ -30,6 +30,7 @@ import numpy as np
 import lsst.afw.geom
 import lsst.afw.image
 import lsst.meas.mosaic
+import lsst.daf.base
 import lsst.utils.tests
 
 DATA_DIR = os.path.join(os.path.split(__file__)[0], "data")
@@ -52,9 +53,54 @@ def displayImageDifferences(image1, image2, rtol=1E-8, atol=1E-8):
     d3.mtv(lsst.afw.image.makeMaskedImage(diff, mask, None))
 
 
+class MockDetector(object):
+
+    def __init__(self, orientation):
+        self.orientation = orientation
+
+    def getOrientation(self):
+        return self.orientation
+
+
+class MockOrientation(object):
+
+    def __init__(self, nQuarter):
+        self.nQuarter = nQuarter
+
+    def getNQuarter(self):
+        return self.nQuarter
+
+
+class MockExposure(object):
+
+    def __init__(self, exposure, detector):
+        self.exposure = exposure
+        self.detector = detector
+
+    def getDetector(self):
+        return self.detector
+
+    def __getattr__(self, name):
+        return getattr(self.exposure, name)
+
+
+class MockDataRef(object):
+
+    def __init__(self, **dataId):
+        self.dataId = dataId
+        self.datasets = {}
+
+    def get(self, name, immediate=True):
+        return self.datasets[name]
+
+    def put(self, dataset, name):
+        self.datasets[name] = dataset
+
+
 class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
 
     def setUp(self):
+        np.random.seed(100)
         self.tract = 8766
         self.visit = 7358
         self.ccds = {0: 49, 2: 50, 3: 101, 1: 102}
@@ -66,23 +112,43 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         )
         self.ffp = {}
         self.wcs = {}
-        for ccd in self.ccds.values():
-            filename1 = os.path.join(
+        self.photoCalib = {}
+        self.dataRefs = {}
+        camera = {}   # all we need from our mock camera is dict-like
+                      # access to (Mock)Detectors.
+        calexpMetadata = lsst.daf.base.PropertyList()
+        calexpMetadata.set("NAXIS1", self.bbox.getWidth())
+        calexpMetadata.set("NAXIS2", self.bbox.getHeight())
+        for nQuarter, ccd in self.ccds.items():
+            fcrFilename = os.path.join(
                 DATA_DIR,
                 "%d/fcr-%07d-%03d.fits" % (self.tract, self.visit, ccd)
             )
-            md1 = lsst.afw.image.readMetadata(filename1)
-            self.ffp[ccd] = lsst.meas.mosaic.FluxFitParams(md1)
-            filename2 = os.path.join(
+            fcrMetadata = lsst.afw.image.readMetadata(fcrFilename)
+            self.ffp[ccd] = lsst.meas.mosaic.FluxFitParams(fcrMetadata)
+            wcsFilename = os.path.join(
                 DATA_DIR,
                 "%d/wcs-%07d-%03d.fits" % (self.tract, self.visit, ccd)
             )
-            md2 = lsst.afw.image.readMetadata(filename2)
-            self.wcs[ccd] = lsst.afw.image.makeWcs(md2)
+            wcsMetadata = lsst.afw.image.readMetadata(wcsFilename)
+            self.wcs[ccd] = lsst.afw.image.makeWcs(wcsMetadata)
+            photoCalibFilename = os.path.join(
+                DATA_DIR,
+                "%d/photoCalib-%07d-%03d.fits" % (self.tract, self.visit, ccd)
+            )
+            self.photoCalib[ccd] = lsst.afw.image.PhotoCalib.readFits(photoCalibFilename)
+            camera[ccd] = MockDetector(MockOrientation(nQuarter))
+            self.dataRefs[ccd] = MockDataRef(visit=self.visit, tract=self.tract, ccd=ccd)
+            self.dataRefs[ccd].put(fcrMetadata, "fcr_md", )
+            self.dataRefs[ccd].put(wcsMetadata, "wcs_md")
+            self.dataRefs[ccd].put(calexpMetadata, "calexp_md")
+            self.dataRefs[ccd].put(camera, "camera")
 
     def tearDown(self):
         del self.ffp
         del self.wcs
+        del self.photoCalib
+        del self.dataRefs
 
     def makeBoundedField(self, nQuarter, ffp=True, wcs=True):
         ccd = self.ccds[nQuarter]
@@ -152,12 +218,72 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
             bf2 = lsst.afw.math.BoundedField.readFits(tempFile)
         self.assertEqual(bf1, bf2)
 
+    def checkPhotoCalibCatalog(self, nQuarter):
+        ccd = self.ccds[nQuarter]
+        schema = lsst.afw.table.SourceTable.makeMinimalSchema()
+        xKey = schema.addField("position_x", type=np.float64, doc="column position", units="pixel")
+        yKey = schema.addField("position_y", type=np.float64, doc="row position", units="pixel")
+        fluxKey = schema.addField("example_flux", type=np.float64, doc="flux", units="count")
+        fluxErrKey = schema.addField("example_fluxSigma", type=np.float64, doc="flux uncertainty",
+                                     units="count")
+        schema.getAliasMap().set("slot_Centroid", "position")
+        nRecords = 5
+        catalog = lsst.afw.table.SourceCatalog(schema)
+        catalog.reserve(nRecords)
+        for n in range(nRecords):
+            record = catalog.addNew()
+            record.set(xKey, np.random.uniform(low=self.bbox.getMinX(), high=self.bbox.getMaxX()))
+            record.set(yKey, np.random.uniform(low=self.bbox.getMinY(), high=self.bbox.getMaxY()))
+            record.set(fluxKey, np.random.randn()*1E3 + 1E4)
+            record.set(fluxErrKey, np.sqrt(record.get(fluxKey)))
+        # Compute fully-calibrated magnitudes using new PhotoCalib + BoundedField object
+        photoCalib = self.photoCalib[ccd]
+        mag1, magErr1 = photoCalib.instFluxToMagnitude(catalog, "example").transpose()
+        # Compute fully-calibrated magnitudes using the old approach
+        catalog2 = catalog.copy(deep=True)
+        results2 = lsst.meas.mosaic.applyMosaicResultsCatalog(self.dataRefs[ccd], catalog2)
+        catalog2 = results2.catalog
+        catalog2 = lsst.meas.mosaic.applyCalib(catalog2, results2.ffp.calib)
+        mag2, magErr2 = catalog2["example_mag"], catalog2["example_magSigma"]
+        # Check that the non-spatially varying part of the correction is the same.
+        self.assertFloatsAlmostEqual(photoCalib.getInstFluxMag0(), results2.ffp.calib.getFluxMag0()[0],
+                                     rtol=1E-14)
+        self.assertFloatsAlmostEqual(photoCalib.getInstFluxMag0Err(), results2.ffp.calib.getFluxMag0()[1],
+                                     rtol=1E-14)
+        # Compute partially-calibrated magnitudes that don't account for the spatially-varying part.
+        mag0, magErr0 = results2.ffp.calib.getMagnitude(catalog.get("example_flux"),
+                                                        catalog.get("example_fluxSigma"))
+        # Check that both approaches yield similar results overall...
+        rtol = 1E-14 if nQuarter == 0 else 1E-6  # rotating SIP Wcses involves a big loss of precision
+        self.assertFloatsAlmostEqual(mag1, mag2, rtol=rtol)
+        # ...and in just the spatially-varying part (but with less precision, partially because of
+        # round-off error).
+        magDiff2 = mag2 - mag0
+        magDiff1 = mag1 - mag0
+        self.assertFloatsAlmostEqual(magDiff1, magDiff2, rtol=rtol*2E3)
+
+    def checkPhotoCalibExposure(self, nQuarter):
+        ccd = self.ccds[nQuarter]
+        photoCalib = self.photoCalib[ccd]
+        original = lsst.afw.image.ExposureF(self.bbox)
+        original.image.array[:, :] = 1.0
+        image1 = lsst.afw.image.ImageF(original.image, deep=True)
+        photoCalib.computeScaledZeroPoint().divideImage(image1, xStep=100, yStep=16)
+        camera = self.dataRefs[ccd].get("camera")
+        calexp = MockExposure(original, detector=camera[ccd])
+        self.dataRefs[ccd].put(calexp, "calexp")
+        results2 = lsst.meas.mosaic.applyMosaicResultsExposure(self.dataRefs[ccd])
+        rtol = 1E-6 if nQuarter == 0 else 1E-4
+        self.assertImagesAlmostEqual(image1, results2.exposure.image, rtol=rtol)
+
     def testNQuarter0(self):
         self.checkFillImage(0, ffp=True, wcs=False)
         self.checkFillImage(0, ffp=False, wcs=True)
         self.checkFillImage(0, ffp=True, wcs=True)
         self.checkMultiply(0)
         self.checkPersistence(0)
+        self.checkPhotoCalibCatalog(0)
+        self.checkPhotoCalibExposure(0)
 
     def testNQuarter1(self):
         self.checkFillImage(1, ffp=True, wcs=False)
@@ -165,6 +291,8 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         self.checkFillImage(1, ffp=True, wcs=True)
         self.checkMultiply(1)
         self.checkPersistence(1)
+        self.checkPhotoCalibCatalog(1)
+        self.checkPhotoCalibExposure(1)
 
     def testNQuarter2(self):
         self.checkFillImage(2, ffp=True, wcs=False)
@@ -172,6 +300,8 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         self.checkFillImage(2, ffp=True, wcs=True)
         self.checkMultiply(2)
         self.checkPersistence(2)
+        self.checkPhotoCalibCatalog(2)
+        self.checkPhotoCalibExposure(2)
 
     def testNQuarter3(self):
         self.checkFillImage(3, ffp=True, wcs=False)
@@ -179,6 +309,8 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         self.checkFillImage(3, ffp=True, wcs=True)
         self.checkMultiply(3)
         self.checkPersistence(3)
+        self.checkPhotoCalibCatalog(3)
+        self.checkPhotoCalibExposure(3)
 
 
 if __name__ == "__main__":
