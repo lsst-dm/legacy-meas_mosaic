@@ -220,13 +220,8 @@ def applyCalib(catalog, calib, hscRun=None):
     for name in fluxKeys:
         fluxField = catalog.schema.find(name).field
         newName = name.replace("flux", "mag")
-        if fluxField.getElementCount() == 1:
-            newField = fluxField.__class__(newName, "Calibrated magnitude from %s (%s)" %
-                                           (fluxField.getName(), fluxField.getDoc()), "mag")
-        else:
-            newField = fluxField.__class__(newName, "Calibrated magnitude from %s (%s)" %
-                                           (fluxField.getName(), fluxField.getDoc()), "mag",
-                                           fluxField.getElementCount())
+        newField = fluxField.__class__(newName, "Calibrated magnitude from %s (%s)" %
+                                       (fluxField.getName(), fluxField.getDoc()), "mag")
         newFluxKeys[newName] = mapper.addMapping(fluxKeys[name], newField)
 
         sigmaName = "Sigma"
@@ -235,15 +230,9 @@ def applyCalib(catalog, calib, hscRun=None):
 
         if name + sigmaName in errKeys:
             errField = catalog.schema.find(name + sigmaName).field
-            if errField.getElementCount() == 1:
-                newErrField = errField.__class__(newName + sigmaName,
-                                                 "Calibrated magnitude error from %s (%s)" %
-                                                 (errField.getName(), errField.getDoc()), "mag")
-            else:
-                newErrField = errField.__class__(newName + sigmaName,
-                                                 "Calibrated magnitude error from %s (%s)" %
-                                                 (errField.getName(), errField.getDoc()), "mag",
-                                                 errField.getElementCount())
+            newErrField = errField.__class__(newName + sigmaName,
+                                             "Calibrated magnitude error from %s (%s)" %
+                                             (errField.getName(), errField.getDoc()), "mag")
             newErrKeys[newName] = mapper.addMapping(errKeys[name + sigmaName], newErrField)
         aliasMap.set(name, newName)
         aliasMap.set(name + sigmaName, newName + sigmaName)
