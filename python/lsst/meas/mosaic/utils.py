@@ -890,8 +890,8 @@ class CorrectionImageSource(object):
     def fromDir(cls, root, visit, **kwds):
         ffp = {}
         wcs = {}
-        fcrPattern = os.path.join(root, "fcr-%07d-*.fits" % visit)
-        wcsPattern = os.path.join(root, "wcs-%07d-*.fits" % visit)
+        fcrPattern = os.path.join(root, "fcr-%07d-*.fits" % visit)  # meas_mosaic coords
+        wcsPattern = os.path.join(root, "wcs-%07d-*.fits" % visit)  # LSST coords
         start = fcrPattern.index("*")
         for filename in glob.glob(fcrPattern):
             ccd = int(filename[start:start+3])
@@ -904,10 +904,10 @@ class CorrectionImageSource(object):
         return CorrectionImageSource(ffp, wcs, **kwds)
 
     def __init__(self, ffp, wcs, fcor=True, jacobian=True):
-        self.fcor = True
-        self.jacobian = True
         self.ffp = ffp
         self.wcs = wcs
+        self.fcor = fcor
+        self.jacobian = jacobian
         self.isTrimmed = True
         self.background = 0.0
 
@@ -921,7 +921,13 @@ class CorrectionImageSource(object):
             return afwMath.binImage(result, binSize), ccd
 
         nQuarter = ccd.getOrientation().getNQuarter()
-        if nQuarter % 2:
+        # Rotate WCS from persisted LSST coords to meas_mosaic coords
+        if nQuarter%4 != 0:
+            # Have to put this import here due to circular dependencies
+            import lsst.meas.astrom as measAstrom
+            wcs = measAstrom.rotateWcsPixelsBy90(wcs, nQuarter, bbox.getDimensions())
+
+        if nQuarter%2:
             width, height = bbox.getHeight(), bbox.getWidth()
         else:
             width, height = bbox.getWidth(), bbox.getHeight()
@@ -935,7 +941,9 @@ class CorrectionImageSource(object):
             result = imageFactory(bbox)
             return afwMath.binImage(result, binSize), ccd
 
-        result = afwMath.rotateImageBy90(result, 4 - nQuarter)
+        # Rotate images to LSST coords
+        if nQuarter%4 != 0:
+            result = afwMath.rotateImageBy90(result, 4 - nQuarter)
         result.setXY0(bbox.getMin())
         assert bbox == result.getBBox(), "%s != %s" % (bbox, result.getBBox())
         assert type(result) == imageFactory
