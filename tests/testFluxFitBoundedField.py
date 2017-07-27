@@ -36,7 +36,7 @@ import lsst.utils.tests
 DATA_DIR = os.path.join(os.path.split(__file__)[0], "data")
 
 
-def displayImageDifferences(image1, image2, rtol=1E-8, atol=1E-8):
+def displayImageDifferences(image1, image2, rtol=1E-8, atol=1E-8, pause=False):
     import lsst.afw.display
     diff = type(image1)(image1, deep=True)
     diff -= image2
@@ -48,9 +48,22 @@ def displayImageDifferences(image1, image2, rtol=1E-8, atol=1E-8):
     d1 = lsst.afw.display.Display(frame=0)
     d2 = lsst.afw.display.Display(frame=1)
     d3 = lsst.afw.display.Display(frame=3)
-    d1.mtv(lsst.afw.image.makeMaskedImage(image1, mask, None))
-    d2.mtv(lsst.afw.image.makeMaskedImage(image2, mask, None))
-    d3.mtv(lsst.afw.image.makeMaskedImage(diff, mask, None))
+    d1.setMaskTransparency(50)
+    d2.setMaskTransparency(50)
+    d3.setMaskTransparency(50)
+    d1.scale("linear", "minmax")
+    d2.scale("linear", "minmax")
+    d3.scale("linear", "minmax")
+    d1.mtv(lsst.afw.image.makeMaskedImage(image1, mask, None), title="PhotoCalib image")
+    d2.mtv(lsst.afw.image.makeMaskedImage(image2, mask, None), title="fcr image")
+    d3.mtv(lsst.afw.image.makeMaskedImage(diff, mask, None), title="diff(PhotoCalib-fcr)")
+
+    if pause:
+        print("Dropping into debugger to allow inspection of display")
+        print("Note that any pixles not satisfying atol and rtol requirements will be masked BLUE")
+        print("Type 'continue' when done.")
+        import pdb
+        pdb.set_trace()
 
 
 class MockDetector(object):
@@ -186,7 +199,8 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         # more round-off error in calculations for nQuarter != 0
         rtol = 1E-6 if nQuarter == 0 else 1E-4
         if display:
-            displayImageDifferences(image1, image2, rtol=rtol)
+            print("nQuarter = {}   ffp = {}   wcs = {} ".format(nQuarter, ffp, wcs))
+            displayImageDifferences(image1, image2, rtol=rtol, pause=True)
         self.assertImagesAlmostEqual(image1, image2, rtol=rtol)
 
     def checkMultiply(self, nQuarter):
