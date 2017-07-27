@@ -885,6 +885,29 @@ def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile)
 
 
 class CorrectionImageSource(object):
+    """Create an ImageSource from the persisted fcr fit for displaying with showCamera
+
+       Note: fcr refers to the original persistance format of meas_mosaic.  This format will
+       be superceded with a persisted photoCalib object.
+
+       Example usage:
+
+       import lsst.afw.cameraGeom.utils as cgUtils
+       import lsst.afw.display as afwDisplay
+       import lsst.afw.image as afwImage
+       import lsst.daf.persistence as dafPersist
+       import lsst.meas.mosaic.utils as mosaicUtils
+
+       disp = afwDisplay.Display(1, 'ds9')
+       tract = 1234
+       visit = 4567
+       rerunDir = "/full/path/to/rerun/"
+       jointcalDir = rerun + "jointcal-results/" + str(tract) + "/"
+       butler = dafPersist.Butler(rerunDir)
+       camera = butler.get("camera")
+       imageSource = mosaicUtils.CorrectionImageSource.fromDir(jointcalDir, visit)
+       cgUtils.showCamera(camera, imageSource=imageSource, display=disp, binSize=10)
+    """
 
     @classmethod
     def fromDir(cls, root, visit, **kwds):
