@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 #
 # LSST Data Management System
-# Copyright 2015 AURA/LSST.
+#
+# Copyright 2008-2017 AURA/LSST.
 #
 # This product includes software developed by the
 # LSST Project (http://www.lsst.org/).
@@ -18,18 +19,18 @@
 #
 # You should have received a copy of the LSST License Statement and
 # the GNU General Public License along with this program.  If not,
-# see <http://www.lsstcorp.org/LegalNotices/>.
-
+# see <https://www.lsstcorp.org/LegalNotices/>.
+#
 from __future__ import absolute_import, division, print_function
 
 import os
 import unittest
 import numpy as np
 
-import lsst.afw.image
 import lsst.afw.geom
-import lsst.meas.mosaic
+import lsst.afw.image
 import lsst.daf.base
+import lsst.meas.mosaic
 import lsst.utils.tests
 
 DATA_DIR = os.path.join(os.path.split(__file__)[0], "data")
@@ -40,7 +41,7 @@ def displayImageDifferences(image1, image2, rtol=1E-8, atol=1E-8):
     diff = type(image1)(image1, deep=True)
     diff -= image2
     relTo = np.maximum(np.abs(image1.array), np.abs(image2.array))
-    mask = lsst.afw.image.MaskU(image1.getBBox())
+    mask = lsst.afw.image.Mask(image1.getBBox())
     mask.array[:, :] = (mask.getPlaneBitMask("DETECTED") *
                         np.logical_and(np.abs(diff.array[:, :]) > atol,
                                        np.abs(diff.array[:, :]) > rtol*relTo))
@@ -145,6 +146,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
 
     def tearDown(self):
         del self.ffp
+        del self.wcs
 
     def makeBoundedField(self, nQuarter, ffp=True, wcs=True):
         ccd = self.ccds[nQuarter]
@@ -168,7 +170,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         bf, ffp, wcs = self.makeBoundedField(nQuarter, ffp, wcs)
         image1 = lsst.afw.image.ImageF(self.bbox)
         bf.fillImage(image1, xStep=100, yStep=16)
-        if nQuarter % 2:
+        if nQuarter%2:
             width, height = self.bbox.getHeight(), self.bbox.getWidth()
         else:
             width, height = self.bbox.getWidth(), self.bbox.getHeight()
@@ -189,9 +191,9 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
 
     def checkMultiply(self, nQuarter):
         bf1, ffp, wcs = self.makeBoundedField(nQuarter)
-        bf2 = bf1 * 2.4
-        bf3 = 7.2 * bf1
-        bf4 = bf1 / 0.5
+        bf2 = bf1*2.4
+        bf3 = 7.2*bf1
+        bf4 = bf1/0.5
         N_POINTS = 50
         px = np.random.uniform(low=self.bbox.getMinX(),
                                high=self.bbox.getMaxX(),
@@ -203,9 +205,9 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         z2 = bf2.evaluate(px, py)
         z3 = bf3.evaluate(px, py)
         z4 = bf4.evaluate(px, py)
-        self.assertFloatsAlmostEqual(z2, z1 * 2.4, rtol=1E-15)
-        self.assertFloatsAlmostEqual(z3, 7.2 * z1, rtol=1E-15)
-        self.assertFloatsAlmostEqual(z4, z1 / 0.5, rtol=1E-15)
+        self.assertFloatsAlmostEqual(z2, z1*2.4, rtol=1E-15)
+        self.assertFloatsAlmostEqual(z3, 7.2*z1, rtol=1E-15)
+        self.assertFloatsAlmostEqual(z4, z1/0.5, rtol=1E-15)
 
     def checkPersistence(self, nQuarter):
         bf1, ffp, wcs = self.makeBoundedField(nQuarter, ffp=True, wcs=False)
