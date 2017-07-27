@@ -160,6 +160,8 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
     def tearDown(self):
         del self.ffp
         del self.wcs
+        del self.photoCalib
+        del self.dataRefs
 
     def makeBoundedField(self, nQuarter, ffp=True, wcs=True):
         ccd = self.ccds[nQuarter]
