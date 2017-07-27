@@ -971,3 +971,42 @@ class CorrectionImageSource(object):
         assert bbox == result.getBBox(), "%s != %s" % (bbox, result.getBBox())
         assert type(result) == imageFactory
         return afwMath.binImage(result, binSize), ccd
+
+
+class PhotoCalibImageSource(object):
+    """Create an ImageSource from the persisted photoCalib fit for displaying with showCamera
+
+       Note: see CorrectionImageSource class definition for example usage
+    """
+
+    @classmethod
+    def fromDir(cls, root, visit, **kwds):
+        photoCalib = {}
+        photoCalibPattern = os.path.join(root, "photoCalib-%07d-*.fits" % visit)
+        start = photoCalibPattern.index("*")
+        for filename in glob.glob(photoCalibPattern):
+            ccd = int(filename[start:start+3])
+            photoCalib[ccd] = afwImage.PhotoCalib.readFits(filename)
+        return PhotoCalibImageSource(photoCalib, **kwds)
+
+    def __init__(self, photoCalib):
+        self.photoCalib = photoCalib
+        self.isTrimmed = True
+        self.background = 0.0
+
+    def getCcdImage(self, ccd, imageFactory=afwImage.ImageF, binSize=1):
+        bbox = ccd.getBBox()
+
+        try:
+            photoCalib = self.photoCalib[ccd.getId()]
+        except KeyError:
+            result = imageFactory(bbox)
+            return afwMath.binImage(result, binSize), ccd
+
+        tempImage = afwImage.ExposureF(bbox)
+        tempImage.image.array[:, :] = 1.0
+        result = afwImage.ImageF(tempImage.image, deep=True)
+        photoCalib.computeScaledZeroPoint().divideImage(result, xStep=100, yStep=16)
+
+        assert type(result) == imageFactory
+        return afwMath.binImage(result, binSize), ccd
