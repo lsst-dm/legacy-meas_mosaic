@@ -634,7 +634,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             try:
                 dataRef.put(exp, "wcs")
             except Exception as e:
-                print "failed to write something: %s" % (e)
+                print "failed to write wcs: %s" % (e)
 
     def writeFcr(self, dataRefList):
         self.log.info("Write Fcr ...")
@@ -672,7 +672,35 @@ class MosaicTask(pipeBase.CmdLineTask):
             try:
                 dataRef.put(exp, "fcr")
             except Exception as e:
-                print "failed to write something: %s" % (e)
+                print "failed to write fcr: %s" % (e)
+
+            # Write the flux fit (including Jacobian) as a PhotoCalib for
+            # future compatibility with jointcal.  This is redundant with
+            # the above, and should eventually supercede it.
+            detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
+            nQuarter = detector.getOrientation().getNQuarter()
+            bbox = detector.getBBox()
+            try:
+                # Reading the Wcs we just wrote obviously isn't efficient, but
+                # it should be in the noise of the overall runtime and it
+                # saves us from doing a bunch of refactoring in a fragile
+                # package with no tests.
+                wcs_md = dataRef.get("wcs_md")
+                wcs = afwImage.makeWcs(wcs_md)
+            except Exception as e:
+                print "failed to read Wcs for PhotoCalib: %s" % (e)
+                continue
+            instFluxMag0, instFluxMag0Err = calib.getFluxMag0()
+            bf = measMosaic.FluxFitBoundedField(bbox, newP, wcs,
+                                                zeroPoint=instFluxMag0,
+                                                nQuarter=nQuarter)
+            photoCalib = afwImage.PhotoCalib(
+                instFluxMag0,
+                instFluxMag0Err,
+                bf,
+                isConstant=False
+            )
+            dataRef.put(photoCalib, "photoCalib")
 
     def outputDiagWcs(self):
         self.log.info("Output WCS Diagnostic Figures...")
