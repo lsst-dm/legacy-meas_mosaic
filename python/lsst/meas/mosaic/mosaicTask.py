@@ -325,8 +325,9 @@ class SourceReader(object):
             hscRun = mosaicUtils.checkHscStack(calexp_md)
             if hscRun is None:
                 if nQuarter%4 != 0:
-                    sources = mosaicUtils.rotatePixelCoords(sources, calexp_md.get("NAXIS1"),
-                                                            calexp_md.get("NAXIS2"), nQuarter)
+                    dims = afwImage.bboxFromMetadata(calexp_md).getDimensions()
+                    sources = mosaicUtils.rotatePixelCoords(sources, dims.getWidth(), dims.getHeight(),
+                                                            nQuarter)
 
             # Set the aliap map for the source catalog
             if self.config.srcSchemaMap is not None and hscRun is not None:
@@ -410,10 +411,10 @@ class SourceReader(object):
             retMatch = list()
 
             if len(selMatches) > self.config.minNumMatch:
-                naxis1, naxis2 = calexp_md.get("NAXIS1"), calexp_md.get("NAXIS2")
+                naxis1, naxis2 = afwImage.bboxFromMetadata(calexp_md).getDimensions()
                 if hscRun is None:
                     if nQuarter%2 != 0:
-                        naxis1, naxis2 = calexp_md.get("NAXIS2"), calexp_md.get("NAXIS1")
+                        naxis1, naxis2 = naxis2, naxis1
                 bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(naxis1, naxis2))
                 cellSet = afwMath.SpatialCellSet(bbox, self.config.cellSize, self.config.cellSize)
                 for s in selSources:
@@ -627,9 +628,9 @@ class MosaicTask(pipeBase.CmdLineTask):
                 detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
                 nQuarter = detector.getOrientation().getNQuarter()
                 if nQuarter%4 != 0:
-                    dimensions = afwGeom.Extent2I(calexp_md.get("NAXIS1"), calexp_md.get("NAXIS2"))
+                    dimensions = afwImage.bboxFromMetadata(calexp_md).getDimensions()
                     if nQuarter%2 != 0:
-                        dimensions = afwGeom.Extent2I(calexp_md.get("NAXIS2"), calexp_md.get("NAXIS1"))
+                        dimensions = afwGeom.Extent2I(dimensions.getHeight(), dimensions.getWidth())
                     wcs = measAstrom.rotateWcsPixelsBy90(wcs, 4 - nQuarter, dimensions)
 
             exp.setWcs(wcs)
@@ -824,7 +825,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 dataRefListExists.append(dataRef)
 
                 if self.config.requireTractOverlap:
-                    naxis1, naxis2 = md.get("NAXIS1"), md.get("NAXIS2")
+                    naxis1, naxis2 = afwImage.bboxFromMetadata(md).getDimensions()
                     bbox = afwGeom.Box2D(afwGeom.Box2I(
                             afwGeom.Point2I(0, 0), afwGeom.Extent2I(naxis1, naxis2)))
                     overlap = False
