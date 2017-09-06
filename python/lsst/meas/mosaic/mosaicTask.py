@@ -77,6 +77,7 @@ class MosaicRunner(pipeBase.TaskRunner):
     def __call__(self, args):
         task = self.TaskClass(config=self.config, log=self.log)
         result = task.run(*args)
+        return pipeBase.Struct(exitStatus=0)
 
 class MosaicConfig(pexConfig.Config):
     nBrightest = pexConfig.Field(
