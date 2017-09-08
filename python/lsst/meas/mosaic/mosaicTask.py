@@ -331,7 +331,7 @@ class SourceReader(object):
             # Set the aliap map for the source catalog
             if self.config.srcSchemaMap is not None and hscRun is not None:
                 aliasMap = sources.schema.getAliasMap()
-                for lsstName, otherName in self.config.srcSchemaMap.iteritems():
+                for lsstName, otherName in self.config.srcSchemaMap.items():
                     aliasMap.set(lsstName, otherName)
 
             refObjLoader = self.config.loadAstrom.apply(butler=dataRef.getButler())
@@ -351,7 +351,7 @@ class SourceReader(object):
             if self.config.srcSchemaMap is not None and hscRun is not None:
                 for mm in matches:
                     aliasMap = mm[1].schema.getAliasMap()
-                    for lsstName, otherName in self.config.srcSchemaMap.iteritems():
+                    for lsstName, otherName in self.config.srcSchemaMap.items():
                         aliasMap.set(lsstName, otherName)
 
             if hscRun is not None:
@@ -888,7 +888,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         self.removeNonExistCcd(dataRefListUsed, ccdSet)
 
         if debug:
-            for iexp, wcs in wcsDic.iteritems():
+            for iexp, wcs in wcsDic.items():
                 self.log.info(str(iexp) + " " + str(wcs.getPixelOrigin()) + " " +
                               str(wcs.getSkyOrigin().getPosition(afwGeom.degrees)))
 

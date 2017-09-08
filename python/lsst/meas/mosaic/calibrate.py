@@ -32,7 +32,7 @@ class CalibrateCatalogTask(CmdLineTask):
         # Set the aliap map for the source catalog
         if self.config.srcSchemaMap is not None and hscRun is not None:
             aliasMap = catalog.schema.getAliasMap()
-            for lsstName, otherName in self.config.srcSchemaMap.iteritems():
+            for lsstName, otherName in self.config.srcSchemaMap.items():
                 aliasMap.set(lsstName, otherName)
         results = applyMosaicResultsCatalog(dataRef, catalog)
         catalog = results.catalog
@@ -69,4 +69,3 @@ class CalibrateExposureTask(CmdLineTask):
         pass
     def writeMetadata(self, dataRef):
         pass
-
