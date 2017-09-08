@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 import math
 import numpy
@@ -218,7 +219,7 @@ class CheckMosaicTask(MosaicTask):
                     y.append(sig)
                     ra.append(Sr / (len(ss)-1))
                     dec.append(Sd / (len(ss)-1))
-                except Exception, e:
+                except Exception as e:
                     #print Sxx, S, avg, Sxx/S - avg*avg, len(ss)-1
                     pass
 
@@ -234,7 +235,7 @@ class CheckMosaicTask(MosaicTask):
             plt.savefig('fluxMean.png')
         else:
             for r, d, m, dm in zip(ra, dec, x, y):
-                print '%9.5f %9.5f %7.4f %7.4f' % (r, d, m ,dm)
+                print('%9.5f %9.5f %7.4f %7.4f' % (r, d, m ,dm))
 
     def plotPos(self, dx_m, dy_m, dx_s, dy_s):
 
@@ -433,7 +434,7 @@ class CheckMosaicTask(MosaicTask):
         calibDic = dict()
         ffpDic = dict()
         for dataRef in dataRefList:
-            if not ssVisit.has_key(dataRef.dataId['visit']):
+            if dataRef.dataId['visit'] not in ssVisit:
                 ssVisit[dataRef.dataId['visit']] = list()
                 mlVisit[dataRef.dataId['visit']] = list()
                 wcsDic[dataRef.dataId['visit']] = dict()
@@ -505,8 +506,8 @@ class CheckMosaicTask(MosaicTask):
 
                 sources = self.selectStars(sources)
                 matches = self.selectStars(matches, True)
-            except Exception, e:
-                print "Failed to read: %s" % (e)
+            except Exception as e:
+                print("Failed to read: %s" % (e))
                 sources = None
                 continue
 

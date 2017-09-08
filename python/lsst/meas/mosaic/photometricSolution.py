@@ -1,3 +1,4 @@
+from __future__ import print_function
 import math, numpy
 import lsst.pex.config                  as pexConfig
 import lsst.meas.mosaic                 as measMosaic
@@ -176,5 +177,5 @@ class PhotometricSolutionTask(PhotoCalTask):
             exp.setFilter(afwImage.Filter(filterName))
             try:
                 butler.put(exp, 'fcr', {'visit': iexp, 'ccd': ichip})
-            except Exception, e:
-                print "failed to write something: %s" % (e)
+            except Exception as e:
+                print("failed to write something: %s" % (e))

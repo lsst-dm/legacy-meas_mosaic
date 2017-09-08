@@ -20,6 +20,7 @@
 # the GNU General Public License along with this program.  If not,
 # see <https://www.lsstcorp.org/LegalNotices/>.
 #
+from __future__ import print_function
 import os
 import math
 import numpy
@@ -500,7 +501,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             md = dataRef.get("calexp_md")
             return afwImage.makeWcs(md)
         except Exception as e:
-            print "Failed to read: %s for %s" % (e, dataRef.dataId)
+            print("Failed to read: %s for %s" % (e, dataRef.dataId))
             return None
 
     def readWcs(self, dataRefList, ccdSet):
@@ -635,7 +636,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             try:
                 dataRef.put(exp, "wcs")
             except Exception as e:
-                print "failed to write wcs: %s" % (e)
+                print("failed to write wcs: %s" % (e))
 
     def writeFcr(self, dataRefList):
         self.log.info("Write Fcr ...")
@@ -673,7 +674,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             try:
                 dataRef.put(exp, "fcr")
             except Exception as e:
-                print "failed to write fcr: %s" % (e)
+                print("failed to write fcr: %s" % (e))
 
             # Write the flux fit (including Jacobian) as a PhotoCalib for
             # future compatibility with jointcal.  This is redundant with
@@ -689,7 +690,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 wcs_md = dataRef.get("wcs_md")
                 wcs = afwImage.makeWcs(wcs_md)
             except Exception as e:
-                print "failed to read Wcs for PhotoCalib: %s" % (e)
+                print("failed to read Wcs for PhotoCalib: %s" % (e))
                 continue
             instFluxMag0, instFluxMag0Err = calib.getFluxMag0()
             bf = measMosaic.FluxFitBoundedField(bbox, newP, wcs,
@@ -776,7 +777,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
                 # There is no overlapping sources
                 if len(mref) < 10:
-                    print "%d %d" % (visit_ref, visit_targ)
+                    print("%d %d" % (visit_ref, visit_targ))
                     continue
 
                 mref = -2.5*numpy.log10(mref)
@@ -800,8 +801,8 @@ class MosaicTask(pipeBase.CmdLineTask):
                     else:
                         ngood += 1
 
-                print "visit_ref visit_targ med SIQR ngood nbad"
-                print "%10d %10d %6.3f %5.3f %5d %5d" % (visit_ref, visit_targ, med, SIQR, ngood, nbad)
+                print("visit_ref visit_targ med SIQR ngood nbad")
+                print("%10d %10d %6.3f %5.3f %5d %5d" % (visit_ref, visit_targ, med, SIQR, ngood, nbad))
 
                 del mref
                 del mtarg
@@ -840,7 +841,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 else:
                     dataRefListOverlapWithTract.append(dataRef)
             except Exception as e:
-                print e
+                print(e)
 
         visitListOverlapWithTract = list(set([d.dataId["visit"] for d in dataRefListOverlapWithTract]))
 
