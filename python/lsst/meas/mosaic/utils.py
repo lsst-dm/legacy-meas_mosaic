@@ -183,7 +183,7 @@ def getCcdFpExtent(ccdSet):
     padding = 2500.0 # approx half ccd height + room for CCD spacing
     xMinFp, xMaxFp = 18000, -18000
     yMinFp, yMaxFp = 18000, -18000
-    for ichip in ccdSet.keys():
+    for ichip in ccdSet:
         ccd = ccdSet[ichip]
         center = getCenterInFpPixels(ccd)
         if center[0] > xMaxFp: xMaxFp = center[0]
@@ -749,7 +749,7 @@ def writeWcsData(coeffSet, ccdSet, outputDir):
         f.write("# iexp     c.A          c.D\n")
         f.write("# iexp     c.x0         c.y0\n")
         f.write("# iexp     c.a(k)       c.b(k)           c.ap(k)         c.bp(k)\n")
-        for iexp in coeffSet.keys():
+        for iexp in coeffSet:
             c = coeffSet[iexp]
             f.write("%ld %12.5e %12.5e\n" % (iexp, c.A,  c.D))
             f.write("%ld %12.5f %12.5f\n" % (iexp, c.x0, c.y0))
@@ -759,7 +759,7 @@ def writeWcsData(coeffSet, ccdSet, outputDir):
 
     with open(os.path.join(outputDir, "ccd.dat"), "wt") as f:
         f.write("#chip   centerXFp    centerYFp   yaw (rad)\n")
-        for ichip in ccdSet.keys():
+        for ichip in ccdSet:
             ccd = ccdSet[ichip]
             center = getCenterInFpPixels(ccd)
             f.write("%4ld %12.4f %12.4f %10.7f\n" % (ichip, center[0], center[1], getYaw(ccd)))
@@ -769,7 +769,7 @@ def writeFluxData(fchip, outputDir):
     """
     with open(os.path.join(outputDir, "ccdScale.dat"), "wt") as f:
         f.write("#chip scale\n")
-        for ichip in fchip.keys():
+        for ichip in fchip:
             scale = fchip[ichip]
             f.write("%4ld %7.5f\n" % (ichip, scale))
 
@@ -777,12 +777,12 @@ def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile)
     # count number of unique objects
     idList = list()
     for m in matchVec:
-        if not m.istar in idList:
+        if m.istar not in idList:
             idList.append(m.istar)
     num_m = len(idList)
     idList = list()
     for s in sourceVec:
-        if not s.istar in idList:
+        if s.istar not in idList:
             idList.append(s.istar)
     num_s = len(idList)
     num = num_m + num_s

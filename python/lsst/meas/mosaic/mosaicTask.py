@@ -73,7 +73,7 @@ class MosaicRunner(pipeBase.TaskRunner):
                  parsedCmd.snapshots,
                  parsedCmd.numCoresForReadSource,
                  parsedCmd.readTimeout,
-                 ) for tract in sorted(refListDict.keys())]
+                 ) for tract in sorted(refListDict)]
 
     def __call__(self, args):
         task = self.TaskClass(config=self.config, log=self.log)
@@ -490,7 +490,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         ccds = {}
         for dataRef in dataRefList:
-            if not dataRef.dataId["ccd"] in ccds.keys():
+            if dataRef.dataId["ccd"] not in ccds:
                 ccd = dataRef.get("camera")[int(dataRef.dataId["ccd"])]
                 ccds[dataRef.dataId["ccd"]] = ccd
 
@@ -509,7 +509,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         wcsDic = {}
         for dataRef in dataRefList:
-            if not dataRef.dataId["visit"] in wcsDic.keys():
+            if dataRef.dataId["visit"] not in wcsDic:
                 if (dataRef.datasetExists("calexp") and
                     dataRef.datasetExists("src") and
                     dataRef.datasetExists("srcMatch")):
@@ -524,14 +524,14 @@ class MosaicTask(pipeBase.CmdLineTask):
     def removeNonExistCcd(self, dataRefList, ccdSet):
         num = dict()
         for dataRef in dataRefList:
-            if not dataRef.dataId["ccd"] in num.keys():
+            if dataRef.dataId["ccd"] not in num:
                 num[dataRef.dataId["ccd"]] = 0
             if (dataRef.datasetExists("calexp") and
                 dataRef.datasetExists("src") and
                 dataRef.datasetExists("srcMatch")):
                 num[dataRef.dataId["ccd"]] += 1
 
-        for ichip in ccdSet.keys():
+        for ichip in ccdSet:
             if num[ichip] == 0:
                 ccdSet.erase(ichip)
 
@@ -566,7 +566,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         for dataId, result in resultList:
             sources, matches, wcs = result
             if sources is not None:
-                if not dataId["visit"] in ssVisit.keys():
+                if dataId["visit"] not in ssVisit:
                     ssVisit[dataId["visit"]] = list()
                     mlVisit[dataId["visit"]] = list()
 
@@ -580,7 +580,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                     if dataRef.dataId == dataId:
                         dataRefListUsed.append(dataRef)
 
-        for visit in ssVisit.keys():
+        for visit in ssVisit:
             sourceSet.append(ssVisit[visit])
             matchList.append(mlVisit[visit])
 
@@ -711,7 +711,7 @@ class MosaicTask(pipeBase.CmdLineTask):
             os.makedirs(self.outputDir)
 
         mosaicUtils.writeWcsData(self.coeffSet, self.ccdSet, self.outputDir)
-        for iexp in self.coeffSet.keys():
+        for iexp in self.coeffSet:
             mosaicUtils.plotJCont(self.ccdSet, self.coeffSet, iexp, self.outputDir)
             mosaicUtils.plotResPosArrow2D(self.ccdSet, iexp, self.matchVec, self.sourceVec, self.outputDir)
 
@@ -726,7 +726,7 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         mosaicUtils.writeFluxData(self.fchip, self.outputDir)
 
-        for iexp in self.wcsDic.keys():
+        for iexp in self.wcsDic:
             mosaicUtils.plotFCorCont(self.ccdSet, self.ffpSet, self.coeffSet, iexp, self.outputDir)
 
         mosaicUtils.plotMdM(self.ffpSet, self.fexp, self.fchip, self.matchVec, self.sourceVec, self.outputDir)
@@ -739,7 +739,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         # In this method, determine median magnitude difference between visits and
         # flag (set flux to negative value to be flagged as bad object) objects which
         # show large magnitude difference from median value.
-        visits = wcsDic.keys()
+        visits = list(wcsDic.keys())
         for j in range(len(visits) - 1):
             visit_ref = visits[j]
             for i in range(j + 1, len(visits)):
@@ -892,8 +892,8 @@ class MosaicTask(pipeBase.CmdLineTask):
                 self.log.info(str(iexp) + " " + str(wcs.getPixelOrigin()) + " " +
                               str(wcs.getSkyOrigin().getPosition(afwGeom.degrees)))
 
-        self.log.info("frameIds : " + str(wcsDic.keys()))
-        self.log.info("ccdIds : " + str(ccdSet.keys()))
+        self.log.info("frameIds : " + str(list(wcsDic.keys())))
+        self.log.info("ccdIds : " + str(list(ccdSet.keys())))
 
         d_lim = afwGeom.Angle(self.config.radXMatch, afwGeom.arcseconds)
         if debug:
@@ -1001,7 +1001,7 @@ class MosaicTask(pipeBase.CmdLineTask):
         if self.config.doSolveFlux:
 
             ffpSet = {}
-            for visit in wcsDic.keys():
+            for visit in wcsDic:
                 ffp = measMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
                 u_max, v_max = mosaicUtils.getExtent(matchVec)
                 ffp.u_max = (math.floor(u_max/10.0) + 1)*10
@@ -1027,7 +1027,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 mosaicUtils.writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec,
                                          os.path.join(self.outputDir, "catalog.fits"))
 
-        return wcsDic.keys()
+        return list(wcsDic.keys())
 
 
     def run(self, camera, butler, tract, dataRefList, debug, diagDir=".",

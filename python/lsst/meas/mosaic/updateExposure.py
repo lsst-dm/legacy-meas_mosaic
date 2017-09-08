@@ -265,13 +265,13 @@ def getFluxKeys(schema, hscRun=None):
     if hscRun is None:
         fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
                         re.search(r"^(\w+_flux)$", name) and key.getTypeString() != "Flag")
-        errKeys = dict((name + "Sigma", schemaKeys[name + "Sigma"]) for name in fluxKeys.keys() if
+        errKeys = dict((name + "Sigma", schemaKeys[name + "Sigma"]) for name in fluxKeys if
                        name + "Sigma" in schemaKeys)
     else:
         fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
                         re.search(r"^(flux\_\w+|\w+\_flux)$", name)
                         and not re.search(r"^(\w+\_apcorr)$", name) and name + "_err" in schemaKeys)
-        errKeys = dict((name + "_err" , schemaKeys[name + "_err"]) for name in fluxKeys.keys() if
+        errKeys = dict((name + "_err" , schemaKeys[name + "_err"]) for name in fluxKeys if
                        name + "_err" in schemaKeys)
 
     if len(fluxKeys) == 0:
