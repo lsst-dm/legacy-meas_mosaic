@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 import math
 import numpy
@@ -218,7 +219,7 @@ class CheckMosaicTask(MosaicTask):
                     y.append(sig)
                     ra.append(Sr / (len(ss)-1))
                     dec.append(Sd / (len(ss)-1))
-                except Exception, e:
+                except Exception as e:
                     #print Sxx, S, avg, Sxx/S - avg*avg, len(ss)-1
                     pass
 
@@ -234,7 +235,7 @@ class CheckMosaicTask(MosaicTask):
             plt.savefig('fluxMean.png')
         else:
             for r, d, m, dm in zip(ra, dec, x, y):
-                print '%9.5f %9.5f %7.4f %7.4f' % (r, d, m ,dm)
+                print('%9.5f %9.5f %7.4f %7.4f' % (r, d, m ,dm))
 
     def plotPos(self, dx_m, dy_m, dx_s, dy_s):
 
@@ -285,7 +286,7 @@ class CheckMosaicTask(MosaicTask):
 
         m0Sub = m0_s[m0_s < self.config.maxMag]
         dmSub = dm_s[m0_s < self.config.maxMag]
-        
+
         mag_std_m, mag_mean_m, mag_n_m = self.clippedStd(dm_m, 3)
         mag_std_s, mag_mean_s, mag_n_s = self.clippedStd(dm_s, 3)
         mag_std_sub, mag_mean_sub, mag_n_sub = self.clippedStd(dmSub, 3)
@@ -433,7 +434,7 @@ class CheckMosaicTask(MosaicTask):
         calibDic = dict()
         ffpDic = dict()
         for dataRef in dataRefList:
-            if not ssVisit.has_key(dataRef.dataId['visit']):
+            if dataRef.dataId['visit'] not in ssVisit:
                 ssVisit[dataRef.dataId['visit']] = list()
                 mlVisit[dataRef.dataId['visit']] = list()
                 wcsDic[dataRef.dataId['visit']] = dict()
@@ -470,7 +471,7 @@ class CheckMosaicTask(MosaicTask):
                 packedMatches = dataRef.get('icMatch')
                 matches = astrom.joinMatchListWithCatalog(packedMatches, icSrces)
 
-                matches = [m for m in matches if m[0] != None]
+                matches = [m for m in matches if m[0] is not None]
 
                 if matches:
                     refSchema = matches[0][0].schema
@@ -505,12 +506,12 @@ class CheckMosaicTask(MosaicTask):
 
                 sources = self.selectStars(sources)
                 matches = self.selectStars(matches, True)
-            except Exception, e:
-                print "Failed to read: %s" % (e)
+            except Exception as e:
+                print("Failed to read: %s" % (e))
                 sources = None
                 continue
 
-            if sources != None:
+            if sources is not None:
                 for s in sources:
                     if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
                         src = measMosaic.Source(s)
@@ -518,7 +519,7 @@ class CheckMosaicTask(MosaicTask):
                         src.setChip(dataRef.dataId['ccd'])
                         ssVisit[dataRef.dataId['visit']].append(src)
                 for m in matches:
-                    if m[0] != None and m[1] != None:
+                    if m[0] is not None and m[1] is not None:
                         match = (measMosaic.Source(m[0], wcs), measMosaic.Source(m[1]))
                         match[1].setExp(dataRef.dataId['visit'])
                         match[1].setChip(dataRef.dataId['ccd'])
@@ -528,7 +529,7 @@ class CheckMosaicTask(MosaicTask):
                 ffpDic[dataRef.dataId['visit']][dataRef.dataId['ccd']] = ffp
                 dataRefListUsed.append(dataRef)
 
-        for visit in ssVisit.keys():
+        for visit in ssVisit:
             sourceSet.append(ssVisit[visit])
             matchList.append(mlVisit[visit])
 
@@ -536,7 +537,7 @@ class CheckMosaicTask(MosaicTask):
         nbrightest = self.config.nBrightest
 
         allMat, allSource = self.mergeCatalog(sourceSet, matchList, ccdSet, d_lim)
- 
+
         dx_m, dy_m, dx_s, dy_s, m0_m, dm_m, m0_s, dm_s  = self.makeDiffPosFlux(allMat, allSource, wcsDic, calibDic, ffpDic)
         self.plotFlux(m0_m, dm_m, m0_s, dm_s)
         self.makeFluxStat(allMat, allSource, calibDic, ffpDic, wcsDic)
@@ -553,7 +554,7 @@ class CheckMosaicTask(MosaicTask):
 
         filters = list()
         for dataRef in dataRefList:
-            if not dataRef.dataId['filter'] in filters:
+            if dataRef.dataId['filter'] not in filters:
                 filters.append(dataRef.dataId['filter'])
 
         if len(filters) != 1:

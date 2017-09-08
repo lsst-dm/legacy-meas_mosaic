@@ -1,3 +1,4 @@
+from __future__ import print_function
 import math, numpy
 import lsst.pex.config                  as pexConfig
 import lsst.meas.mosaic                 as measMosaic
@@ -62,19 +63,19 @@ class PhotometricSolutionTask(PhotoCalTask):
 
         # Convert matchLists to meas_mosaic specific format
         mlVisit = dict()
-        for ccdId in matchLists.keys():
-            if matchLists[ccdId] == None:
+        for ccdId in matchLists:
+            if matchLists[ccdId] is None:
                 continue
             visit, ccd = self.decodeCcdExposureId(ccdId)
-            if not visit in mlVisit.keys():
+            if visit not in mlVisit:
                 mlVisit[visit] = list()
-            matches = [m for m in matchLists[ccdId] if m[0] != None]
+            matches = [m for m in matchLists[ccdId] if m[0] is not None]
             keys = self.getKeys(matches[0][1].schema)
             matches = self.selectMatches(matches, keys)
             matches = self.selectStars(matches)
 
             # Apply color term
-            if ct != None and len(matches) != 0:
+            if ct is not None and len(matches) != 0:
                 refSchema = matches[0][0].schema
                 key_p = refSchema.find(ct.primary).key
                 key_s = refSchema.find(ct.secondary).key
@@ -88,7 +89,7 @@ class PhotometricSolutionTask(PhotoCalTask):
                 matches = [self.setCatFlux(m, f, key_f) for m, f in zip(matches, refFlux) if f == f]
 
             for m in matches:
-                if m[0] != None and m[1] != None:
+                if m[0] is not None and m[1] is not None:
                     match = (measMosaic.Source(m[0], wcsList[ccdId]), measMosaic.Source(m[1]))
                     match[1].setExp(visit)
                     match[1].setChip(ccd)
@@ -96,7 +97,7 @@ class PhotometricSolutionTask(PhotoCalTask):
 
 
         matchList = []
-        for visit in mlVisit.keys():
+        for visit in mlVisit:
             matchList.append(mlVisit[visit])
 
         rootMat = measMosaic.kdtreeMat(matchList)
@@ -104,19 +105,19 @@ class PhotometricSolutionTask(PhotoCalTask):
 
         # Read CCD information
         ccdSet = {}
-        for ccdId in matchLists.keys():
-            if matchLists[ccdId] == None:
+        for ccdId in matchLists:
+            if matchLists[ccdId] is None:
                 continue
             visit, ccd = self.decodeCcdExposureId(ccdId)
-            if not ccd in ccdSet.keys():
+            if ccd not in ccdSet:
                 ccdDev = cameraGeomUtils.findCcd(butler.mapper.camera, cameraGeom.Id(int(ccd)))
                 ccdSet[ccd] = ccdDev
 
         # meas_mosaic specific wcs information
         wcsDic = {}
-        for ccdId in wcsList.keys():
+        for ccdId in wcsList:
             visit, ccd = self.decodeCcdExposureId(ccdId)
-            if not visit in wcsDic.keys() and wcsList[ccdId] != None:
+            if visit not in wcsDic and wcsList[ccdId] is not None:
                 wcs = wcsList[ccdId]
                 ccdDev = ccdSet[ccd]
                 offset = ccdDev.getCenter().getPixels(ccdDev.getPixelSize())
@@ -139,7 +140,7 @@ class PhotometricSolutionTask(PhotoCalTask):
         commonFluxCorr = False
         solveCcdScale = True
         ffpSet = {}
-        for visit in wcsDic.keys():
+        for visit in wcsDic:
             ffp = measMosaic.FluxFitParams(fluxFitOrder, absolute, chebyshev)
             u_max, v_max = self.getExtent(matchVec)
             ffp.u_max = (math.floor(u_max / 10.) + 1) * 10
@@ -151,16 +152,16 @@ class PhotometricSolutionTask(PhotoCalTask):
 
         matchVec, sourceVec, wcsDic, ccdSet, fexp, fchip, ffpSet = measMosaic.fluxFit(absolute, commonFluxCorr, matchVec, len(matchVec), sourceVec, len(sourceVec), wcsDic, ccdSet, fexp, fchip, ffpSet, solveCcdScale)
 
-        self.writeFcr(butler, matchLists.keys(), ccdSet, filterName,
+        self.writeFcr(butler, list(matchLists.keys()), ccdSet, filterName,
                       fexp, fchip, ffpSet)
 
-        return (1.0/fexp[fexp.keys()[0]])
+        return (1.0/fexp[list(fexp.keys())[0]])
 
-    def writeFcr(self, butler, ccdIdList, ccdSet, filterName, 
+    def writeFcr(self, butler, ccdIdList, ccdSet, filterName,
                  fexp, fchip, ffpSet):
         for ccdId in ccdIdList:
             iexp, ichip = self.decodeCcdExposureId(ccdId)
-            if not ichip in ccdSet.keys():
+            if ichip not in ccdSet:
                 continue
             x0 = 0.0
             y0 = 0.0
@@ -176,5 +177,5 @@ class PhotometricSolutionTask(PhotoCalTask):
             exp.setFilter(afwImage.Filter(filterName))
             try:
                 butler.put(exp, 'fcr', {'visit': iexp, 'ccd': ichip})
-            except Exception, e:
-                print "failed to write something: %s" % (e)
+            except Exception as e:
+                print("failed to write something: %s" % (e))
