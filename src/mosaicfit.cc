@@ -2497,11 +2497,11 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD_shot(int order, int nmatch, ObsVec 
                             coeff(2 * ncoeff * nexp + 3 * i + 2) * afw::geom::radians,
                         it->second->getOrientation().getPitch(), it->second->getOrientation().getRoll());
 
-                    afw::cameraGeom::CameraTransformMap::Transforms newTr;
+                    afw::cameraGeom::TransformMap::Transforms newTr;
 
                     // Transform from pixels to focal plane has to be recalculated.
                     newTr[afw::cameraGeom::FOCAL_PLANE] =
-                        std::make_shared<afw::geom::AffineXYTransform const>(
+                        std::make_shared<afw::geom::TransformPoint2ToPoint2>(
                             newOrientation.makePixelFpTransform(pixelSize));
 
                     // We should not require any other transformations within meas_mosaic.
@@ -2529,11 +2529,11 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD_shot(int order, int nmatch, ObsVec 
                         it->second->getOrientation().getYaw(), it->second->getOrientation().getPitch(),
                         it->second->getOrientation().getRoll());
 
-                    afw::cameraGeom::CameraTransformMap::Transforms newTr;
+                    afw::cameraGeom::TransformMap::Transforms newTr;
 
                     // Transform from pixels to focal plane has to be recalculated.
                     newTr[afw::cameraGeom::FOCAL_PLANE] =
-                        std::make_shared<afw::geom::AffineXYTransform const>(
+                        std::make_shared<afw::geom::TransformPoint2ToPoint2>(
                             newOrientation.makePixelFpTransform(pixelSize));
 
                     // We should not require any other transformations within meas_mosaic.
@@ -2693,11 +2693,11 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD(int order, int nmatch, int nsource,
                             coeff(2 * ncoeff * nexp + 3 * i + 2) * afw::geom::radians,
                         it->second->getOrientation().getPitch(), it->second->getOrientation().getRoll());
 
-                    afw::cameraGeom::CameraTransformMap::Transforms newTr;
+                    afw::cameraGeom::TransformMap::Transforms newTr;
 
                     // Transform from pixels to focal plane has to be recalculated.
                     newTr[afw::cameraGeom::FOCAL_PLANE] =
-                        std::make_shared<afw::geom::AffineXYTransform const>(
+                        std::make_shared<afw::geom::TransformPoint2ToPoint2>(
                             newOrientation.makePixelFpTransform(pixelSize));
 
                     // We should not require any other transformations within meas_mosaic.
@@ -2724,11 +2724,11 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD(int order, int nmatch, int nsource,
                         it->second->getOrientation().getYaw(), it->second->getOrientation().getPitch(),
                         it->second->getOrientation().getRoll());
 
-                    afw::cameraGeom::CameraTransformMap::Transforms newTr;
+                    afw::cameraGeom::TransformMap::Transforms newTr;
 
                     // Transform from pixels to focal plane has to be recalculated.
                     newTr[afw::cameraGeom::FOCAL_PLANE] =
-                        std::make_shared<afw::geom::AffineXYTransform const>(
+                        std::make_shared<afw::geom::TransformPoint2ToPoint2>(
                             newOrientation.makePixelFpTransform(pixelSize));
 
                     // We should not require any other transformations within meas_mosaic.
