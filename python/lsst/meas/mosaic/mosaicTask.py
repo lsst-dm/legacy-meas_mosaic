@@ -326,7 +326,7 @@ class SourceReader(object):
             if hscRun is None:
                 if nQuarter%4 != 0:
                     dims = afwImage.bboxFromMetadata(calexp_md).getDimensions()
-                    sources = mosaicUtils.rotatePixelCoords(sources, dims.getWidth(), dims.getHeight(),
+                    sources = mosaicUtils.rotatePixelCoords(sources, dims.getX(), dims.getY(),
                                                             nQuarter)
 
             # Set the aliap map for the source catalog
@@ -630,7 +630,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 if nQuarter%4 != 0:
                     dimensions = afwImage.bboxFromMetadata(calexp_md).getDimensions()
                     if nQuarter%2 != 0:
-                        dimensions = afwGeom.Extent2I(dimensions.getHeight(), dimensions.getWidth())
+                        dimensions = afwGeom.Extent2I(dimensions.getY(), dimensions.getX())
                     wcs = measAstrom.rotateWcsPixelsBy90(wcs, 4 - nQuarter, dimensions)
 
             exp.setWcs(wcs)
