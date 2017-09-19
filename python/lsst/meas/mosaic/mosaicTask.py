@@ -698,8 +698,8 @@ class MosaicTask(pipeBase.CmdLineTask):
                                                 zeroPoint=instFluxMag0,
                                                 nQuarter=nQuarter)
             photoCalib = afwImage.PhotoCalib(
-                instFluxMag0,
-                instFluxMag0Err,
+                1.0/instFluxMag0,
+                instFluxMag0Err/instFluxMag0**2,
                 bf,
                 isConstant=False
             )

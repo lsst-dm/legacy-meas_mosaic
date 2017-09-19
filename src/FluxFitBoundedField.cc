@@ -68,7 +68,7 @@ FluxFitBoundedField::FluxFitBoundedField(
 }
 
 double FluxFitBoundedField::evaluate(afw::geom::Point2D const & position) const {
-    double r = _zeroPoint;
+    double r = 1.0/_zeroPoint;
     if (_ffp) {
         auto xy = _transform(position);
         if (xy.getX() < -1E-8 || xy.getY() < -1E-8) {
@@ -78,12 +78,12 @@ double FluxFitBoundedField::evaluate(afw::geom::Point2D const & position) const 
                     % position.getX() % position.getY() % xy.getX() % xy.getY() % _nQuarter).str()
             );
         }
-        r /= std::pow(10.0, -0.4*_ffp->eval(xy.getX(), xy.getY()));
+        r *= std::pow(10.0, -0.4*_ffp->eval(xy.getX(), xy.getY()));
     }
     if (_wcs) {
         double scale = _wcs->pixelScale().asDegrees();
         double deg2pix = 1.0 / scale;
-        r /= _wcs->pixArea(position)*deg2pix*deg2pix;
+        r *= _wcs->pixArea(position)*deg2pix*deg2pix;
     }
     return r;
 }
@@ -253,7 +253,7 @@ void FluxFitBoundedField::write(OutputArchiveHandle & handle) const {
 // ------------------ operators -----------------------------------------------------------------------------
 
 std::shared_ptr<afw::math::BoundedField> FluxFitBoundedField::operator*(double const scale) const {
-    return std::make_shared<FluxFitBoundedField>(getBBox(), _ffp, _wcs, _zeroPoint*scale, _nQuarter);
+    return std::make_shared<FluxFitBoundedField>(getBBox(), _ffp, _wcs, _zeroPoint/scale, _nQuarter);
 }
 
 bool FluxFitBoundedField::operator==(BoundedField const& rhs) const {
