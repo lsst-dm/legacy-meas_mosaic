@@ -192,11 +192,11 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         image2.array[:, :] = 1.0
         if ffp:
             image2a = lsst.meas.mosaic.getFCorImg(ffp, width, height)
-            image2 /= lsst.afw.math.rotateImageBy90(image2a, 4 - nQuarter)
+            image2 *= lsst.afw.math.rotateImageBy90(image2a, 4 - nQuarter)
         if wcs:
             image2b = lsst.meas.mosaic.getJImg(wcs, self.bbox.getWidth(),
                                                self.bbox.getHeight())
-            image2 /= image2b
+            image2 *= image2b
         # more round-off error in calculations for nQuarter != 0
         rtol = 1E-6 if nQuarter == 0 else 1E-4
         if display:
@@ -259,9 +259,10 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         catalog2 = lsst.meas.mosaic.applyCalib(catalog2, results2.ffp.calib)
         mag2, magErr2 = catalog2["example_mag"], catalog2["example_magSigma"]
         # Check that the non-spatially varying part of the correction is the same.
-        self.assertFloatsAlmostEqual(photoCalib.getInstFluxMag0(), results2.ffp.calib.getFluxMag0()[0],
+        fluxMag0 = results2.ffp.calib.getFluxMag0()
+        self.assertFloatsAlmostEqual(photoCalib.getInstFluxMag0(), fluxMag0[0],
                                      rtol=1E-14)
-        self.assertFloatsAlmostEqual(photoCalib.getInstFluxMag0Err(), results2.ffp.calib.getFluxMag0()[1],
+        self.assertFloatsAlmostEqual(photoCalib.getCalibrationErr(), fluxMag0[1]/fluxMag0[0]**2,
                                      rtol=1E-14)
         # Compute partially-calibrated magnitudes that don't account for the spatially-varying part.
         mag0, magErr0 = results2.ffp.calib.getMagnitude(catalog.get("example_flux"),
@@ -281,7 +282,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         original = lsst.afw.image.ExposureF(self.bbox)
         original.image.array[:, :] = 1.0
         image1 = lsst.afw.image.ImageF(original.image, deep=True)
-        photoCalib.computeScaledZeroPoint().divideImage(image1, xStep=100, yStep=16)
+        photoCalib.computeScaledCalibration().multiplyImage(image1, xStep=100, yStep=16)
         camera = self.dataRefs[ccd].get("camera")
         calexp = MockExposure(original, detector=camera[ccd])
         self.dataRefs[ccd].put(calexp, "calexp")
