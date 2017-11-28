@@ -28,6 +28,7 @@ import numpy as np
 
 import lsst.afw.geom
 import lsst.afw.image
+from lsst.afw.fits import readMetadata
 import lsst.meas.mosaic
 import lsst.daf.base
 import lsst.utils.tests
@@ -134,13 +135,13 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
                 DATA_DIR,
                 "%d/fcr-%07d-%03d.fits" % (self.tract, self.visit, ccd)
             )
-            fcrMetadata = lsst.afw.image.readMetadata(fcrFilename)
+            fcrMetadata = readMetadata(fcrFilename)
             self.ffp[ccd] = lsst.meas.mosaic.FluxFitParams(fcrMetadata)
             wcsFilename = os.path.join(
                 DATA_DIR,
                 "%d/wcs-%07d-%03d.fits" % (self.tract, self.visit, ccd)
             )
-            wcsMetadata = lsst.afw.image.readMetadata(wcsFilename)
+            wcsMetadata = readMetadata(wcsFilename)
             self.wcs[ccd] = lsst.afw.image.makeWcs(wcsMetadata)
             photoCalibFilename = os.path.join(
                 DATA_DIR,

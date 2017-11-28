@@ -36,6 +36,7 @@ import lsst.afw.geom as afwGeom
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
+from lsst.afw.fits import readMetadata
 from .shimCameraGeom import getCenterInFpPixels, getWidth, getHeight, detPxToFpPxRot, getYaw
 from .fluxfit import FluxFitParams, getFCorImg
 from .mosaicfit import getJImg
@@ -918,11 +919,11 @@ class CorrectionImageSource(object):
         start = fcrPattern.index("*")
         for filename in glob.glob(fcrPattern):
             ccd = int(filename[start:start+3])
-            md = afwImage.readMetadata(filename)
+            md = readMetadata(filename)
             ffp[ccd] = FluxFitParams(md)
         for filename in glob.glob(wcsPattern):
             ccd = int(filename[start:start+3])
-            md = afwImage.readMetadata(filename)
+            md = readMetadata(filename)
             wcs[ccd] = afwImage.makeWcs(md)
         return CorrectionImageSource(ffp, wcs, **kwds)
 
