@@ -166,7 +166,7 @@ namespace lsst {
 		int getNcoeff() { return p->ncoeff; }
 		double pixelScale(void);
 
-                // below lines for coeffFromTanWcs()
+                // below lines originally for coeffFromTanWcs()
 		void set_D(double v) { D = v; }
 		void set_A(double v) { A = v; }
 		void set_x0(double v) { x0 = v; }
@@ -317,8 +317,6 @@ namespace lsst {
 				    PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
 	    std::shared_ptr<lsst::afw::image::TanWcs> wcsFromCoeff(Coeff::Ptr& coeff);
-
-            Coeff::Ptr coeffFromTanWcs(std::shared_ptr<lsst::afw::image::Wcs>& wcs);
 
 	    std::shared_ptr<lsst::afw::image::Image<float>>
 	      getJImg(Coeff::Ptr& coeff,

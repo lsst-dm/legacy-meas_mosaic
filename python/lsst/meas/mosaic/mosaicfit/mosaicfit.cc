@@ -280,7 +280,6 @@ PYBIND11_PLUGIN(mosaicfit) {
             "writeSnapshots"_a = false, "snapshotDir"_a = ".");
     mod.def("convertCoeff", convertCoeff);
     mod.def("wcsFromCoeff", wcsFromCoeff);
-    mod.def("coeffFromTanWcs", coeffFromTanWcs);
 
     mod.def("getJImg", (std::shared_ptr<lsst::afw::image::Image<float>>(*)(
                                Coeff::Ptr &, PTR(lsst::afw::cameraGeom::Detector) &))getJImg);
