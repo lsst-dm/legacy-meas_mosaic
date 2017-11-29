@@ -401,7 +401,7 @@ void KDTree::_initializeSources(SourceSet &s, int depth) {
     if (s.size() == 1) {
         this->location[0] = s[0]->getRa();
         this->location[1] = s[0]->getDec();
-        this->c = lsst::afw::coord::Coord(this->location[0], this->location[1]);
+        this->c = lsst::afw::coord::IcrsCoord(this->location[0], this->location[1]);
         this->set.push_back(s[0]);
 
         this->left = KDTree::Ptr();
@@ -415,7 +415,7 @@ void KDTree::_initializeSources(SourceSet &s, int depth) {
 
         this->location[0] = s[s.size() / 2]->getRa();
         this->location[1] = s[s.size() / 2]->getDec();
-        this->c = lsst::afw::coord::Coord(this->location[0], this->location[1]);
+        this->c = lsst::afw::coord::IcrsCoord(this->location[0], this->location[1]);
 
         this->set.push_back(s[s.size() / 2]);
 
@@ -444,7 +444,7 @@ void KDTree::_initializeMatches(SourceMatchSet &m, int depth) {
     if (m.size() == 1) {
         this->location[0] = m[0].first->getRa();
         this->location[1] = m[0].first->getDec();
-        this->c = lsst::afw::coord::Coord(this->location[0], this->location[1]);
+        this->c = lsst::afw::coord::IcrsCoord(this->location[0], this->location[1]);
 
         this->set.push_back(m[0].first);
         this->set.push_back(m[0].second);
@@ -463,7 +463,7 @@ void KDTree::_initializeMatches(SourceMatchSet &m, int depth) {
 
         this->location[0] = m[middle].first->getRa();
         this->location[1] = m[middle].first->getDec();
-        this->c = lsst::afw::coord::Coord(this->location[0], this->location[1]);
+        this->c = lsst::afw::coord::IcrsCoord(this->location[0], this->location[1]);
 
         this->set.push_back(m[middle].first);
         this->set.push_back(m[middle].second);
@@ -495,7 +495,7 @@ KDTree::~KDTree() {
     }
 }
 
-KDTree::ConstPtr KDTree::search(lsst::afw::coord::Coord const &sky) const {
+KDTree::ConstPtr KDTree::search(lsst::afw::coord::IcrsCoord const &sky) const {
     lsst::afw::geom::Angle ra = sky.getLongitude();
     lsst::afw::geom::Angle dec = sky.getLatitude();
 
@@ -572,7 +572,7 @@ KDTree::ConstPtr KDTree::findSource(Source const &s) const {
     else
         val = dec;
 
-    lsst::afw::coord::Coord coord(s.getRa(), s.getDec());
+    lsst::afw::coord::IcrsCoord coord(s.getRa(), s.getDec());
     for (size_t i = 0; i < this->set.size(); i++) {
         // Previous code compared x,y, but those aren't available always now so using RA,Dec.
         // Is this too slow?
@@ -620,11 +620,11 @@ KDTree::Ptr KDTree::findNearest(Source const &s) {
             leaf = this->right->findNearest(s);
         }
         double d_leaf = leaf->distance(s);
-        lsst::afw::coord::Coord c;
+        lsst::afw::coord::IcrsCoord c;
         if (this->axis == 0) {
-            c = lsst::afw::coord::Coord(val, this->location[1]);
+            c = lsst::afw::coord::IcrsCoord(val, this->location[1]);
         } else {
-            c = lsst::afw::coord::Coord(this->location[0], val);
+            c = lsst::afw::coord::IcrsCoord(this->location[0], val);
         }
         double d_this = this->distance(Source(c));
         if (d_leaf > d_this && this->right != NULL) {
@@ -645,11 +645,11 @@ KDTree::Ptr KDTree::findNearest(Source const &s) {
             leaf = this->left->findNearest(s);
         }
         double d_leaf = leaf->distance(s);
-        lsst::afw::coord::Coord c;
+        lsst::afw::coord::IcrsCoord c;
         if (this->axis == 0) {
-            c = lsst::afw::coord::Coord(val, this->location[1]);
+            c = lsst::afw::coord::IcrsCoord(val, this->location[1]);
         } else {
-            c = lsst::afw::coord::Coord(this->location[0], val);
+            c = lsst::afw::coord::IcrsCoord(this->location[0], val);
         }
         double d_this = this->distance(Source(c));
         if (d_leaf > d_this && this->left != NULL) {
@@ -742,7 +742,7 @@ SourceGroup KDTree::mergeSource(unsigned int minNumMatch) {
         double mag = sm / sn;
         PTR(Source)
         source(new Source(
-            lsst::afw::coord::Coord(lsst::afw::geom::Point2D(ra, dec), lsst::afw::geom::degrees), mag));
+            lsst::afw::coord::IcrsCoord(lsst::afw::geom::Point2D(ra, dec), lsst::afw::geom::degrees), mag));
         this->set.insert(set.begin(), source);
         sg.push_back(this->set);
     }
