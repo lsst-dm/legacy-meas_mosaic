@@ -3062,8 +3062,6 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
 
 std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
     std::shared_ptr<lsst::afw::image::Wcs> &wcs, int width, int height) {
-    double scale = wcs->pixelScale().asDegrees();
-    double deg2pix = 1.0 / scale;
 
     std::shared_ptr<lsst::afw::image::Image<float>> img(new lsst::afw::image::Image<float>(width, height));
 
@@ -3084,10 +3082,10 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
 
             double u = x;
             double v = y;
-            double val0 = wcs->pixArea(lsst::afw::geom::Point2D(u, v)) * deg2pix * deg2pix;
+            double val0 = calculateJacobian(*wcs, lsst::afw::geom::Point2D(u, v));
             u = xend;
             v = y;
-            double val1 = wcs->pixArea(lsst::afw::geom::Point2D(u, v)) * deg2pix * deg2pix;
+            double val1 = calculateJacobian(*wcs, lsst::afw::geom::Point2D(u, v));
 
             for (int i = 0; i < stop; i++) {
                 vals(x + i) = val0 + (val1 - val0) / interval * i;

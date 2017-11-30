@@ -988,14 +988,12 @@ class MosaicTask(pipeBase.CmdLineTask):
 
             for m in matchVec:
                 wcs = wcsAll["%07d-%03d" % (m.iexp, m.ichip)]
-                scale = wcs.pixelScale().asDegrees()
-                m.mag -= 2.5*math.log10(wcs.pixArea(afwGeom.Point2D(m.x, m.y))/scale**2)
+                m.mag -= 2.5*math.log10(measMosaic.computeJacobian(wcs, afwGeom.Point2D(m.x, m.y)))
 
             if len(sourceVec) != 0:
                 for s in sourceVec:
                     wcs = wcsAll["%07d-%03d" % (s.iexp, s.ichip)]
-                    scale = wcs.pixelScale().asDegrees()
-                    s.mag -= 2.5*math.log10(wcs.pixArea(afwGeom.Point2D(s.x, s.y))/scale**2)
+                    s.mag -= 2.5*math.log10(measMosaic.computeJacobian(wcs, afwGeom.Point2D(s.x, s.y)))
 
             del wcsAll
 

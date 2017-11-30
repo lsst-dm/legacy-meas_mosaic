@@ -131,8 +131,7 @@ class PhotometricSolutionTask(PhotoCalTask):
         # Apply Jocabian correction calculated from wcs
         for m in matchVec:
             wcs = wcsList[m.iexp*200+m.ichip]
-            scale = wcs.pixelScale().asDegrees()
-            m.mag -= 2.5 * math.log10(wcs.pixArea(afwGeom.Point2D(m.x, m.y)) / scale**2)
+            m.mag -= 2.5*math.log10(measMosaic.computeJacobian(wcs, afwGeom.Point2D(m.x, m.y)))
 
         fluxFitOrder = self.config.fluxFitOrder
         absolute = True

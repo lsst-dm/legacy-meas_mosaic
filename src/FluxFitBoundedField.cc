@@ -91,9 +91,7 @@ double FluxFitBoundedField::evaluate(afw::geom::Point2D const & position) const 
         r *= std::pow(10.0, -0.4*_ffp->eval(xy.getX(), xy.getY()));
     }
     if (_wcs) {
-        double scale = _wcs->pixelScale().asDegrees();
-        double deg2pix = 1.0 / scale;
-        r *= _wcs->pixArea(position)*deg2pix*deg2pix;
+        r *= calculateJacobian(*_wcs, position);
     }
     return r;
 }
