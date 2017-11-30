@@ -45,7 +45,7 @@ void declareSource(py::module &mod) {
     cls.attr("UNSET") = py::cast(static_cast<int>(Class::UNSET));
 
     cls.def(py::init<lsst::afw::table::SourceRecord const &>(), "record"_a);
-    cls.def(py::init<lsst::afw::table::SimpleRecord const &, lsst::afw::image::Wcs const &>());
+    cls.def(py::init<lsst::afw::table::SimpleRecord const &, lsst::afw::geom::SkyWcs const &>());
     cls.def(py::init<lsst::afw::coord::IcrsCoord, double>(), "coord"_a,
             "flux"_a = std::numeric_limits<double>::quiet_NaN());
     cls.def(py::init<typename Source::IdType, typename Source::ChipType, typename Source::ExpType, double,
@@ -284,16 +284,16 @@ PYBIND11_PLUGIN(mosaicfit) {
     mod.def("getJImg", (std::shared_ptr<lsst::afw::image::Image<float>>(*)(
                                Coeff::Ptr &, PTR(lsst::afw::cameraGeom::Detector) &))getJImg);
     mod.def("getJImg",
-            (std::shared_ptr<lsst::afw::image::Image<float>>(*)(std::shared_ptr<lsst::afw::image::Wcs> &, int, int))getJImg);
+            (std::shared_ptr<lsst::afw::image::Image<float>>(*)(std::shared_ptr<lsst::afw::geom::SkyWcs> &, int, int))getJImg);
     mod.def("getJImg", (std::shared_ptr<lsst::afw::image::Image<float>>(*)(
-                               std::shared_ptr<lsst::afw::image::Wcs> &, PTR(lsst::afw::cameraGeom::Detector) &))getJImg);
+                               std::shared_ptr<lsst::afw::geom::SkyWcs> &, PTR(lsst::afw::cameraGeom::Detector) &))getJImg);
     mod.def("calculateJacobian",
-            (double (*)(afw::image::Wcs const &, afw::geom::Point2D const &))calculateJacobian);
+            (double (*)(afw::geom::SkyWcs const &, afw::geom::Point2D const &))calculateJacobian);
     mod.def("calculateJacobian",
-            (ndarray::Array<double, 1>(*)(afw::image::Wcs const &,
+            (ndarray::Array<double, 1>(*)(afw::geom::SkyWcs const &,
                                           std::vector<afw::geom::Point2D> const &))calculateJacobian);
     mod.def("calculateJacobian",
-            (ndarray::Array<double, 1>(*)(afw::image::Wcs const &, ndarray::Array<double const, 1> const &,
+            (ndarray::Array<double, 1>(*)(afw::geom::SkyWcs const &, ndarray::Array<double const, 1> const &,
                                           ndarray::Array<double const, 1> const &))calculateJacobian);
 
     return mod.ptr();

@@ -44,7 +44,7 @@ bool sharedPtrsEqual(std::shared_ptr<T> const& a, std::shared_ptr<T> const& b) {
 FluxFitBoundedField::FluxFitBoundedField(
     afw::geom::Box2I const & bbox,
     std::shared_ptr<FluxFitParams> const & ffp,
-    std::shared_ptr<afw::image::Wcs> const & wcs,
+    std::shared_ptr<afw::geom::SkyWcs> const & wcs,
     double zeroPoint,
     int nQuarter
 ) : afw::math::BoundedField(bbox),
@@ -183,7 +183,7 @@ public:
         afw::table::BaseRecord const & record = catalogs.front().front();
         PersistenceHelper const keys(record.getSchema());
 
-        auto wcs = archive.get<afw::image::Wcs>(record.get(keys.wcs));
+        auto wcs = archive.get<afw::geom::SkyWcs>(record.get(keys.wcs));
 
         // NOTE: needed invert=false in case min=-1, max=0 (empty bbox). See RFC-324 and DM-10200
         afw::geom::Box2I bbox(record.get(keys.bboxMin), record.get(keys.bboxMax), false);

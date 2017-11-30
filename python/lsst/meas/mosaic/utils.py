@@ -924,7 +924,7 @@ class CorrectionImageSource(object):
         for filename in glob.glob(wcsPattern):
             ccd = int(filename[start:start+3])
             md = readMetadata(filename)
-            wcs[ccd] = afwImage.makeWcs(md)
+            wcs[ccd] = afwGeom.makeSkyWcs(md)
         return CorrectionImageSource(ffp, wcs, **kwds)
 
     def __init__(self, ffp, wcs, fcor=True, jacobian=True):

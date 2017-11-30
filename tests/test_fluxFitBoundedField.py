@@ -141,8 +141,8 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
                 DATA_DIR,
                 "%d/wcs-%07d-%03d.fits" % (self.tract, self.visit, ccd)
             )
-            wcsMetadata = readMetadata(wcsFilename)
-            self.wcs[ccd] = lsst.afw.image.makeWcs(wcsMetadata)
+            wcsMetadata = readMetadata(wcsFilename, 1)
+            self.wcs[ccd] = lsst.afw.geom.makeSkyWcs(wcsMetadata)
             photoCalibFilename = os.path.join(
                 DATA_DIR,
                 "%d/photoCalib-%07d-%03d.fits" % (self.tract, self.visit, ccd)
@@ -268,7 +268,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         mag0, magErr0 = results2.ffp.calib.getMagnitude(catalog.get("example_flux"),
                                                         catalog.get("example_fluxSigma"))
         # Check that both approaches yield similar results overall...
-        rtol = 1E-14 if nQuarter == 0 else 1E-6  # rotating SIP Wcses involves a big loss of precision
+        rtol = 1E-10 if nQuarter == 0 else 1E-6  # rotating SIP Wcses involves a big loss of precision
         self.assertFloatsAlmostEqual(mag1, mag2, rtol=rtol)
         # ...and in just the spatially-varying part (but with less precision, partially because of
         # round-off error).

@@ -127,7 +127,7 @@ def getWcs(dataRef):
         wcsHeader = dataRef.get("wcs_hsc_md", immediate=True)
     else:
         wcsHeader = dataRef.get("wcs_md", immediate=True)
-    return afwImage.makeWcs(wcsHeader)
+    return afwGeom.makeSkyWcs(wcsHeader)
 
 
 def getMosaicResults(dataRef, dims=None):

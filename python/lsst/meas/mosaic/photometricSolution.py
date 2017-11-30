@@ -120,9 +120,8 @@ class PhotometricSolutionTask(PhotoCalTask):
             if visit not in wcsDic and wcsList[ccdId] is not None:
                 wcs = wcsList[ccdId]
                 ccdDev = ccdSet[ccd]
-                offset = ccdDev.getCenter().getPixels(ccdDev.getPixelSize())
-                wcs.shiftReferencePixel(offset[0], offset[1])
-                wcsDic[visit] = wcs
+                offset = afwGeom.Extent2D(ccdDev.getCenter().getPixels(ccdDev.getPixelSize()))
+                wcsDic[visit] = wcs.copyAtShiftedPixelOrigin(offset)
 
         # meas_mosaic specific object list
         matchVec  = measMosaic.obsVecFromSourceGroup(allMat, wcsDic, ccdSet)

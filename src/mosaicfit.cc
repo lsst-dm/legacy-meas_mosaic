@@ -2121,7 +2121,7 @@ ObsVec lsst::meas::mosaic::obsVecFromSourceGroup(SourceGroup const &all, WcsDic 
             o->err_cat = err_cat;
             o->mag0 = mag_cat;
             lsst::afw::geom::PointD crval =
-                wcsDic[iexp]->getSkyOrigin()->getPosition(lsst::afw::geom::radians);
+                wcsDic[iexp]->getSkyOrigin().getPosition(lsst::afw::geom::radians);
             o->setXiEta(crval[0], crval[1]);
             o->setUV(ccdSet[ichip]);
             o->xerr = ss[j]->getXErr();
@@ -2353,7 +2353,7 @@ CoeffSet initialFit(int nexp, ObsVec &matchVec, WcsDic &wcsDic, CcdSet &ccdSet, 
             c->a[k] = a(k);
             c->b[k] = a(k + p->ncoeff);
         }
-        lsst::afw::geom::PointD crval = wcsDic[iexp]->getSkyOrigin()->getPosition(lsst::afw::geom::radians);
+        lsst::afw::geom::PointD crval = wcsDic[iexp]->getSkyOrigin().getPosition(lsst::afw::geom::radians);
         c->A = crval[0] + a(p->ncoeff * 2);
         c->D = crval[1] + a(p->ncoeff * 2 + 1);
         c->x0 = c->y0 = 0.0;
@@ -2500,9 +2500,7 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD_shot(int order, int nmatch, ObsVec 
                     afw::cameraGeom::TransformMap::Transforms newTr;
 
                     // Transform from pixels to focal plane has to be recalculated.
-                    newTr[afw::cameraGeom::FOCAL_PLANE] =
-                        std::make_shared<afw::geom::TransformPoint2ToPoint2>(
-                            *newOrientation.makePixelFpTransform(pixelSize));
+                    newTr[afw::cameraGeom::FOCAL_PLANE] = newOrientation.makePixelFpTransform(pixelSize);
 
                     // We should not require any other transformations within meas_mosaic.
 
@@ -2532,9 +2530,7 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD_shot(int order, int nmatch, ObsVec 
                     afw::cameraGeom::TransformMap::Transforms newTr;
 
                     // Transform from pixels to focal plane has to be recalculated.
-                    newTr[afw::cameraGeom::FOCAL_PLANE] =
-                        std::make_shared<afw::geom::TransformPoint2ToPoint2>(
-                            *newOrientation.makePixelFpTransform(pixelSize));
+                    newTr[afw::cameraGeom::FOCAL_PLANE] = newOrientation.makePixelFpTransform(pixelSize);
 
                     // We should not require any other transformations within meas_mosaic.
 
@@ -2696,9 +2692,7 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD(int order, int nmatch, int nsource,
                     afw::cameraGeom::TransformMap::Transforms newTr;
 
                     // Transform from pixels to focal plane has to be recalculated.
-                    newTr[afw::cameraGeom::FOCAL_PLANE] =
-                        std::make_shared<afw::geom::TransformPoint2ToPoint2>(
-                            *newOrientation.makePixelFpTransform(pixelSize));
+                    newTr[afw::cameraGeom::FOCAL_PLANE] = newOrientation.makePixelFpTransform(pixelSize);
 
                     // We should not require any other transformations within meas_mosaic.
 
@@ -2727,9 +2721,7 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD(int order, int nmatch, int nsource,
                     afw::cameraGeom::TransformMap::Transforms newTr;
 
                     // Transform from pixels to focal plane has to be recalculated.
-                    newTr[afw::cameraGeom::FOCAL_PLANE] =
-                        std::make_shared<afw::geom::TransformPoint2ToPoint2>(
-                            *newOrientation.makePixelFpTransform(pixelSize));
+                    newTr[afw::cameraGeom::FOCAL_PLANE] = newOrientation.makePixelFpTransform(pixelSize);
 
                     // We should not require any other transformations within meas_mosaic.
 
@@ -2948,7 +2940,7 @@ Coeff::Ptr lsst::meas::mosaic::convertCoeff(Coeff::Ptr &coeff, PTR(lsst::afw::ca
     return newC;
 }
 
-std::shared_ptr<lsst::afw::image::TanWcs> lsst::meas::mosaic::wcsFromCoeff(Coeff::Ptr &coeff) {
+std::shared_ptr<lsst::afw::geom::SkyWcs> lsst::meas::mosaic::wcsFromCoeff(Coeff::Ptr &coeff) {
     int order = coeff->p->order;
 
     lsst::afw::geom::PointD crval = lsst::afw::geom::Point2D(coeff->A * R2D, coeff->D * R2D);
@@ -2987,7 +2979,7 @@ std::shared_ptr<lsst::afw::image::TanWcs> lsst::meas::mosaic::wcsFromCoeff(Coeff
     // std::cout << sipAp << std::endl;
     // std::cout << sipBp << std::endl;
 
-    return std::make_shared<lsst::afw::image::TanWcs>(crval, crpix, cd, sipA, sipB, sipAp, sipBp);
+    return lsst::afw::geom::makeTanSipWcs(crpix, crval, cd, sipA, sipB, sipAp, sipBp);
 }
 
 // wholesale copied from afw::image::TanWcs.cc
@@ -3061,7 +3053,7 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
 }
 
 std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
-    std::shared_ptr<lsst::afw::image::Wcs> &wcs, int width, int height) {
+    std::shared_ptr<lsst::afw::geom::SkyWcs> &wcs, int width, int height) {
 
     std::shared_ptr<lsst::afw::image::Image<float>> img(new lsst::afw::image::Image<float>(width, height));
 
@@ -3106,34 +3098,35 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
 }
 
 std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
-    std::shared_ptr<lsst::afw::image::Wcs> &wcs, PTR(lsst::afw::cameraGeom::Detector) & ccd) {
+    std::shared_ptr<lsst::afw::geom::SkyWcs> &wcs, PTR(lsst::afw::cameraGeom::Detector) & ccd) {
     int width = getWidth(ccd);
     int height = getHeight(ccd);
 
     return getJImg(wcs, width, height);
 }
 
-double lsst::meas::mosaic::calculateJacobian(lsst::afw::image::Wcs const &wcs,
+double lsst::meas::mosaic::calculateJacobian(lsst::afw::geom::SkyWcs const &wcs,
                                              lsst::afw::geom::Point2D const &point) {
-    // Wcs::pixArea returns values in square degrees
-    double const scale = 1.0 / wcs.pixelScale().asDegrees();
-    return wcs.pixArea(point) * scale * scale;
+    double const inverseScaleDegSq = 1.0 / std::pow(wcs.getPixelScale().asDegrees(), 2);
+    double const scaleDegAtPoint = wcs.getPixelScale(point).asDegrees();
+    return scaleDegAtPoint * scaleDegAtPoint * inverseScaleDegSq;
 }
 
 ndarray::Array<double, 1> lsst::meas::mosaic::calculateJacobian(
-    lsst::afw::image::Wcs const &wcs, std::vector<lsst::afw::geom::Point2D> const &points) {
+    lsst::afw::geom::SkyWcs const &wcs, std::vector<lsst::afw::geom::Point2D> const &points) {
     int const num = points.size();
     ndarray::Array<double, 1> target = ndarray::allocate(ndarray::makeVector(num));
     ndarray::Array<double, 1>::Iterator tt = target.begin();
-    double const scale = 1.0 / std::pow(wcs.pixelScale().asDegrees(), 2);
+    double const inverseScaleDegSq = 1.0 / std::pow(wcs.getPixelScale().asDegrees(), 2);
     for (std::vector<lsst::afw::geom::Point2D>::const_iterator pp = points.begin(); pp != points.end();
          ++pp, ++tt) {
-        *tt = scale * wcs.pixArea(*pp);
+        double scaleDegAtPoint = wcs.getPixelScale(*pp).asDegrees();
+        *tt = scaleDegAtPoint * scaleDegAtPoint * inverseScaleDegSq;
     }
     return target;
 }
 
-ndarray::Array<double, 1> lsst::meas::mosaic::calculateJacobian(lsst::afw::image::Wcs const &wcs,
+ndarray::Array<double, 1> lsst::meas::mosaic::calculateJacobian(lsst::afw::geom::SkyWcs const &wcs,
                                                                 ndarray::Array<double const, 1> const &x,
                                                                 ndarray::Array<double const, 1> const &y) {
     auto const num = x.getShape()[0];

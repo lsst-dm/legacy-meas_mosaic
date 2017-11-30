@@ -26,7 +26,7 @@
 
 #include "lsst/afw/math/BoundedField.h"
 #include "lsst/afw/geom/AffineTransform.h"
-#include "lsst/afw/image/Wcs.h"
+#include "lsst/afw/geom/SkyWcs.h"
 #include "lsst/meas/mosaic/fluxfit.h"
 
 namespace lsst {
@@ -42,7 +42,7 @@ public:
 
     FluxFitBoundedField(afw::geom::Box2I const & bbox,
                         std::shared_ptr<FluxFitParams> const & ffp,
-                        std::shared_ptr<afw::image::Wcs> const & wcs,
+                        std::shared_ptr<afw::geom::SkyWcs> const & wcs,
                         double zeroPoint=1.0,
                         int nQuarter=0);
 
@@ -68,6 +68,8 @@ public:
     /// @copydoc BoundedField::operator==
     bool operator==(afw::math::BoundedField const& rhs) const override;
 
+    std::shared_ptr<afw::geom::SkyWcs> getWcs() const { return _wcs; }
+
 protected:
 
     std::string getPersistenceName() const override;
@@ -81,7 +83,7 @@ private:
     std::string toString() const override;
 
     std::shared_ptr<FluxFitParams> _ffp;
-    std::shared_ptr<afw::image::Wcs> _wcs;
+    std::shared_ptr<afw::geom::SkyWcs> _wcs;
     double _zeroPoint;
     int _nQuarter;
     afw::geom::AffineTransform _transform;

@@ -26,7 +26,7 @@ namespace lsst {
                     _pixels(record.getX(), record.getY()), _flux(record.getCalibFlux()), _err(record.getCalibFluxErr()),
 		    _xerr(sqrt(record.getCentroidErr()(0,0))), _yerr(sqrt(record.getCentroidErr()(1,1))),
                     _astromBad(record.getCentroidFlag() | record.getCalibFluxFlag()) {}
-                Source(lsst::afw::table::SimpleRecord const& record, lsst::afw::image::Wcs const& wcs) :
+                Source(lsst::afw::table::SimpleRecord const& record, lsst::afw::geom::SkyWcs const& wcs) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
                     _pixels(wcs.skyToPixel(_sky)),
                     _flux(record.get(record.getSchema().find<double>("flux").key)),
@@ -107,7 +107,7 @@ namespace lsst {
             typedef std::vector<SourceMatch> SourceMatchSet;
 	    typedef std::vector<std::vector<SourceMatch> > SourceMatchGroup;
 
-	    typedef std::map<int, std::shared_ptr<lsst::afw::image::Wcs>> WcsDic;
+	    typedef std::map<int, std::shared_ptr<lsst::afw::geom::SkyWcs>> WcsDic;
 
 	    class Poly {
 	    public:
@@ -316,18 +316,18 @@ namespace lsst {
 	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff,
 				    PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
-	    std::shared_ptr<lsst::afw::image::TanWcs> wcsFromCoeff(Coeff::Ptr& coeff);
+	    std::shared_ptr<lsst::afw::geom::SkyWcs> wcsFromCoeff(Coeff::Ptr& coeff);
 
 	    std::shared_ptr<lsst::afw::image::Image<float>>
 	      getJImg(Coeff::Ptr& coeff,
 		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
 	    std::shared_ptr<lsst::afw::image::Image<float>>
-	      getJImg(std::shared_ptr<lsst::afw::image::Wcs>& wcs,
+	      getJImg(std::shared_ptr<lsst::afw::geom::SkyWcs>& wcs,
 		      int width, int height);
 
 	    std::shared_ptr<lsst::afw::image::Image<float>>
-	      getJImg(std::shared_ptr<lsst::afw::image::Wcs>& wcs,
+	      getJImg(std::shared_ptr<lsst::afw::geom::SkyWcs>& wcs,
 		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
             //{
@@ -338,15 +338,15 @@ namespace lsst {
             // dimming of the flat-field due to optical scale variations
             // over the field of view.
             double calculateJacobian(
-                afw::image::Wcs const& wcs, ///< Astrometric solution
+                afw::geom::SkyWcs const& wcs, ///< Astrometric solution
                 afw::geom::Point2D const& point ///< Position for correction
                 );
             ndarray::Array<double, 1> calculateJacobian(
-                afw::image::Wcs const& wcs, ///< Astrometric solution
+                afw::geom::SkyWcs const& wcs, ///< Astrometric solution
                 std::vector<afw::geom::Point2D> const& points ///< Positions for correction
                 );
             ndarray::Array<double, 1> calculateJacobian(
-                afw::image::Wcs const& wcs, ///< Astrometric solution
+                afw::geom::SkyWcs const& wcs, ///< Astrometric solution
                 ndarray::Array<double const, 1> const& x, ///< x positions for correction
                 ndarray::Array<double const, 1> const& y  ///< y positions for correction
                 );
