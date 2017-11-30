@@ -29,7 +29,17 @@
 namespace lsst {
 namespace meas {
 namespace mosaic {
+namespace {
 
+// from https://stackoverflow.com/a/38391135
+template <class T>
+bool sharedPtrsEqual(std::shared_ptr<T> const& a, std::shared_ptr<T> const& b) {
+    if (a == b) return true;
+    if (a && b) return *a == *b;
+    return false;
+}
+
+}  // namespace
 
 FluxFitBoundedField::FluxFitBoundedField(
     afw::geom::Box2I const & bbox,
@@ -278,7 +288,7 @@ bool FluxFitBoundedField::operator==(BoundedField const& rhs) const {
             ffpEqual &&
             (_zeroPoint == rhsCasted->_zeroPoint) &&
             (_nQuarter == rhsCasted->_nQuarter) &&
-            (*_wcs) == (*rhsCasted->_wcs);
+            sharedPtrsEqual(_wcs, rhsCasted->_wcs);
 }
 
 std::string FluxFitBoundedField::toString() const {
