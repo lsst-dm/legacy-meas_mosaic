@@ -109,7 +109,7 @@ def getFluxFitParams(dataRef):
          if nQuarter%4 != 0:
              # Have to put this import here due to circular dependence in forcedPhotCcd.py in meas_base
              import lsst.meas.astrom as measAstrom
-             dimensions = afwGeom.Extent2I(calexp_md.get("NAXIS1"), calexp_md.get("NAXIS2"))
+             dimensions = dataRef.get("calexp_bbox").getDimensions()
              wcs = measAstrom.rotateWcsPixelsBy90(wcs, nQuarter, dimensions)
     return Struct(ffp=ffp, calib=calib, wcs=wcs)
 
@@ -134,8 +134,8 @@ def getMosaicResults(dataRef, dims=None):
     ffp = getFluxFitParams(dataRef)
 
     if dims is None:
-        calexpHeader = dataRef.get("calexp_md", immediate=True)
-        width, height = calexpHeader.get("NAXIS1"), calexpHeader.get("NAXIS2")
+        bbox = dataRef.get("calexp_bbox")
+        width, height = bbox.getWidth(), bbox.getHeight()
     else:
         width, height = dims
 
@@ -162,7 +162,8 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
         detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
         nQuarter = detector.getOrientation().getNQuarter()
         if nQuarter%4 != 0:
-            catalog = mosaicUtils.rotatePixelCoords(catalog, calexp_md.get("NAXIS1"), calexp_md.get("NAXIS2"),
+            dimensions = dataRef.get("calexp_bbox").getDimensions()
+            catalog = mosaicUtils.rotatePixelCoords(catalog, dimensions.getX(), dimensions.getY(),
                                                     nQuarter)
     xx, yy = catalog.getX(), catalog.getY()
     corr = numpy.power(10.0, -0.4*ffp.ffp.eval(xx, yy))*calculateJacobian(ffp.wcs, xx, yy)
@@ -190,8 +191,8 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     # Now rotate them back to the LSST coord system
     if hscRun is None:
         if nQuarter%4 != 0:
-            catalog = mosaicUtils.rotatePixelCoordsBack(catalog, calexp_md.get("NAXIS1"),
-                                                        calexp_md.get("NAXIS2"), nQuarter)
+            catalog = mosaicUtils.rotatePixelCoordsBack(catalog, dimensions.getX(),
+                                                        dimensions.getY(), nQuarter)
 
     wcs = getWcs(dataRef)
     for rec in catalog:
