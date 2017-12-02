@@ -23,16 +23,16 @@ import re
 import numpy
 
 from . import getFCorImg, FluxFitParams, getJImg, calculateJacobian
-from lsst.pipe.base import Struct
 import lsst.afw.geom as afwGeom
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
-from lsst.afw.fits import FitsError
+from lsst.pipe.base import Struct, TaskError
 from . import utils as mosaicUtils
 
-__all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure", "applyMosaicResultsCatalog",
-           "applyCalib")
+__all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure",
+           "applyMosaicResultsCatalog", "applyCalib")
+
 
 def applyMosaicResults(dataRef, calexp=None):
     """Deprecated function to apply the results to an exposure
@@ -41,6 +41,7 @@ def applyMosaicResults(dataRef, calexp=None):
     one kind of target, so it's worth changing the name to be specific.
     """
     return applyMosaicResultsExposure(dataRef, calexp).exposure
+
 
 def applyMosaicResultsExposure(dataRef, calexp=None):
     """Update an Exposure with the Wcs, Calib, and flux scaling from meas_mosaic.
@@ -84,6 +85,7 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
 
     return Struct(exposure=calexp, mosaic=mosaic)
 
+
 def getFluxFitParams(dataRef):
     """Retrieve the flux correction parameters determined by meas_mosaic
 
@@ -104,14 +106,15 @@ def getFluxFitParams(dataRef):
     wcs = getWcs(dataRef)
 
     if hscRun is None:
-         detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
-         nQuarter = detector.getOrientation().getNQuarter()
-         if nQuarter%4 != 0:
-             # Have to put this import here due to circular dependence in forcedPhotCcd.py in meas_base
-             import lsst.meas.astrom as measAstrom
-             dimensions = dataRef.get("calexp_bbox").getDimensions()
-             wcs = measAstrom.rotateWcsPixelsBy90(wcs, nQuarter, dimensions)
+        detector = dataRef.get("camera")[dataRef.dataId["ccd"]]
+        nQuarter = detector.getOrientation().getNQuarter()
+        if nQuarter%4 != 0:
+            # Have to put this import here due to circular dependence in forcedPhotCcd.py in meas_base
+            import lsst.meas.astrom as measAstrom
+            dimensions = dataRef.get("calexp_bbox").getDimensions()
+            wcs = measAstrom.rotateWcsPixelsBy90(wcs, nQuarter, dimensions)
     return Struct(ffp=ffp, calib=calib, wcs=wcs)
+
 
 def getWcs(dataRef):
     """Retrieve the Wcs determined by meas_mosaic
@@ -125,6 +128,7 @@ def getWcs(dataRef):
     else:
         wcsHeader = dataRef.get("wcs_md", immediate=True)
     return afwImage.makeWcs(wcsHeader)
+
 
 def getMosaicResults(dataRef, dims=None):
     """Retrieve the results of meas_mosaic
@@ -248,13 +252,14 @@ def applyCalib(catalog, calib, hscRun=None):
         if name in newErrKeys:
             fluxErr = newCatalog[newErrKeys[name]]
             magArray = numpy.array([calib.getMagnitude(f, e) for f, e in zip(flux, fluxErr)])
-            mag = magArray[:,0]
-            fluxErr[:] = magArray[:,1]
+            mag = magArray[:, 0]
+            fluxErr[:] = magArray[:, 1]
         else:
             mag = numpy.array([calib.getMagnitude(f) for f in flux])
         flux[:] = mag
 
     return newCatalog
+
 
 def getFluxKeys(schema, hscRun=None):
     """Retrieve the flux and flux error keys from a schema
@@ -270,8 +275,8 @@ def getFluxKeys(schema, hscRun=None):
                        name + "Sigma" in schemaKeys)
     else:
         fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
-                        re.search(r"^(flux\_\w+|\w+\_flux)$", name)
-                        and not re.search(r"^(\w+\_apcorr)$", name) and name + "_err" in schemaKeys)
+                        re.search(r"^(flux\_\w+|\w+\_flux)$", name) and not
+                        re.search(r"^(\w+\_apcorr)$", name) and name + "_err" in schemaKeys)
         errKeys = dict((name + "_err" , schemaKeys[name + "_err"]) for name in fluxKeys if
                        name + "_err" in schemaKeys)
 
