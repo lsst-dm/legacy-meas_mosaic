@@ -129,8 +129,6 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         camera = {}   # all we need from our mock camera is dict-like
                       # access to (Mock)Detectors.
         calexpMetadata = lsst.daf.base.PropertyList()
-        calexpMetadata.set("NAXIS1", self.bbox.getWidth())
-        calexpMetadata.set("NAXIS2", self.bbox.getHeight())
         for nQuarter, ccd in self.ccds.items():
             fcrFilename = os.path.join(
                 DATA_DIR,
@@ -155,6 +153,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
             self.dataRefs[ccd].put(wcsMetadata, "wcs_md")
             self.dataRefs[ccd].put(calexpMetadata, "calexp_md")
             self.dataRefs[ccd].put(camera, "camera")
+            self.dataRefs[ccd].put(self.bbox, "calexp_bbox")
 
     def tearDown(self):
         del self.ffp
