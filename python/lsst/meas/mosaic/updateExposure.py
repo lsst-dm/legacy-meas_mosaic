@@ -95,10 +95,8 @@ def getFluxFitParams(dataRef):
     calexp_md = dataRef.get("calexp_md", immediate=True)
     hscRun = mosaicUtils.checkHscStack(calexp_md)
     if hscRun is not None:
-        wcsHeader = dataRef.get("wcs_hsc_md", immediate=True)
         ffpHeader = dataRef.get("fcr_hsc_md", immediate=True)
     else:
-        wcsHeader = dataRef.get("wcs_md", immediate=True)
         ffpHeader = dataRef.get("fcr_md", immediate=True)
     calib = afwImage.Calib(ffpHeader)
     ffp = FluxFitParams(ffpHeader)
@@ -277,7 +275,7 @@ def getFluxKeys(schema, hscRun=None):
         fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
                         re.search(r"^(flux\_\w+|\w+\_flux)$", name) and not
                         re.search(r"^(\w+\_apcorr)$", name) and name + "_err" in schemaKeys)
-        errKeys = dict((name + "_err" , schemaKeys[name + "_err"]) for name in fluxKeys if
+        errKeys = dict((name + "_err", schemaKeys[name + "_err"]) for name in fluxKeys if
                        name + "_err" in schemaKeys)
 
     if len(fluxKeys) == 0:
