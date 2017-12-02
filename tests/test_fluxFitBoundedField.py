@@ -127,8 +127,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         self.wcs = {}
         self.photoCalib = {}
         self.dataRefs = {}
-        camera = {}   # all we need from our mock camera is dict-like
-                      # access to (Mock)Detectors.
+        camera = {}   # all we need from our mock camera is dict-like access to (Mock)Detectors.
         calexpMetadata = lsst.daf.base.PropertyList()
         for nQuarter, ccd in self.ccds.items():
             fcrFilename = os.path.join(
@@ -257,7 +256,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         results2 = lsst.meas.mosaic.applyMosaicResultsCatalog(self.dataRefs[ccd], catalog2)
         catalog2 = results2.catalog
         catalog2 = lsst.meas.mosaic.applyCalib(catalog2, results2.ffp.calib)
-        mag2, magErr2 = catalog2["example_mag"], catalog2["example_magSigma"]
+        mag2 = catalog2["example_mag"]
         # Check that the non-spatially varying part of the correction is the same.
         fluxMag0 = results2.ffp.calib.getFluxMag0()
         self.assertFloatsAlmostEqual(photoCalib.getInstFluxMag0(), fluxMag0[0],
