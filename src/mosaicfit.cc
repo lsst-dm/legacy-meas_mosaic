@@ -3215,7 +3215,7 @@ ndarray::Array<double, 1> lsst::meas::mosaic::calculateJacobian(
 ndarray::Array<double, 1> lsst::meas::mosaic::calculateJacobian(lsst::afw::image::Wcs const &wcs,
                                                                 ndarray::Array<double const, 1> const &x,
                                                                 ndarray::Array<double const, 1> const &y) {
-    int const num = x.getShape()[0];
+    auto const num = x.getShape()[0];
     if (y.getShape()[0] != num) {
         throw LSST_EXCEPT(lsst::pex::exceptions::LengthError,
                           str(boost::format("Size mismatch: %d vs %d") % x.getShape()[0] % y.getShape()[0]));
