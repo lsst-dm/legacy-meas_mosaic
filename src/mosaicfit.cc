@@ -2502,7 +2502,7 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD_shot(int order, int nmatch, ObsVec 
                     // Transform from pixels to focal plane has to be recalculated.
                     newTr[afw::cameraGeom::FOCAL_PLANE] =
                         std::make_shared<afw::geom::TransformPoint2ToPoint2>(
-                            newOrientation.makePixelFpTransform(pixelSize));
+                            *newOrientation.makePixelFpTransform(pixelSize));
 
                     // We should not require any other transformations within meas_mosaic.
 
@@ -2534,7 +2534,7 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD_shot(int order, int nmatch, ObsVec 
                     // Transform from pixels to focal plane has to be recalculated.
                     newTr[afw::cameraGeom::FOCAL_PLANE] =
                         std::make_shared<afw::geom::TransformPoint2ToPoint2>(
-                            newOrientation.makePixelFpTransform(pixelSize));
+                            *newOrientation.makePixelFpTransform(pixelSize));
 
                     // We should not require any other transformations within meas_mosaic.
 
@@ -2698,7 +2698,7 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD(int order, int nmatch, int nsource,
                     // Transform from pixels to focal plane has to be recalculated.
                     newTr[afw::cameraGeom::FOCAL_PLANE] =
                         std::make_shared<afw::geom::TransformPoint2ToPoint2>(
-                            newOrientation.makePixelFpTransform(pixelSize));
+                            *newOrientation.makePixelFpTransform(pixelSize));
 
                     // We should not require any other transformations within meas_mosaic.
 
@@ -2729,7 +2729,7 @@ CoeffSet lsst::meas::mosaic::solveMosaic_CCD(int order, int nmatch, int nsource,
                     // Transform from pixels to focal plane has to be recalculated.
                     newTr[afw::cameraGeom::FOCAL_PLANE] =
                         std::make_shared<afw::geom::TransformPoint2ToPoint2>(
-                            newOrientation.makePixelFpTransform(pixelSize));
+                            *newOrientation.makePixelFpTransform(pixelSize));
 
                     // We should not require any other transformations within meas_mosaic.
 
@@ -3215,7 +3215,7 @@ ndarray::Array<double, 1> lsst::meas::mosaic::calculateJacobian(
 ndarray::Array<double, 1> lsst::meas::mosaic::calculateJacobian(lsst::afw::image::Wcs const &wcs,
                                                                 ndarray::Array<double const, 1> const &x,
                                                                 ndarray::Array<double const, 1> const &y) {
-    int const num = x.getShape()[0];
+    auto const num = x.getShape()[0];
     if (y.getShape()[0] != num) {
         throw LSST_EXCEPT(lsst::pex::exceptions::LengthError,
                           str(boost::format("Size mismatch: %d vs %d") % x.getShape()[0] % y.getShape()[0]));
