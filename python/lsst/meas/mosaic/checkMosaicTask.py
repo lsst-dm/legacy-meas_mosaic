@@ -457,8 +457,7 @@ class CheckMosaicTask(MosaicTask):
                 if not dataRef.datasetExists('fcr'):
                     raise RuntimeError("no data for fcr %s" % (dataRef.dataId))
 
-                md = dataRef.get('wcs_md')
-                wcs = afwGeom.makeSkyWcs(md)
+                wcs = dataRef.get('wcs').getWcs()
 
                 md = dataRef.get('calexp_md')
                 filterName = afwImage.Filter(md).getName()

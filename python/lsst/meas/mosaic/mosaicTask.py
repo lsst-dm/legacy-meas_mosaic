@@ -687,8 +687,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 # it should be in the noise of the overall runtime and it
                 # saves us from doing a bunch of refactoring in a fragile
                 # package with no tests.
-                wcs_md = dataRef.get("wcs_md")
-                wcs = afwGeom.makeSkyWcs(wcs_md)
+                wcs = dataRef.get("wcs").getWcs()
             except Exception as e:
                 print("failed to read Wcs for PhotoCalib: %s" % (e))
                 continue

@@ -140,8 +140,10 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
                 DATA_DIR,
                 "%d/wcs-%07d-%03d.fits" % (self.tract, self.visit, ccd)
             )
-            wcsMetadata = readMetadata(wcsFilename, 1)
-            self.wcs[ccd] = lsst.afw.geom.makeSkyWcs(wcsMetadata)
+            # WCS is saved as an empty exposure with WCS
+            # (rather than as a WCS fits file)
+            wcsExposure = lsst.afw.image.ExposureF(wcsFilename)
+            self.wcs[ccd] = wcsExposure.getWcs()
             photoCalibFilename = os.path.join(
                 DATA_DIR,
                 "%d/photoCalib-%07d-%03d.fits" % (self.tract, self.visit, ccd)
@@ -150,7 +152,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
             camera[ccd] = MockDetector(MockOrientation(nQuarter))
             self.dataRefs[ccd] = MockDataRef(visit=self.visit, tract=self.tract, ccd=ccd)
             self.dataRefs[ccd].put(fcrMetadata, "fcr_md", )
-            self.dataRefs[ccd].put(wcsMetadata, "wcs_md")
+            self.dataRefs[ccd].put(wcsExposure, "wcs")
             self.dataRefs[ccd].put(calexpMetadata, "calexp_md")
             self.dataRefs[ccd].put(camera, "camera")
             self.dataRefs[ccd].put(self.bbox, "calexp_bbox")

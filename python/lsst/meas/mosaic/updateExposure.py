@@ -122,10 +122,8 @@ def getWcs(dataRef):
     calexp_md = dataRef.get("calexp_md", immediate=True)
     hscRun = mosaicUtils.checkHscStack(calexp_md)
     if hscRun is not None:
-        wcsHeader = dataRef.get("wcs_hsc_md", immediate=True)
-    else:
-        wcsHeader = dataRef.get("wcs_md", immediate=True)
-    return afwGeom.makeSkyWcs(wcsHeader)
+        return dataRef.get("wcs_hsc").getWcs()
+    return dataRef.get("wcs").getWcs()
 
 
 def getMosaicResults(dataRef, dims=None):
