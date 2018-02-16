@@ -26,7 +26,7 @@ namespace lsst {
                     _pixels(record.getX(), record.getY()), _flux(record.getCalibFlux()), _err(record.getCalibFluxErr()),
 		    _xerr(sqrt(record.getCentroidErr()(0,0))), _yerr(sqrt(record.getCentroidErr()(1,1))),
                     _astromBad(record.getCentroidFlag() | record.getCalibFluxFlag()) {}
-                Source(lsst::afw::table::SimpleRecord const& record, lsst::afw::image::Wcs const& wcs) :
+                Source(lsst::afw::table::SimpleRecord const& record, lsst::afw::geom::SkyWcs const& wcs) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
                     _pixels(wcs.skyToPixel(_sky)),
                     _flux(record.get(record.getSchema().find<double>("flux").key)),
@@ -44,7 +44,7 @@ namespace lsst {
 			    _err = sqrt(record.get(record.getSchema().find<double>("flux").key)*1.E-08);
 			}
                     }
-                Source(lsst::afw::coord::Coord coord, double flux=std::numeric_limits<double>::quiet_NaN()) :
+                Source(lsst::afw::coord::IcrsCoord coord, double flux=std::numeric_limits<double>::quiet_NaN()) :
                     _id(-1), _chip(UNSET), _exp(UNSET), _sky(coord),
                     _pixels(lsst::afw::geom::Point2D(std::numeric_limits<double>::quiet_NaN(),
                                                      std::numeric_limits<double>::quiet_NaN())),
@@ -71,7 +71,7 @@ namespace lsst {
                 IdType getId() const { return _id; }
                 ChipType getChip() const { return _chip; }
                 ExpType getExp() const { return _exp; }
-                lsst::afw::coord::Coord getSky() const { return _sky; }
+                lsst::afw::coord::IcrsCoord getSky() const { return _sky; }
                 lsst::afw::geom::Angle getRa() const { return getSky().getLongitude(); }
                 lsst::afw::geom::Angle getDec() const { return getSky().getLatitude(); }
                 lsst::afw::geom::Point2D getPixels() const { return _pixels; }
@@ -91,7 +91,7 @@ namespace lsst {
                 IdType _id;                       // Identifier
                 ChipType _chip;                   // Chip identifier
                 ExpType _exp;                     // Exposure identifier
-                lsst::afw::coord::Coord _sky;     // Sky coordinates
+                lsst::afw::coord::IcrsCoord _sky; // Sky coordinates
                 lsst::afw::geom::Point2D _pixels; // Pixel coordinates
                 double _flux;                     // Flux
                 double _err;			  // Flux Err
@@ -107,7 +107,7 @@ namespace lsst {
             typedef std::vector<SourceMatch> SourceMatchSet;
 	    typedef std::vector<std::vector<SourceMatch> > SourceMatchGroup;
 
-	    typedef std::map<int, std::shared_ptr<lsst::afw::image::Wcs>> WcsDic;
+	    typedef std::map<int, std::shared_ptr<lsst::afw::geom::SkyWcs>> WcsDic;
 
 	    class Poly {
 	    public:
@@ -166,7 +166,7 @@ namespace lsst {
 		int getNcoeff() { return p->ncoeff; }
 		double pixelScale(void);
 
-                // below lines for coeffFromTanWcs()
+                // below lines originally for coeffFromTanWcs()
 		void set_D(double v) { D = v; }
 		void set_A(double v) { A = v; }
 		void set_x0(double v) { x0 = v; }
@@ -235,7 +235,7 @@ namespace lsst {
 		int depth;
 		int axis;
                 lsst::afw::geom::Angle location[2];
-		lsst::afw::coord::Coord c;
+		lsst::afw::coord::IcrsCoord c;
 		KDTree::Ptr left;
 		KDTree::Ptr right;
                 SourceSet set;
@@ -247,7 +247,7 @@ namespace lsst {
                 KDTree(SourceMatch const& m, int depth);
 
 		~KDTree();
-                ConstPtr search(lsst::afw::coord::Coord const& sky) const;
+                ConstPtr search(lsst::afw::coord::IcrsCoord const& sky) const;
 		ConstPtr findSource(Source const& s) const;
                 void add(SourceMatch const& m);
 		void add(PTR(Source) s,
@@ -261,7 +261,7 @@ namespace lsst {
 		KDTree::Ptr findNearest(Source const& s);
 
 		double distance(Source const& s) const {
-                    return c.angularSeparation(lsst::afw::coord::Coord(s.getRa(), s.getDec())).asDegrees();
+                    return c.angularSeparation(lsst::afw::coord::IcrsCoord(s.getRa(), s.getDec())).asDegrees();
                 }
 
             private:
@@ -316,20 +316,18 @@ namespace lsst {
 	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff,
 				    PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
-	    std::shared_ptr<lsst::afw::image::TanWcs> wcsFromCoeff(Coeff::Ptr& coeff);
-
-            Coeff::Ptr coeffFromTanWcs(std::shared_ptr<lsst::afw::image::Wcs>& wcs);
+	    std::shared_ptr<lsst::afw::geom::SkyWcs> wcsFromCoeff(Coeff::Ptr& coeff);
 
 	    std::shared_ptr<lsst::afw::image::Image<float>>
 	      getJImg(Coeff::Ptr& coeff,
 		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
 	    std::shared_ptr<lsst::afw::image::Image<float>>
-	      getJImg(std::shared_ptr<lsst::afw::image::Wcs>& wcs,
+	      getJImg(std::shared_ptr<lsst::afw::geom::SkyWcs>& wcs,
 		      int width, int height);
 
 	    std::shared_ptr<lsst::afw::image::Image<float>>
-	      getJImg(std::shared_ptr<lsst::afw::image::Wcs>& wcs,
+	      getJImg(std::shared_ptr<lsst::afw::geom::SkyWcs>& wcs,
 		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
 
             //{
@@ -340,15 +338,15 @@ namespace lsst {
             // dimming of the flat-field due to optical scale variations
             // over the field of view.
             double calculateJacobian(
-                afw::image::Wcs const& wcs, ///< Astrometric solution
+                afw::geom::SkyWcs const& wcs, ///< Astrometric solution
                 afw::geom::Point2D const& point ///< Position for correction
                 );
             ndarray::Array<double, 1> calculateJacobian(
-                afw::image::Wcs const& wcs, ///< Astrometric solution
+                afw::geom::SkyWcs const& wcs, ///< Astrometric solution
                 std::vector<afw::geom::Point2D> const& points ///< Positions for correction
                 );
             ndarray::Array<double, 1> calculateJacobian(
-                afw::image::Wcs const& wcs, ///< Astrometric solution
+                afw::geom::SkyWcs const& wcs, ///< Astrometric solution
                 ndarray::Array<double const, 1> const& x, ///< x positions for correction
                 ndarray::Array<double const, 1> const& y  ///< y positions for correction
                 );

@@ -120,9 +120,8 @@ class PhotometricSolutionTask(PhotoCalTask):
             if visit not in wcsDic and wcsList[ccdId] is not None:
                 wcs = wcsList[ccdId]
                 ccdDev = ccdSet[ccd]
-                offset = ccdDev.getCenter().getPixels(ccdDev.getPixelSize())
-                wcs.shiftReferencePixel(offset[0], offset[1])
-                wcsDic[visit] = wcs
+                offset = afwGeom.Extent2D(ccdDev.getCenter().getPixels(ccdDev.getPixelSize()))
+                wcsDic[visit] = wcs.copyAtShiftedPixelOrigin(offset)
 
         # meas_mosaic specific object list
         matchVec  = measMosaic.obsVecFromSourceGroup(allMat, wcsDic, ccdSet)
@@ -131,8 +130,7 @@ class PhotometricSolutionTask(PhotoCalTask):
         # Apply Jocabian correction calculated from wcs
         for m in matchVec:
             wcs = wcsList[m.iexp*200+m.ichip]
-            scale = wcs.pixelScale().asDegrees()
-            m.mag -= 2.5 * math.log10(wcs.pixArea(afwGeom.Point2D(m.x, m.y)) / scale**2)
+            m.mag -= 2.5*math.log10(measMosaic.computeJacobian(wcs, afwGeom.Point2D(m.x, m.y)))
 
         fluxFitOrder = self.config.fluxFitOrder
         absolute = True

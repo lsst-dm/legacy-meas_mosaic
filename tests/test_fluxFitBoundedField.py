@@ -28,6 +28,7 @@ import numpy as np
 
 import lsst.afw.geom
 import lsst.afw.image
+from lsst.afw.fits import readMetadata
 import lsst.meas.mosaic
 import lsst.daf.base
 import lsst.utils.tests
@@ -126,22 +127,23 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         self.wcs = {}
         self.photoCalib = {}
         self.dataRefs = {}
-        camera = {}   # all we need from our mock camera is dict-like
-                      # access to (Mock)Detectors.
+        camera = {}   # all we need from our mock camera is dict-like access to (Mock)Detectors.
         calexpMetadata = lsst.daf.base.PropertyList()
         for nQuarter, ccd in self.ccds.items():
             fcrFilename = os.path.join(
                 DATA_DIR,
                 "%d/fcr-%07d-%03d.fits" % (self.tract, self.visit, ccd)
             )
-            fcrMetadata = lsst.afw.image.readMetadata(fcrFilename)
+            fcrMetadata = readMetadata(fcrFilename)
             self.ffp[ccd] = lsst.meas.mosaic.FluxFitParams(fcrMetadata)
             wcsFilename = os.path.join(
                 DATA_DIR,
                 "%d/wcs-%07d-%03d.fits" % (self.tract, self.visit, ccd)
             )
-            wcsMetadata = lsst.afw.image.readMetadata(wcsFilename)
-            self.wcs[ccd] = lsst.afw.image.makeWcs(wcsMetadata)
+            # WCS is saved as an empty exposure with WCS
+            # (rather than as a WCS fits file)
+            wcsExposure = lsst.afw.image.ExposureF(wcsFilename)
+            self.wcs[ccd] = wcsExposure.getWcs()
             photoCalibFilename = os.path.join(
                 DATA_DIR,
                 "%d/photoCalib-%07d-%03d.fits" % (self.tract, self.visit, ccd)
@@ -150,7 +152,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
             camera[ccd] = MockDetector(MockOrientation(nQuarter))
             self.dataRefs[ccd] = MockDataRef(visit=self.visit, tract=self.tract, ccd=ccd)
             self.dataRefs[ccd].put(fcrMetadata, "fcr_md", )
-            self.dataRefs[ccd].put(wcsMetadata, "wcs_md")
+            self.dataRefs[ccd].put(wcsExposure, "wcs")
             self.dataRefs[ccd].put(calexpMetadata, "calexp_md")
             self.dataRefs[ccd].put(camera, "camera")
             self.dataRefs[ccd].put(self.bbox, "calexp_bbox")
@@ -256,7 +258,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         results2 = lsst.meas.mosaic.applyMosaicResultsCatalog(self.dataRefs[ccd], catalog2)
         catalog2 = results2.catalog
         catalog2 = lsst.meas.mosaic.applyCalib(catalog2, results2.ffp.calib)
-        mag2, magErr2 = catalog2["example_mag"], catalog2["example_magSigma"]
+        mag2 = catalog2["example_mag"]
         # Check that the non-spatially varying part of the correction is the same.
         fluxMag0 = results2.ffp.calib.getFluxMag0()
         self.assertFloatsAlmostEqual(photoCalib.getInstFluxMag0(), fluxMag0[0],
@@ -267,7 +269,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         mag0, magErr0 = results2.ffp.calib.getMagnitude(catalog.get("example_flux"),
                                                         catalog.get("example_fluxSigma"))
         # Check that both approaches yield similar results overall...
-        rtol = 1E-14 if nQuarter == 0 else 1E-6  # rotating SIP Wcses involves a big loss of precision
+        rtol = 1E-10 if nQuarter == 0 else 1E-6  # rotating SIP Wcses involves a big loss of precision
         self.assertFloatsAlmostEqual(mag1, mag2, rtol=rtol)
         # ...and in just the spatially-varying part (but with less precision, partially because of
         # round-off error).

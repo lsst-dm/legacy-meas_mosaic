@@ -316,7 +316,7 @@ class SourceReader(object):
 
             calexp_md = dataRef.get("calexp_md", immediate=True)
             detector = dataRef.get("camera")[dataRef.dataId["ccd"]]  # OK for HSC; maybe not for other cameras
-            wcs = afwImage.makeWcs(calexp_md)
+            wcs = afwGeom.makeSkyWcs(calexp_md)
             nQuarter = detector.getOrientation().getNQuarter()
             sources = dataRef.get("src", immediate=True, flags=afwTable.SOURCE_IO_NO_FOOTPRINTS)
 
@@ -500,7 +500,7 @@ class MosaicTask(pipeBase.CmdLineTask):
     def getWcsForCcd(self, dataRef):
         try:
             md = dataRef.get("calexp_md")
-            return afwImage.makeWcs(md)
+            return afwGeom.makeSkyWcs(md)
         except Exception as e:
             print("Failed to read: %s for %s" % (e, dataRef.dataId))
             return None
@@ -516,9 +516,8 @@ class MosaicTask(pipeBase.CmdLineTask):
                     dataRef.datasetExists("srcMatch")):
                     wcs = self.getWcsForCcd(dataRef)
                     ccd = ccdSet[dataRef.dataId["ccd"]]
-                    offset = measMosaic.getCenterInFpPixels(ccd)
-                    wcs.shiftReferencePixel(offset[0], offset[1])
-                    wcsDic[dataRef.dataId["visit"]] = wcs
+                    offset = afwGeom.Extent2D(measMosaic.getCenterInFpPixels(ccd))
+                    wcsDic[dataRef.dataId["visit"]] = wcs.copyAtShiftedPixelOrigin(offset)
 
         return wcsDic
 
@@ -688,8 +687,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 # it should be in the noise of the overall runtime and it
                 # saves us from doing a bunch of refactoring in a fragile
                 # package with no tests.
-                wcs_md = dataRef.get("wcs_md")
-                wcs = afwImage.makeWcs(wcs_md)
+                wcs = dataRef.get("wcs").getWcs()
             except Exception as e:
                 print("failed to read Wcs for PhotoCalib: %s" % (e))
                 continue
@@ -820,7 +818,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 if not dataRef.datasetExists("calexp_md"):
                     raise RuntimeError("no data for calexp_md %s" % (dataRef.dataId))
                 md = dataRef.get("calexp_md", immediate=True)
-                wcs = afwImage.makeWcs(md)
+                wcs = afwGeom.makeSkyWcs(md)
 
                 dataRefListExists.append(dataRef)
 
@@ -983,19 +981,17 @@ class MosaicTask(pipeBase.CmdLineTask):
             for dataRef in dataRefListUsed:
                 frameId = "%07d-%03d" % (dataRef.dataId["visit"], dataRef.dataId["ccd"])
                 md = dataRef.get("calexp_md")
-                wcsAll[frameId] = afwImage.makeWcs(md)
+                wcsAll[frameId] = afwGeom.makeSkyWcs(md)
                 del md
 
             for m in matchVec:
                 wcs = wcsAll["%07d-%03d" % (m.iexp, m.ichip)]
-                scale = wcs.pixelScale().asDegrees()
-                m.mag -= 2.5*math.log10(wcs.pixArea(afwGeom.Point2D(m.x, m.y))/scale**2)
+                m.mag -= 2.5*math.log10(measMosaic.computeJacobian(wcs, afwGeom.Point2D(m.x, m.y)))
 
             if len(sourceVec) != 0:
                 for s in sourceVec:
                     wcs = wcsAll["%07d-%03d" % (s.iexp, s.ichip)]
-                    scale = wcs.pixelScale().asDegrees()
-                    s.mag -= 2.5*math.log10(wcs.pixArea(afwGeom.Point2D(s.x, s.y))/scale**2)
+                    s.mag -= 2.5*math.log10(measMosaic.computeJacobian(wcs, afwGeom.Point2D(s.x, s.y)))
 
             del wcsAll
 

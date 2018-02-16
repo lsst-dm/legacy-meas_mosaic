@@ -48,10 +48,11 @@ PYBIND11_PLUGIN(fluxFitBoundedField) {
         py::init<
             afw::geom::Box2I const &,
             std::shared_ptr<FluxFitParams> const &,
-            std::shared_ptr<afw::image::Wcs> const &,
+            std::shared_ptr<afw::geom::SkyWcs> const &,
             double, int>(),
         "bbox"_a, "ffp"_a=nullptr, "wcs"_a=nullptr, "zeroPoint"_a=1.0, "nQuarter"_a=0
     );
+    cls.def("getWcs", &FluxFitBoundedField::getWcs);
 
     // all public methods are overrides of methods in BoundedField, and can be
     // accessed in Python through that class's wrappers.

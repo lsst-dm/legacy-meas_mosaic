@@ -29,12 +29,22 @@
 namespace lsst {
 namespace meas {
 namespace mosaic {
+namespace {
 
+// from https://stackoverflow.com/a/38391135
+template <class T>
+bool sharedPtrsEqual(std::shared_ptr<T> const& a, std::shared_ptr<T> const& b) {
+    if (a == b) return true;
+    if (a && b) return *a == *b;
+    return false;
+}
+
+}  // namespace
 
 FluxFitBoundedField::FluxFitBoundedField(
     afw::geom::Box2I const & bbox,
     std::shared_ptr<FluxFitParams> const & ffp,
-    std::shared_ptr<afw::image::Wcs> const & wcs,
+    std::shared_ptr<afw::geom::SkyWcs> const & wcs,
     double zeroPoint,
     int nQuarter
 ) : afw::math::BoundedField(bbox),
@@ -81,9 +91,7 @@ double FluxFitBoundedField::evaluate(afw::geom::Point2D const & position) const 
         r *= std::pow(10.0, -0.4*_ffp->eval(xy.getX(), xy.getY()));
     }
     if (_wcs) {
-        double scale = _wcs->pixelScale().asDegrees();
-        double deg2pix = 1.0 / scale;
-        r *= _wcs->pixArea(position)*deg2pix*deg2pix;
+        r *= calculateJacobian(*_wcs, position);
     }
     return r;
 }
@@ -175,7 +183,7 @@ public:
         afw::table::BaseRecord const & record = catalogs.front().front();
         PersistenceHelper const keys(record.getSchema());
 
-        auto wcs = archive.get<afw::image::Wcs>(record.get(keys.wcs));
+        auto wcs = archive.get<afw::geom::SkyWcs>(record.get(keys.wcs));
 
         // NOTE: needed invert=false in case min=-1, max=0 (empty bbox). See RFC-324 and DM-10200
         afw::geom::Box2I bbox(record.get(keys.bboxMin), record.get(keys.bboxMax), false);
@@ -278,7 +286,7 @@ bool FluxFitBoundedField::operator==(BoundedField const& rhs) const {
             ffpEqual &&
             (_zeroPoint == rhsCasted->_zeroPoint) &&
             (_nQuarter == rhsCasted->_nQuarter) &&
-            (*_wcs) == (*rhsCasted->_wcs);
+            sharedPtrsEqual(_wcs, rhsCasted->_wcs);
 }
 
 std::string FluxFitBoundedField::toString() const {
