@@ -451,13 +451,13 @@ class CheckMosaicTask(MosaicTask):
                 if not dataRef.datasetExists('src'):
                     raise RuntimeError("no data for src %s" % (dataRef.dataId))
 
-                if not dataRef.datasetExists('wcs'):
+                if not dataRef.datasetExists('jointcal_wcs'):
                     raise RuntimeError("no data for wcs %s" % (dataRef.dataId))
 
                 if not dataRef.datasetExists('fcr'):
                     raise RuntimeError("no data for fcr %s" % (dataRef.dataId))
 
-                wcs = dataRef.get('wcs').getWcs()
+                wcs = dataRef.get('jointcal_wcs')
 
                 md = dataRef.get('calexp_md')
                 filterName = afwImage.Filter(md).getName()

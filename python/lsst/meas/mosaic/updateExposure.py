@@ -28,6 +28,7 @@ import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
 from lsst.pipe.base import Struct, TaskError
+from lsst.daf.persistence import NoResults
 from . import utils as mosaicUtils
 
 __all__ = ("applyMosaicResults", "getMosaicResults", "applyMosaicResultsExposure",
@@ -122,8 +123,14 @@ def getWcs(dataRef):
     calexp_md = dataRef.get("calexp_md", immediate=True)
     hscRun = mosaicUtils.checkHscStack(calexp_md)
     if hscRun is not None:
+        # Backwards compatibility with the very oldest meas_mosaic outputs
         return dataRef.get("wcs_hsc").getWcs()
-    return dataRef.get("wcs").getWcs()
+    try:
+        # Modern meas_mosaic outputs.
+        return dataRef.get("jointcal_wcs")
+    except NoResults:
+        # Backwards compatibility with old meas_mosaic outputs
+        return dataRef.get("wcs").getWcs()
 
 
 def getMosaicResults(dataRef, dims=None):
