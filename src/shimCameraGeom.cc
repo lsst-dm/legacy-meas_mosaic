@@ -33,11 +33,11 @@ afw::geom::LinearTransform makeScalingMmToPx(afw::geom::Extent2D const pSize) {
 
 afw::geom::Point2D getCenterInFpPixels(CONST_PTR(afw::cameraGeom::Detector) det) {
     auto scaling = makeScalingMmToPx(det->getPixelSize());
-    return scaling(det->getCenter(afw::cameraGeom::FOCAL_PLANE).getPoint());
+    return scaling(det->getCenter(afw::cameraGeom::FOCAL_PLANE));
 }
 
 afw::geom::Point2D getCenterInDetectorPixels(CONST_PTR(afw::cameraGeom::Detector) det) {
-    auto center = det->getCenter(afw::cameraGeom::PIXELS).getPoint();
+    auto center = det->getCenter(afw::cameraGeom::PIXELS);
     if ((getNQuarter(det)%2) != 0) {
         return afw::geom::Point2D(center.getY(), center.getX());
     } else {
@@ -54,11 +54,8 @@ int getHeight(CONST_PTR(afw::cameraGeom::Detector) det) {
 }
 
 afw::geom::Point2D detPxToFpPx(CONST_PTR(afw::cameraGeom::Detector) det, afw::geom::Point2D const detPt) {
-    afw::geom::Point2D point;
-    point = detPt;
     auto scaling = makeScalingMmToPx(det->getPixelSize());
-    return scaling(det->transform(det->makeCameraPoint(point, afw::cameraGeom::PIXELS),
-                                  afw::cameraGeom::FOCAL_PLANE).getPoint());
+    return scaling(det->transform(detPt, afw::cameraGeom::PIXELS, afw::cameraGeom::FOCAL_PLANE));
 }
 
 afw::geom::Point2D detPxToFpPxRot(CONST_PTR(afw::cameraGeom::Detector) det, afw::geom::Point2D const detPt) {
