@@ -26,6 +26,7 @@ import os
 import unittest
 import numpy as np
 
+from lsst.daf.persistence import NoResults
 import lsst.afw.geom
 import lsst.afw.image
 from lsst.afw.fits import readMetadata
@@ -104,7 +105,10 @@ class MockDataRef(object):
         self.datasets = {}
 
     def get(self, name, immediate=True):
-        return self.datasets[name]
+        try:
+            return self.datasets[name]
+        except KeyError as err:
+            raise NoResults(str(err), name, self.dataId)
 
     def put(self, dataset, name):
         self.datasets[name] = dataset

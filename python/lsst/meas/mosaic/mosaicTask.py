@@ -473,7 +473,7 @@ class MosaicTask(pipeBase.CmdLineTask):
     @classmethod
     def _makeArgumentParser(cls):
         parser = pipeBase.ArgumentParser(name=cls._DefaultName)
-        parser.add_id_argument("--id", "wcs", help="data ID, with raw CCD keys + tract",
+        parser.add_id_argument("--id", "jointcal_wcs", help="data ID, with raw CCD keys + tract",
                                ContainerClass=PerTractCcdDataIdContainer)
         parser.add_argument("--diagDir", default=".", help="Directory in which to dump diagnostics")
         parser.add_argument("--diagnostics", default=False, action="store_true",
@@ -615,7 +615,6 @@ class MosaicTask(pipeBase.CmdLineTask):
 
     def writeNewWcs(self, dataRefList):
         self.log.info("Write New WCS ...")
-        exp = afwImage.ExposureI(0, 0)
         for dataRef in dataRefList:
             iexp = dataRef.dataId["visit"]
             ichip = dataRef.dataId["ccd"]
@@ -632,9 +631,8 @@ class MosaicTask(pipeBase.CmdLineTask):
                         dimensions = afwGeom.Extent2I(dimensions.getY(), dimensions.getX())
                     wcs = measAstrom.rotateWcsPixelsBy90(wcs, 4 - nQuarter, dimensions)
 
-            exp.setWcs(wcs)
             try:
-                dataRef.put(exp, "wcs")
+                dataRef.put(wcs, "jointcal_wcs")
             except Exception as e:
                 print("failed to write wcs: %s" % (e))
 
@@ -687,7 +685,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 # it should be in the noise of the overall runtime and it
                 # saves us from doing a bunch of refactoring in a fragile
                 # package with no tests.
-                wcs = dataRef.get("wcs").getWcs()
+                wcs = dataRef.get("jointcal_wcs")
             except Exception as e:
                 print("failed to read Wcs for PhotoCalib: %s" % (e))
                 continue
@@ -701,7 +699,7 @@ class MosaicTask(pipeBase.CmdLineTask):
                 bf,
                 isConstant=False
             )
-            dataRef.put(photoCalib, "photoCalib")
+            dataRef.put(photoCalib, "jointcal_photoCalib")
 
     def outputDiagWcs(self):
         self.log.info("Output WCS Diagnostic Figures...")
