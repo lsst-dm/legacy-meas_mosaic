@@ -44,7 +44,7 @@ namespace lsst {
 			    _err = sqrt(record.get(record.getSchema().find<double>("flux").key)*1.E-08);
 			}
                     }
-                Source(lsst::afw::coord::IcrsCoord coord, double flux=std::numeric_limits<double>::quiet_NaN()) :
+                Source(lsst::afw::geom::SpherePoint coord, double flux=std::numeric_limits<double>::quiet_NaN()) :
                     _id(-1), _chip(UNSET), _exp(UNSET), _sky(coord),
                     _pixels(lsst::afw::geom::Point2D(std::numeric_limits<double>::quiet_NaN(),
                                                      std::numeric_limits<double>::quiet_NaN())),
@@ -71,7 +71,7 @@ namespace lsst {
                 IdType getId() const { return _id; }
                 ChipType getChip() const { return _chip; }
                 ExpType getExp() const { return _exp; }
-                lsst::afw::coord::IcrsCoord getSky() const { return _sky; }
+                lsst::afw::geom::SpherePoint getSky() const { return _sky; }
                 lsst::afw::geom::Angle getRa() const { return getSky().getLongitude(); }
                 lsst::afw::geom::Angle getDec() const { return getSky().getLatitude(); }
                 lsst::afw::geom::Point2D getPixels() const { return _pixels; }
@@ -91,7 +91,7 @@ namespace lsst {
                 IdType _id;                       // Identifier
                 ChipType _chip;                   // Chip identifier
                 ExpType _exp;                     // Exposure identifier
-                lsst::afw::coord::IcrsCoord _sky; // Sky coordinates
+                lsst::afw::geom::SpherePoint _sky; // ICRS sky coordinates
                 lsst::afw::geom::Point2D _pixels; // Pixel coordinates
                 double _flux;                     // Flux
                 double _err;			  // Flux Err
@@ -235,7 +235,7 @@ namespace lsst {
 		int depth;
 		int axis;
                 lsst::afw::geom::Angle location[2];
-		lsst::afw::coord::IcrsCoord c;
+		lsst::afw::geom::SpherePoint c;
 		KDTree::Ptr left;
 		KDTree::Ptr right;
                 SourceSet set;
@@ -247,7 +247,7 @@ namespace lsst {
                 KDTree(SourceMatch const& m, int depth);
 
 		~KDTree();
-                ConstPtr search(lsst::afw::coord::IcrsCoord const& sky) const;
+                ConstPtr search(lsst::afw::geom::SpherePoint const& sky) const;
 		ConstPtr findSource(Source const& s) const;
                 void add(SourceMatch const& m);
 		void add(PTR(Source) s,
@@ -261,7 +261,7 @@ namespace lsst {
 		KDTree::Ptr findNearest(Source const& s);
 
 		double distance(Source const& s) const {
-                    return c.angularSeparation(lsst::afw::coord::IcrsCoord(s.getRa(), s.getDec())).asDegrees();
+                    return c.separation(lsst::afw::geom::SpherePoint(s.getRa(), s.getDec())).asDegrees();
                 }
 
             private:

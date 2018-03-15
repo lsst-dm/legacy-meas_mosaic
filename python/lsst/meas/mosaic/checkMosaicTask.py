@@ -57,7 +57,7 @@ class CheckMosaicTask(MosaicTask):
                     ichip = ss[j].getChip()
                     x, y = ss[j].getX(), ss[j].getY()
                     wcs = wcsDic[iexp][ichip]
-                    ra, dec = wcs.pixelToSky(x, y).getPosition()
+                    ra, dec = wcs.pixelToSky(x, y).getPosition(afwGeom.degrees)
                     dx_m.append((ra - ra_cat) * 3600)
                     dy_m.append((dec - dec_cat) * 3600)
                     mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
@@ -81,7 +81,7 @@ class CheckMosaicTask(MosaicTask):
                         ichip = ss[j].getChip()
                         x, y = ss[j].getX(), ss[j].getY()
                         wcs = wcsDic[iexp][ichip]
-                        ra, dec = wcs.pixelToSky(x, y).getPosition()
+                        ra, dec = wcs.pixelToSky(x, y).getPosition(afwGeom.degrees)
                         ra_source.append(ra)
                         dec_source.append(dec)
                         n += 1
@@ -126,7 +126,7 @@ class CheckMosaicTask(MosaicTask):
                     ichip = ss[j].getChip()
                     x, y = ss[j].getX(), ss[j].getY()
                     wcs = wcsDic[iexp][ichip]
-                    ra, dec = wcs.pixelToSky(x, y).getPosition()
+                    ra, dec = wcs.pixelToSky(x, y).getPosition(afwGeom.degrees)
                     ra_source.append(ra)
                     dec_source.append(dec)
                     n += 1
@@ -410,7 +410,7 @@ class CheckMosaicTask(MosaicTask):
                 outData.id[i] = src.getId()
                 x, y = src.getX(), src.getY()
                 wcs = wcsDic[iexp][ichip]
-                ra, dec = wcs.pixelToSky(x, y).getPosition()
+                ra, dec = wcs.pixelToSky(x, y).getPosition(afwGeom.degrees)
                 outData.ra[i] = ra
                 outData.dec[i] = dec
                 fluxMag0 = calibDic[iexp][ichip].getFluxMag0()[0]
