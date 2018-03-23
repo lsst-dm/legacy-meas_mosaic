@@ -46,7 +46,7 @@ void declareSource(py::module &mod) {
 
     cls.def(py::init<lsst::afw::table::SourceRecord const &>(), "record"_a);
     cls.def(py::init<lsst::afw::table::SimpleRecord const &, lsst::afw::geom::SkyWcs const &>());
-    cls.def(py::init<lsst::afw::coord::IcrsCoord, double>(), "coord"_a,
+    cls.def(py::init<lsst::afw::geom::SpherePoint, double>(), "coord"_a,
             "flux"_a = std::numeric_limits<double>::quiet_NaN());
     cls.def(py::init<typename Source::IdType, typename Source::ChipType, typename Source::ExpType, double,
                      double, double, double, double, double, double, double, bool>(),
@@ -230,7 +230,6 @@ void declareKDTree(py::module &mod) {
 
 PYBIND11_PLUGIN(mosaicfit) {
     py::module::import("lsst.afw.cameraGeom");
-    py::module::import("lsst.afw.coord");
     py::module::import("lsst.afw.geom");
     py::module::import("lsst.afw.image");
     py::module::import("lsst.afw.table");

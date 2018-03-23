@@ -31,7 +31,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 
-import lsst.afw.coord as afwCoord
 import lsst.afw.geom as afwGeom
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
@@ -877,7 +876,7 @@ def writeCatalog(coeffSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputFile)
             continue
         r = catalog.addNew()
         r.setId(i)
-        r.setCoord(afwCoord.Coord(ra[i]*afwGeom.radians, dec[i]*afwGeom.radians))
+        r.setCoord(afwGeom.SpherePoint(ra[i], dec[i], afwGeom.radians))
         r.set(magKey, float(mag[i]))
         r.set(errKey, float(err[i]))
         r.set(numKey, int(numbers[i]))
