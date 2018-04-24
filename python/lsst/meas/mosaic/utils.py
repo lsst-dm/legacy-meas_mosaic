@@ -26,7 +26,6 @@ import math
 import numpy
 import glob
 
-import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 
 import lsst.afw.geom as afwGeom
@@ -197,6 +196,7 @@ def getCcdFpExtent(ccdSet):
 def plotCcd(ccdSet):
     """!Plot outlines of CCDs in ccdSet
     """
+    import matplotlib.pyplot as plt
     for ccd in ccdSet.values():
         w = getWidth(ccd)
         h = getHeight(ccd)
@@ -218,6 +218,7 @@ def plotCcd(ccdSet):
         plt.text(minU + w/2, minV + h/2, "%i" % ccd.getId(), ha="center", va= "center")
 
 def plotJCont(ccdSet, coeffSet, iexp, outputDir):
+    import matplotlib.pyplot as plt
     coeff = coeffSet[iexp]
 
     scale = coeff.pixelScale()
@@ -247,6 +248,7 @@ def plotJCont(ccdSet, coeffSet, iexp, outputDir):
     plt.savefig(os.path.join(outputDir, "jcont_%d.png" % (iexp)), format="png")
 
 def plotFCorCont(ccdSet, ffpSet, coeffSet, iexp, outputDir):
+    import matplotlib.pyplot as plt
     fpMin, fpMax, deltaFp = getCcdFpExtent(ccdSet)
 
     x = numpy.arange(fpMin[0], fpMax[0], deltaFp)
@@ -281,6 +283,7 @@ def plotFCorCont(ccdSet, ffpSet, coeffSet, iexp, outputDir):
     plt.savefig(os.path.join(outputDir, "fcont_%d.png" % (iexp)), format="png")
 
 def plotResPosArrow2D(ccdSet, iexp, matchVec, sourceVec, outputDir):
+    import matplotlib.pyplot as plt
     _xm = []
     _ym = []
     _dxm = []
@@ -332,6 +335,7 @@ def plotResPosArrow2D(ccdSet, iexp, matchVec, sourceVec, outputDir):
     plt.savefig(os.path.join(outputDir, "ResPosArrow2D_%d.png" % (iexp)), format="png")
 
 def plotResPosScatter(matchVec, sourceVec, outputDir):
+    import matplotlib.pyplot as plt
     _x = []
     _y = []
     _xbad = []
@@ -453,6 +457,7 @@ def plotResPosScatter(matchVec, sourceVec, outputDir):
     plt.savefig(os.path.join(outputDir, "ResPosScatter.png"), format="png")
 
 def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
+    import matplotlib.pyplot as plt
     _dmag_m = []
     _dmag_cat_m = []
     _dmag_s = []
@@ -577,6 +582,7 @@ def plotMdM(ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     plt.savefig(os.path.join(outputDir, "MdM.png"), format="png")
 
 def plotPosDPos(matchVec, sourceVec, outputDir):
+    import matplotlib.pyplot as plt
     _xi = []
     _eta = []
     _x = []
@@ -628,6 +634,7 @@ def plotPosDPos(matchVec, sourceVec, outputDir):
     plt.savefig(os.path.join(outputDir, "PosDPos.png"), format="png")
 
 def plotResFlux(ccdSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
+    import matplotlib.pyplot as plt
     _dmag = []
     _iexp = []
     _ichip = []
@@ -699,6 +706,7 @@ def plotResFlux(ccdSet, ffpSet, fexp, fchip, matchVec, sourceVec, outputDir):
     plt.savefig(os.path.join(outputDir, "ResFlux.png"), format="png")
 
 def plotDFlux2D(ccdSet, ffpSet, fexp, fchip, matchVec, outputDir):
+    import matplotlib.pyplot as plt
     _dmag = []
     _u = []
     _v = []
