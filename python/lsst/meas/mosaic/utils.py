@@ -26,8 +26,6 @@ import math
 import numpy
 import glob
 
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 
