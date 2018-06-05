@@ -22,7 +22,6 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 
-#include "numpy/arrayobject.h"
 #include "ndarray/pybind11.h"
 
 #include "lsst/meas/mosaic/fluxfit.h"
@@ -40,11 +39,6 @@ PYBIND11_PLUGIN(fluxfit) {
     py::module::import("lsst.daf.base");
 
     py::module mod("fluxfit");
-
-    if (_import_array() < 0) {
-        PyErr_SetString(PyExc_ImportError, "numpy.core.multiarray failed to import");
-        return nullptr;
-    }
 
     py::class_<FluxFitParams, std::shared_ptr<FluxFitParams>> clsFluxFitParams(mod, "FluxFitParams");
 
