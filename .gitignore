@@ -8,6 +8,7 @@ config.log
 *.cfgc
 *.pyc
 .cache
+.pytest_cache
 pytest_session.txt
 *_wrap.cc
 *Lib.py
