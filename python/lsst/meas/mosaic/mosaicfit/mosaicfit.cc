@@ -22,7 +22,6 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 
-#include "numpy/arrayobject.h"
 #include "ndarray/pybind11.h"
 
 #include "lsst/meas/mosaic/mosaicfit.h"
@@ -235,11 +234,6 @@ PYBIND11_PLUGIN(mosaicfit) {
     py::module::import("lsst.afw.table");
 
     py::module mod("mosaicfit");
-
-    if (_import_array() < 0) {
-        PyErr_SetString(PyExc_ImportError, "numpy.core.multiarray failed to import");
-        return nullptr;
-    }
 
     declareSource(mod);
     declarePoly(mod);
