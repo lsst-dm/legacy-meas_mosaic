@@ -57,7 +57,7 @@ def checkHscStack(metadata):
     coordinate system conventions that differ between the two.
     """
     try:
-        hscPipe = metadata.get("HSCPIPE_VERSION")
+        hscPipe = metadata.getScalar("HSCPIPE_VERSION")
     except:
         hscPipe = None
     return hscPipe

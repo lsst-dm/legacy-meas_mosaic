@@ -1,3 +1,4 @@
+_build.*
 .sconsign.dblite
 config.log
 .sconf_temp
@@ -10,6 +11,7 @@ config.log
 .cache
 .pytest_cache
 pytest_session.txt
+.coverage
 *_wrap.cc
 *Lib.py
 doc/html
