@@ -60,7 +60,7 @@ public:
     using afw::math::BoundedField::evaluate;
 
     /// FluxFitBoundedField is always persistable.
-    bool isPersistable() const override { return true; }
+    bool isPersistable() const noexcept override { return true; }
 
     /// @copydoc BoundedField::operator*
     std::shared_ptr<afw::math::BoundedField> operator*(double const scale) const override;
