@@ -192,7 +192,7 @@ class MosaicConfig(pexConfig.Config):
     psfStarForStarSelection = pexConfig.Field(
         doc="PSF star flag for star selection",
         dtype=str,
-        default="calib_psfUsed")
+        default="calib_psf_used")
     calibStarForStarSelection = pexConfig.Field(
         doc="Calibration star detected as an icSrc flag for star selection",
         dtype=str,
@@ -233,7 +233,7 @@ class SourceReader(object):
         """ Return a list of stellar like objects selected from input sources
 
         Stellarity will be judged based mainly on extendedness (base_ClassificationExtendedness_value).
-        If an object is used to determine PSF (calib.psf.used == True), it will be included.
+        If an object is used to determine PSF (calib_psf_used == True), it will be included.
         Blended objects (with either parent or nChild > 0) will not be included by default.
         Saturated objects (base_PixelFlags_flag_saturated) will not be included by default.
         """
