@@ -384,17 +384,17 @@ class CheckMosaicTask(MosaicTask):
     def writeCatalog(self, allSource, wcsDic, calibDic, ffpDic):
         num = sum(sum(1 for src in ss if src.getExp() >=0 and src.getChip() >= 0) for ss in allSource)
 
-        import pyfits
+        from astropy.io import fits
 
-        schema = pyfits.ColDefs([pyfits.Column(name="id", format="K"),
-                                 pyfits.Column(name="ra", format="D"),
-                                 pyfits.Column(name="dec", format="D"),
-                                 pyfits.Column(name="mag", format="E"),
-                                 pyfits.Column(name="err", format="E"),
-                                 pyfits.Column(name="corr", format="E"),
+        schema = fits.ColDefs([fits.Column(name="id", format="K"),
+                                 fits.Column(name="ra", format="D"),
+                                 fits.Column(name="dec", format="D"),
+                                 fits.Column(name="mag", format="E"),
+                                 fits.Column(name="err", format="E"),
+                                 fits.Column(name="corr", format="E"),
                                  ])
 
-        outHdu = pyfits.new_table(schema, nrows=num)
+        outHdu = fits.new_table(schema, nrows=num)
         outData = outHdu.data
 
         i = 0

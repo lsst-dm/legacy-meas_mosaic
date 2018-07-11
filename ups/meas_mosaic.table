@@ -14,6 +14,7 @@ setupRequired(meas_astrom)
 setupRequired(meas_base)
 setupRequired(meas_algorithms)
 setupRequired(minuit2)
+setupRequired(astropy)
 
 setupOptional(obs_subaru)
 
