@@ -424,7 +424,7 @@ class CheckMosaicTask(MosaicTask):
         outHdu.writeto("catalog_check.fits", clobber=True)
 
 
-    def check(self, dataRefList, ct=None, debug=False, verbose=False):
+    def run(self, dataRefList, ct=None, debug=False, verbose=False):
         ccdSet = self.readCcd(dataRefList)
         self.removeNonExistCcd(dataRefList, ccdSet)
 
@@ -548,7 +548,7 @@ class CheckMosaicTask(MosaicTask):
         self.plotPosAsMag(m0_s, dx_s, dy_s)
         self.writeCatalog(allSource, wcsDic, calibDic, ffpDic)
 
-    def run(self, camera, butler, tract, dataRefList, debug):
+    def runDataRef(self, dataRefList, camera, butler, tract, debug):
 
         colorterms = ColortermLibrary()
         name = os.path.join(os.environ["OBS_SUBARU_DIR"], "config", camera, "colorterms.py")
@@ -566,7 +566,7 @@ class CheckMosaicTask(MosaicTask):
 
         ct = colorterms.getColorterm(butler.mapper.filters[filters[0]], self.config.photoCatName)
 
-        return self.check(dataRefList, ct, debug)
+        return self.run(dataRefList, ct, debug)
 
 if __name__ == '__main__':
 
