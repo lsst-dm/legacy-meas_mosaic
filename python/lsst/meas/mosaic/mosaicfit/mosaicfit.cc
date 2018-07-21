@@ -227,13 +227,11 @@ void declareKDTree(py::module &mod) {
 }
 }
 
-PYBIND11_PLUGIN(mosaicfit) {
+PYBIND11_MODULE(mosaicfit, mod) {
     py::module::import("lsst.afw.cameraGeom");
     py::module::import("lsst.afw.geom");
     py::module::import("lsst.afw.image");
     py::module::import("lsst.afw.table");
-
-    py::module mod("mosaicfit");
 
     declareSource(mod);
     declarePoly(mod);
@@ -288,8 +286,6 @@ PYBIND11_PLUGIN(mosaicfit) {
     mod.def("calculateJacobian",
             (ndarray::Array<double, 1>(*)(afw::geom::SkyWcs const &, ndarray::Array<double const, 1> const &,
                                           ndarray::Array<double const, 1> const &))calculateJacobian);
-
-    return mod.ptr();
 }
 }
 }

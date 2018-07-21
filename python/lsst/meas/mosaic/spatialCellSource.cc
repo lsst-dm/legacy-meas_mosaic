@@ -30,10 +30,8 @@ namespace lsst {
 namespace meas {
 namespace mosaic {
 
-PYBIND11_PLUGIN(spatialCellSource) {
+PYBIND11_MODULE(spatialCellSource, mod) {
     py::module::import("lsst.afw.math");
-
-    py::module mod("spatialCellSource");
 
     py::class_<SpatialCellSource, std::shared_ptr<SpatialCellSource>, lsst::afw::math::SpatialCellCandidate>
             cls(mod, "SpatialCellSource");
@@ -43,8 +41,6 @@ PYBIND11_PLUGIN(spatialCellSource) {
 
     cls.def("getSource", &SpatialCellSource::getSource);
     cls.def("getCandidateRating", &SpatialCellSource::getCandidateRating);
-
-    return mod.ptr();
 }
 
 }  // mosaic

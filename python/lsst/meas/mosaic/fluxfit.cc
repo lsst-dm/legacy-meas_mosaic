@@ -33,12 +33,10 @@ namespace lsst {
 namespace meas {
 namespace mosaic {
 
-PYBIND11_PLUGIN(fluxfit) {
+PYBIND11_MODULE(fluxfit, mod) {
     py::module::import("lsst.afw.cameraGeom");
     py::module::import("lsst.afw.image");
     py::module::import("lsst.daf.base");
-
-    py::module mod("fluxfit");
 
     py::class_<FluxFitParams, std::shared_ptr<FluxFitParams>> clsFluxFitParams(mod, "FluxFitParams");
 
@@ -87,8 +85,6 @@ PYBIND11_PLUGIN(fluxfit) {
     mod.def("getFCorImg", (std::shared_ptr<lsst::afw::image::Image<float>>(*)(FluxFitParams::Ptr&, int, int))getFCorImg);
     mod.def("getFCorImg", (std::shared_ptr<lsst::afw::image::Image<float>>(*)(
                                   FluxFitParams::Ptr&, PTR(lsst::afw::cameraGeom::Detector)&))getFCorImg);
-
-    return mod.ptr();
 }
 }
 }

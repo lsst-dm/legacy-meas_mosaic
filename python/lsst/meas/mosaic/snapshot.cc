@@ -30,12 +30,8 @@ namespace lsst {
 namespace meas {
 namespace mosaic {
 
-PYBIND11_PLUGIN(snapshot) {
-    py::module mod("snapshot");
-
+PYBIND11_MODULE(snapshot, mod) {
     mod.def("writeObsVec", writeObsVec, "filename"_a, "obsVec"_a);
-
-    return mod.ptr();
 }
 
 }  // mosaic

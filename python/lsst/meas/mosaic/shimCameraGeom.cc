@@ -30,9 +30,7 @@ namespace lsst {
 namespace meas {
 namespace mosaic {
 
-PYBIND11_PLUGIN(shimCameraGeom) {
-    py::module mod("shimCameraGeom");
-
+PYBIND11_MODULE(shimCameraGeom, mod) {
     mod.def("getNQuarter", getNQuarter);
     mod.def("getYaw", getYaw);
     mod.def("makeScalingMmToPx", makeScalingMmToPx);
@@ -43,8 +41,6 @@ PYBIND11_PLUGIN(shimCameraGeom) {
     mod.def("detPxToFpPx", detPxToFpPx);
     mod.def("detPxToFpPxRot", detPxToFpPxRot);
     mod.def("computeX0Y0", computeX0Y0);
-
-    return mod.ptr();
 }
 
 }  // mosaic

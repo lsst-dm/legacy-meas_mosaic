@@ -34,9 +34,7 @@ namespace {
 using PyClass = py::class_<FluxFitBoundedField, std::shared_ptr<FluxFitBoundedField>,
                            afw::math::BoundedField>;
 
-PYBIND11_PLUGIN(fluxFitBoundedField) {
-    py::module mod("fluxFitBoundedField");
-
+PYBIND11_MODULE(fluxFitBoundedField, mod) {
     py::module::import("lsst.afw.math");
     py::module::import("lsst.meas.mosaic.fluxfit");
 
@@ -56,8 +54,6 @@ PYBIND11_PLUGIN(fluxFitBoundedField) {
 
     // all public methods are overrides of methods in BoundedField, and can be
     // accessed in Python through that class's wrappers.
-
-    return mod.ptr();
 }
 
 }}}}  // namespace lsst::meas::mosaic::<anonymous>

@@ -39,13 +39,9 @@ void declareCopyCatalog(py::module& mod) {
 
 }  // <anonymous>
 
-PYBIND11_PLUGIN(matches) {
-    py::module mod("matches");
-
+PYBIND11_MODULE(matches, mod) {
     mod.def("copySchema", copySchema, "schema"_a, "target"_a, "targetPrefix"_a = "", "sourcePrefix"_a = "");
     mod.def("matchesFromCatalog", matchesFromCatalog, "catalog"_a);
-
-    return mod.ptr();
 }
 
 }  // mosaic
