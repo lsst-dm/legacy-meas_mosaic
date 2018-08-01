@@ -70,7 +70,7 @@ def matchJanskyToDn(matches):
     JANSKYS_PER_AB_FLUX = 3631.0
     for m in matches:
         for k in m.first.schema.getNames():
-            if "flux" in k or "fluxSigma" in k:
+            if "flux" in k or "fluxErr" in k:
                 m.first[k] /= JANSKYS_PER_AB_FLUX
     return matches
 
