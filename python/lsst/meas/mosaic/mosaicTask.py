@@ -415,7 +415,8 @@ class SourceReader(object):
                 if hscRun is None:
                     if nQuarter%2 != 0:
                         naxis1, naxis2 = naxis2, naxis1
-                bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(naxis1, naxis2))
+                bbox = afwGeom.Box2I(afwGeom.Point2I(0, 0), afwGeom.Extent2I(naxis1, naxis2),
+                                     invert=False)
                 cellSet = afwMath.SpatialCellSet(bbox, self.config.cellSize, self.config.cellSize)
                 for s in selSources:
                     if numpy.isfinite(s.getRa().asDegrees()): # get rid of NaN
@@ -822,8 +823,9 @@ class MosaicTask(pipeBase.CmdLineTask):
 
                 if self.config.requireTractOverlap:
                     naxis1, naxis2 = afwImage.bboxFromMetadata(md).getDimensions()
-                    bbox = afwGeom.Box2D(afwGeom.Box2I(
-                            afwGeom.Point2I(0, 0), afwGeom.Extent2I(naxis1, naxis2)))
+                    bbox = afwGeom.Box2D(afwGeom.Box2I(afwGeom.Point2I(0, 0),
+                                                       afwGeom.Extent2I(naxis1, naxis2),
+                                                       invert=False))
                     overlap = False
                     for corner in bbox.getCorners():
                         if tractBBox.contains(tractWcs.skyToPixel(wcs.pixelToSky(corner))):

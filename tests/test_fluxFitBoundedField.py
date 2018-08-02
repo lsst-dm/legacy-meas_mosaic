@@ -125,7 +125,8 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         # which are rotated w.r.t. focal plane coordinates.
         self.bbox = lsst.afw.geom.Box2I(
             lsst.afw.geom.Point2I(0, 0),
-            lsst.afw.geom.Point2I(2047, 4175)
+            lsst.afw.geom.Point2I(2047, 4175),
+            invert=False
         )
         self.ffp = {}
         self.wcs = {}
