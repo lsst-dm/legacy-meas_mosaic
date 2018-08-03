@@ -24,7 +24,7 @@ class CalibrateCatalogTask(CmdLineTask):
                                ContainerClass=PerTractCcdDataIdContainer)
         return parser
 
-    def run(self, dataRef):
+    def runDataRef(self, dataRef):
         catalog = dataRef.get("src", immediate=True)
         calexp_md = dataRef.get('calexp_md', immediate=True)
         # Check if we are looking at HSC stack outputs
@@ -59,7 +59,7 @@ class CalibrateExposureTask(CmdLineTask):
                                ContainerClass=PerTractCcdDataIdContainer)
         return parser
 
-    def run(self, dataRef):
+    def runDataRef(self, dataRef):
         results = applyMosaicResultsExposure(dataRef)
         dataRef.put(results.exposure, "calibrated_exp")
 
