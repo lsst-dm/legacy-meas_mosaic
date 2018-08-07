@@ -232,18 +232,18 @@ def applyCalib(catalog, calib, hscRun=None):
                                        (fluxField.getName(), fluxField.getDoc()), "mag")
         newFluxKeys[newName] = mapper.addMapping(fluxKeys[name], newField)
 
-        sigmaName = "Sigma"
+        errName = "Err"
         if hscRun is not None:
-            sigmaName = "_err"
+            errName = "_err"
 
-        if name + sigmaName in errKeys:
-            errField = catalog.schema.find(name + sigmaName).field
-            newErrField = errField.__class__(newName + sigmaName,
+        if name + errName in errKeys:
+            errField = catalog.schema.find(name + errName).field
+            newErrField = errField.__class__(newName + errName,
                                              "Calibrated magnitude error from %s (%s)" %
                                              (errField.getName(), errField.getDoc()), "mag")
-            newErrKeys[newName] = mapper.addMapping(errKeys[name + sigmaName], newErrField)
+            newErrKeys[newName] = mapper.addMapping(errKeys[name + errName], newErrField)
         aliasMap.set(name, newName)
-        aliasMap.set(name + sigmaName, newName + sigmaName)
+        aliasMap.set(name + errName, newName + errName)
 
     calib.setThrowOnNegativeFlux(False)
 
@@ -274,8 +274,8 @@ def getFluxKeys(schema, hscRun=None):
     if hscRun is None:
         fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
                         re.search(r"^(\w+_flux)$", name) and key.getTypeString() != "Flag")
-        errKeys = dict((name + "Sigma", schemaKeys[name + "Sigma"]) for name in fluxKeys if
-                       name + "Sigma" in schemaKeys)
+        errKeys = dict((name + "Err", schemaKeys[name + "Err"]) for name in fluxKeys if
+                       name + "Err" in schemaKeys)
     else:
         fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
                         re.search(r"^(flux\_\w+|\w+\_flux)$", name) and not
