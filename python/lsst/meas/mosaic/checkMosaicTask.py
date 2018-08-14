@@ -3,6 +3,9 @@ import os
 import math
 import numpy
 
+import matplotlib
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 

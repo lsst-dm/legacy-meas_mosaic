@@ -20,12 +20,14 @@
 # the GNU General Public License along with this program.  If not,
 # see <https://www.lsstcorp.org/LegalNotices/>.
 #
-from __future__ import print_function
 import os
 import math
 import numpy
 
 import multiprocessing
+
+import matplotlib
+matplotlib.use('Agg')
 
 import lsst.afw.geom                    as afwGeom
 import lsst.afw.image                   as afwImage
