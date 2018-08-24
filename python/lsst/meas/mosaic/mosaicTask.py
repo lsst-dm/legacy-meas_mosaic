@@ -56,8 +56,8 @@ class MosaicRunner(pipeBase.TaskRunner):
     code path does not apply, because MosaicTask.canMultiprocess == False.
     """
 
-    @staticmethod
-    def getTargetList(parsedCmd, **kwargs):
+    @classmethod
+    def getTargetList(cls, parsedCmd, **kwargs):
         # organize data IDs by tract
         refListDict = {}
         for ref in parsedCmd.id.refList:
