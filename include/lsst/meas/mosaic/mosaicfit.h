@@ -23,7 +23,8 @@ namespace lsst {
                 typedef int ExpType;
                 explicit Source(lsst::afw::table::SourceRecord const& record) :
                     _id(record.getId()), _chip(UNSET), _exp(UNSET), _sky(record.getRa(), record.getDec()),
-                    _pixels(record.getX(), record.getY()), _flux(record.getCalibFlux()), _err(record.getCalibFluxErr()),
+                    _pixels(record.getX(), record.getY()), _flux(record.getCalibInstFlux()),
+                    _err(record.getCalibInstFluxErr()),
 		    _xerr(sqrt(record.getCentroidErr()(0,0))), _yerr(sqrt(record.getCentroidErr()(1,1))),
                     _astromBad(record.getCentroidFlag() | record.getCalibFluxFlag()) {}
                 Source(lsst::afw::table::SimpleRecord const& record, lsst::afw::geom::SkyWcs const& wcs) :

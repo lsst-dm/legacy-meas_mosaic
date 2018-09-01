@@ -241,8 +241,8 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         schema = lsst.afw.table.SourceTable.makeMinimalSchema()
         xKey = schema.addField("position_x", type=np.float64, doc="column position", units="pixel")
         yKey = schema.addField("position_y", type=np.float64, doc="row position", units="pixel")
-        fluxKey = schema.addField("example_flux", type=np.float64, doc="flux", units="count")
-        fluxErrKey = schema.addField("example_fluxErr", type=np.float64, doc="flux uncertainty",
+        fluxKey = schema.addField("example_instFlux", type=np.float64, doc="flux", units="count")
+        fluxErrKey = schema.addField("example_instFluxErr", type=np.float64, doc="flux uncertainty",
                                      units="count")
         schema.getAliasMap().set("slot_Centroid", "position")
         nRecords = 5
@@ -270,8 +270,8 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         self.assertFloatsAlmostEqual(photoCalib.getCalibrationErr(), fluxMag0[1]/fluxMag0[0]**2,
                                      rtol=1E-14)
         # Compute partially-calibrated magnitudes that don't account for the spatially-varying part.
-        mag0, magErr0 = results2.ffp.calib.getMagnitude(catalog.get("example_flux"),
-                                                        catalog.get("example_fluxErr"))
+        mag0, magErr0 = results2.ffp.calib.getMagnitude(catalog.get("example_instFlux"),
+                                                        catalog.get("example_instFluxErr"))
         # Check that both approaches yield similar results overall...
         rtol = 1E-10 if nQuarter == 0 else 1E-6  # rotating SIP Wcses involves a big loss of precision
         self.assertFloatsAlmostEqual(mag1, mag2, rtol=rtol)
