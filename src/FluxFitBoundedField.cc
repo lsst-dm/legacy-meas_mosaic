@@ -25,8 +25,19 @@
 #include "lsst/afw/table/io/OutputArchive.h"
 #include "lsst/afw/table/io/InputArchive.h"
 #include "lsst/afw/table/io/CatalogVector.h"
+#include "lsst/afw/table/io/Persistable.cc"
 
 namespace lsst {
+namespace afw {
+namespace table {
+namespace io {
+
+template std::shared_ptr<meas::mosaic::FluxFitBoundedField>
+PersistableFacade<meas::mosaic::FluxFitBoundedField>::dynamicCast(std::shared_ptr<Persistable> const&);
+
+}  // namespace io
+}  // namespace table
+}  // namespace afw
 namespace meas {
 namespace mosaic {
 namespace {
