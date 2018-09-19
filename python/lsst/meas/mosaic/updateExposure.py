@@ -227,7 +227,7 @@ def applyCalib(catalog, calib, hscRun=None):
     newErrKeys = {}
     for name in fluxKeys:
         fluxField = catalog.schema.find(name).field
-        newName = name.replace("flux", "mag")
+        newName = name.replace("instFlux", "mag")
         newField = fluxField.__class__(newName, "Calibrated magnitude from %s (%s)" %
                                        (fluxField.getName(), fluxField.getDoc()), "mag")
         newFluxKeys[newName] = mapper.addMapping(fluxKeys[name], newField)
@@ -273,12 +273,12 @@ def getFluxKeys(schema, hscRun=None):
 
     if hscRun is None:
         fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
-                        re.search(r"^(\w+_flux)$", name) and key.getTypeString() != "Flag")
+                        re.search(r"^(\w+_instFlux)$", name) and key.getTypeString() != "Flag")
         errKeys = dict((name + "Err", schemaKeys[name + "Err"]) for name in fluxKeys if
                        name + "Err" in schemaKeys)
     else:
         fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
-                        re.search(r"^(flux\_\w+|\w+\_flux)$", name) and not
+                        re.search(r"^(flux\_\w+|\w+\_instFlux)$", name) and not
                         re.search(r"^(\w+\_apcorr)$", name) and name + "_err" in schemaKeys)
         errKeys = dict((name + "_err", schemaKeys[name + "_err"]) for name in fluxKeys if
                        name + "_err" in schemaKeys)
