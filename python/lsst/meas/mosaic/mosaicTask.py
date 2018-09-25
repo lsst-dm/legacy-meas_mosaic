@@ -381,10 +381,10 @@ class SourceReader(object):
                     newMatch = table.makeRecord()
                     newMatch.assign(match[0], mapper)
                     match[0] = newMatch
-                primaryFluxKey = refSchema.find(refSchema.join(self.cterm.primary, "flux")).key
-                secondaryFluxKey = refSchema.find(refSchema.join(self.cterm.secondary, "flux")).key
-                primaryFluxErrKey = refSchema.find(refSchema.join(self.cterm.primary, "fluxErr")).key
-                secondaryFluxErrKey = refSchema.find(refSchema.join(self.cterm.secondary, "fluxErr")).key
+                primaryFluxKey = refSchema.find(refSchema.join(self.cterm.primary, "instFlux")).key
+                secondaryFluxKey = refSchema.find(refSchema.join(self.cterm.secondary, "instFlux")).key
+                primaryFluxErrKey = refSchema.find(refSchema.join(self.cterm.primary, "instFluxErr")).key
+                secondaryFluxErrKey = refSchema.find(refSchema.join(self.cterm.secondary, "instFluxErr")).key
                 refFlux1 = numpy.array([m[0].get(primaryFluxKey) for m in matches])
                 refFlux2 = numpy.array([m[0].get(secondaryFluxKey) for m in matches])
                 refFluxErr1 = numpy.array([m[0].get(primaryFluxErrKey) for m in matches])
