@@ -187,13 +187,11 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
         catalog = outCatalog
 
     fluxKeys, errKeys = getFluxKeys(catalog.schema, hscRun=hscRun)
-    for name, key in fluxKeys.items():
+    for name, key in list(fluxKeys.items()) + list(errKeys.items()):
         # Note this skips correcting the aperture fluxes in HSC processed data, but that's ok because
         # we are using the flux_sinc as our comparison to base_CircularApertureFlux_12_0_flux
         if key.subfields is None:
             catalog[key][:] *= corr
-            if name in errKeys:
-                catalog[errKeys[name]][:] *= corr
 
     # Now rotate them back to the LSST coord system
     if hscRun is None:
