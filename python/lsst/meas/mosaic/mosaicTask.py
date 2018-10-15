@@ -216,6 +216,12 @@ class MosaicConfig(pexConfig.Config):
         default=None,
         optional=True)
     allowMixedFilters = pexConfig.Field(dtype=bool, default=False, doc="Allow multiple filters in input?")
+    flagsToAlias = pexConfig.DictField(
+        doc="List of flags to alias to old, pre-RFC-498, names for backwards compatibility",
+        keytype=str,
+        itemtype=str,
+        default={"calib_psf_used": "calib_psfUsed", "calib_psf_candidate": "calib_psfCandidate",
+                 "calib_astrometry_used": "calib_astrometryUsed"})
 
     def setDefaults(self):
         self.loadAstrom.ref_dataset_name = "ps1_pv3_3pi_20170110"
@@ -329,10 +335,15 @@ class SourceReader(object):
                     sources = mosaicUtils.rotatePixelCoords(sources, dims.getX(), dims.getY(),
                                                             nQuarter)
 
-            # Set the aliap map for the source catalog
-            if self.config.srcSchemaMap is not None and hscRun is not None:
+            # Set some alias maps for the source catalog where needed for
+            # backwards compatibility
+            if self.config.srcSchemaMap and hscRun:
                 aliasMap = sources.schema.getAliasMap()
                 for lsstName, otherName in self.config.srcSchemaMap.items():
+                    aliasMap.set(lsstName, otherName)
+            if self.config.flagsToAlias and "calib_psfUsed" in sources.schema:
+                aliasMap = sources.schema.getAliasMap()
+                for lsstName, otherName in self.config.flagsToAlias.items():
                     aliasMap.set(lsstName, otherName)
 
             refObjLoader = self.config.loadAstrom.apply(butler=dataRef.getButler())
