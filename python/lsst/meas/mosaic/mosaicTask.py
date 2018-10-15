@@ -880,6 +880,8 @@ class MosaicTask(pipeBase.CmdLineTask):
 
         sourceSet, matchList, dataRefListUsed = self.readCatalog(dataRefListToUse, ct, numCoresForReadSource,
                                                                  readTimeout, verbose)
+        if not matchList:
+            raise RuntimeError("No reference source matches found")
 
         dataRefListToOutput = list(set(dataRefListUsed) & set(dataRefListOverlapWithTract))
 
