@@ -801,6 +801,9 @@ void KDTree::printSource() const {
 }
 
 KDTree::Ptr lsst::meas::mosaic::kdtreeMat(SourceMatchGroup &matchList) {
+    if (matchList.size() == 0) {
+        throw std::runtime_error("Can't create kd-tree for empty match list");
+    }
     KDTree::Ptr root = KDTree::Ptr(new KDTree(matchList[0], 0));
     // std::cout << "root->count() : " << root->count() << std::endl;
 
