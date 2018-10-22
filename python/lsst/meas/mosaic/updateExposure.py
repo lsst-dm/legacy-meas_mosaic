@@ -187,13 +187,11 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
         catalog = outCatalog
 
     fluxKeys, errKeys = getFluxKeys(catalog.schema, hscRun=hscRun)
-    for name, key in fluxKeys.items():
+    for name, key in list(fluxKeys.items()) + list(errKeys.items()):
         # Note this skips correcting the aperture fluxes in HSC processed data, but that's ok because
         # we are using the flux_sinc as our comparison to base_CircularApertureFlux_12_0_flux
         if key.subfields is None:
             catalog[key][:] *= corr
-            if name in errKeys:
-                catalog[errKeys[name]][:] *= corr
 
     # Now rotate them back to the LSST coord system
     if hscRun is None:
@@ -269,14 +267,20 @@ def getFluxKeys(schema, hscRun=None):
 
     Both are returned as dicts indexed on the flux name (e.g. "base_PsfFlux" or "base_CmodelFlux").
     """
-    schemaKeys = dict((s.field.getName(), s.key) for s in schema)
-
     if hscRun is None:
-        fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
-                        re.search(r"^(\w+_instFlux)$", name) and key.getTypeString() != "Flag")
-        errKeys = dict((name + "Err", schemaKeys[name + "Err"]) for name in fluxKeys if
-                       name + "Err" in schemaKeys)
+        fluxTypeStr = "_instFlux"
+        fluxSchemaItems = schema.extract("*" + fluxTypeStr)
+        # Do not include any flag fields (as determined by their type).  Also exclude
+        # slot fields, as these would effectively duplicate whatever they point to.
+        fluxKeys = dict((name, schemaItem.key) for name, schemaItem in list(fluxSchemaItems.items()) if
+                        schemaItem.field.getTypeString() != "Flag" and
+                        not name.startswith("slot"))
+
+        errSchemaItems = schema.extract("*" + fluxTypeStr + "Err")
+        errKeys = dict((name, schemaItem.key) for name, schemaItem in list(errSchemaItems.items()) if
+                       name[:-len("Err")] in fluxKeys)
     else:
+        schemaKeys = dict((s.field.getName(), s.key) for s in schema)
         fluxKeys = dict((name, key) for name, key in schemaKeys.items() if
                         re.search(r"^(flux\_\w+|\w+\_instFlux)$", name) and not
                         re.search(r"^(\w+\_apcorr)$", name) and name + "_err" in schemaKeys)
