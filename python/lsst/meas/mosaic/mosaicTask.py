@@ -701,12 +701,14 @@ class MosaicTask(pipeBase.CmdLineTask):
                 print("failed to read Wcs for PhotoCalib: %s" % (e))
                 continue
             instFluxMag0, instFluxMag0Err = calib.getFluxMag0()
+            # TODO: need to scale these until DM-10153 is completed and PhotoCalib has replaced Calib
+            referenceFlux = 1e23 * 10**(48.6 / -2.5) * 1e9
             bf = measMosaic.FluxFitBoundedField(bbox, newP, wcs,
                                                 zeroPoint=instFluxMag0,
                                                 nQuarter=nQuarter)
             photoCalib = afwImage.PhotoCalib(
-                1.0/instFluxMag0,
-                instFluxMag0Err/instFluxMag0**2,
+                referenceFlux / instFluxMag0,
+                referenceFlux * instFluxMag0Err/instFluxMag0**2,
                 bf,
                 isConstant=False
             )

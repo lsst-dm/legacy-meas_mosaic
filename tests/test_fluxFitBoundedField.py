@@ -36,6 +36,10 @@ import lsst.utils.tests
 
 DATA_DIR = os.path.join(os.path.split(__file__)[0], "data")
 
+# Note: mosaic's internal ffp object is magnitude-based.
+# Instead, for these tests, we just divide this out when comparing.
+referenceFlux = 1e23 * 10**(48.6 / -2.5) * 1e9
+
 
 def displayImageDifferences(image1, image2, rtol=1E-8, atol=1E-8, pause=False):
     import lsst.afw.display
@@ -189,6 +193,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         bf, ffp, wcs = self.makeBoundedField(nQuarter, ffp, wcs)
         image1 = lsst.afw.image.ImageF(self.bbox)
         bf.fillImage(image1, xStep=100, yStep=16)
+        image1 /= referenceFlux  # turn nJy into Maggy: ffp outputs Maggy
         if nQuarter%2:
             width, height = self.bbox.getHeight(), self.bbox.getWidth()
         else:
@@ -265,9 +270,9 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         mag2 = catalog2["example_mag"]
         # Check that the non-spatially varying part of the correction is the same.
         fluxMag0 = results2.ffp.calib.getFluxMag0()
-        self.assertFloatsAlmostEqual(photoCalib.getInstFluxMag0(), fluxMag0[0],
+        self.assertFloatsAlmostEqual(photoCalib.getInstFluxAtZeroMagnitude(), fluxMag0[0],
                                      rtol=1E-14)
-        self.assertFloatsAlmostEqual(photoCalib.getCalibrationErr(), fluxMag0[1]/fluxMag0[0]**2,
+        self.assertFloatsAlmostEqual(photoCalib.getCalibrationErr(), referenceFlux*fluxMag0[1]/fluxMag0[0]**2,
                                      rtol=1E-14)
         # Compute partially-calibrated magnitudes that don't account for the spatially-varying part.
         mag0, magErr0 = results2.ffp.calib.getMagnitude(catalog.get("example_instFlux"),
