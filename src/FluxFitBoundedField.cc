@@ -26,6 +26,7 @@
 #include "lsst/afw/table/io/InputArchive.h"
 #include "lsst/afw/table/io/CatalogVector.h"
 #include "lsst/afw/table/io/Persistable.cc"
+#include "lsst/utils/Magnitude.h"
 
 namespace lsst {
 namespace afw {
@@ -89,7 +90,7 @@ FluxFitBoundedField::FluxFitBoundedField(
 }
 
 double FluxFitBoundedField::evaluate(afw::geom::Point2D const & position) const {
-    double r = 1.0/_zeroPoint;
+    double r = utils::referenceFlux/_zeroPoint;
     if (_ffp) {
         auto xy = _transform(position);
         if (xy.getX() < -1E-8 || xy.getY() < -1E-8) {

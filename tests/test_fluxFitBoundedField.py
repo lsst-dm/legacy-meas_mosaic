@@ -36,6 +36,10 @@ import lsst.utils.tests
 
 DATA_DIR = os.path.join(os.path.split(__file__)[0], "data")
 
+# Note: mosaic's internal ffp object is magnitude-based.
+# Instead, for these tests, we just divide this out when comparing.
+referenceFlux = 1e23 * 10**(48.6 / -2.5) * 1e9
+
 
 def displayImageDifferences(image1, image2, rtol=1E-8, atol=1E-8, pause=False):
     import lsst.afw.display
@@ -119,7 +123,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
     def setUp(self):
         np.random.seed(100)
         self.tract = 8766
-        self.visit = 7358
+        self.visit = 11506
         self.ccds = {0: 49, 2: 50, 3: 101, 1: 102}
         # Box is the same for all CCDs, since it's defined in CCD coordinates,
         # which are rotated w.r.t. focal plane coordinates.
@@ -142,21 +146,18 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
             self.ffp[ccd] = lsst.meas.mosaic.FluxFitParams(fcrMetadata)
             wcsFilename = os.path.join(
                 DATA_DIR,
-                "%d/wcs-%07d-%03d.fits" % (self.tract, self.visit, ccd)
+                "%d/jointcal_wcs-%07d-%03d.fits" % (self.tract, self.visit, ccd)
             )
-            # WCS is saved as an empty exposure with WCS
-            # (rather than as a WCS fits file)
-            wcsExposure = lsst.afw.image.ExposureF(wcsFilename)
-            self.wcs[ccd] = wcsExposure.getWcs()
+            self.wcs[ccd] = lsst.afw.geom.SkyWcs.readFits(wcsFilename)
             photoCalibFilename = os.path.join(
                 DATA_DIR,
-                "%d/photoCalib-%07d-%03d.fits" % (self.tract, self.visit, ccd)
+                "%d/jointcal_photoCalib-%07d-%03d.fits" % (self.tract, self.visit, ccd)
             )
             self.photoCalib[ccd] = lsst.afw.image.PhotoCalib.readFits(photoCalibFilename)
             camera[ccd] = MockDetector(MockOrientation(nQuarter))
             self.dataRefs[ccd] = MockDataRef(visit=self.visit, tract=self.tract, ccd=ccd)
             self.dataRefs[ccd].put(fcrMetadata, "fcr_md", )
-            self.dataRefs[ccd].put(wcsExposure, "wcs")
+            self.dataRefs[ccd].put(self.wcs[ccd], "jointcal_wcs")
             self.dataRefs[ccd].put(calexpMetadata, "calexp_md")
             self.dataRefs[ccd].put(camera, "camera")
             self.dataRefs[ccd].put(self.bbox, "calexp_bbox")
@@ -189,6 +190,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         bf, ffp, wcs = self.makeBoundedField(nQuarter, ffp, wcs)
         image1 = lsst.afw.image.ImageF(self.bbox)
         bf.fillImage(image1, xStep=100, yStep=16)
+        image1 /= referenceFlux  # turn nJy into Maggy: ffp outputs Maggy
         if nQuarter%2:
             width, height = self.bbox.getHeight(), self.bbox.getWidth()
         else:
@@ -265,9 +267,9 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         mag2 = catalog2["example_mag"]
         # Check that the non-spatially varying part of the correction is the same.
         fluxMag0 = results2.ffp.calib.getFluxMag0()
-        self.assertFloatsAlmostEqual(photoCalib.getInstFluxMag0(), fluxMag0[0],
+        self.assertFloatsAlmostEqual(photoCalib.getInstFluxAtZeroMagnitude(), fluxMag0[0],
                                      rtol=1E-14)
-        self.assertFloatsAlmostEqual(photoCalib.getCalibrationErr(), fluxMag0[1]/fluxMag0[0]**2,
+        self.assertFloatsAlmostEqual(photoCalib.getCalibrationErr(), referenceFlux*fluxMag0[1]/fluxMag0[0]**2,
                                      rtol=1E-14)
         # Compute partially-calibrated magnitudes that don't account for the spatially-varying part.
         mag0, magErr0 = results2.ffp.calib.getMagnitude(catalog.get("example_instFlux"),
@@ -279,7 +281,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         # round-off error).
         magDiff2 = mag2 - mag0
         magDiff1 = mag1 - mag0
-        self.assertFloatsAlmostEqual(magDiff1, magDiff2, rtol=rtol*2E3)
+        self.assertFloatsAlmostEqual(magDiff1, magDiff2, rtol=rtol*3E3)
 
     def checkPhotoCalibExposure(self, nQuarter):
         ccd = self.ccds[nQuarter]
