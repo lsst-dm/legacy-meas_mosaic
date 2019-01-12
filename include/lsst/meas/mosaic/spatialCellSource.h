@@ -14,19 +14,19 @@ namespace lsst {
 
 	SpatialCellSource(float const xCenter,
 			  float const yCenter,
-			  PTR(Source) source
+			  std::shared_ptr<Source> source
 			  ) : SpatialCellCandidate(xCenter, yCenter), _source(source) {}
 
-        SpatialCellSource(PTR(Source) source) : SpatialCellCandidate(source->getX(), source->getY()), _source(source) {}
+        SpatialCellSource(std::shared_ptr<Source> source) : SpatialCellCandidate(source->getX(), source->getY()), _source(source) {}
 
 	~SpatialCellSource() {};
 
-	PTR(Source) getSource() const { return _source; }
+	std::shared_ptr<Source> getSource() const { return _source; }
 
         double getCandidateRating() const { return _source->getFlux(); }
 
       protected:
-	PTR(Source) _source;
+	std::shared_ptr<Source> _source;
       };
     }
   }

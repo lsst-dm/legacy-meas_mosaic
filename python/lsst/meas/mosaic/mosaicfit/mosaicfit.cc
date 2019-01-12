@@ -207,14 +207,14 @@ void declareKDTree(py::module &mod) {
     cls.def_readwrite("set", &Class::set);
 
     cls.def(py::init<SourceSet &, int>(), "s"_a, "depth"_a);
-    cls.def(py::init<PTR(Source), int>(), "s"_a, "depth"_a);
+    cls.def(py::init<std::shared_ptr<Source>, int>(), "s"_a, "depth"_a);
     cls.def(py::init<SourceMatchSet, int>(), "m"_a, "depth"_a);
     cls.def(py::init<SourceMatch const &, int>(), "m"_a, "depth"_a);
 
     cls.def("search", &Class::search);
     cls.def("findSource", &Class::findSource);
     cls.def("add", (void (Class::*)(SourceMatch const &)) & Class::add);
-    cls.def("add", (void (Class::*)(PTR(Source), lsst::afw::geom::Angle)) & Class::add, "s"_a,
+    cls.def("add", (void (Class::*)(std::shared_ptr<Source>, lsst::afw::geom::Angle)) & Class::add, "s"_a,
             "d_lim"_a = lsst::afw::geom::Angle(0, lsst::afw::geom::degrees));
     cls.def("count", &Class::count);
     cls.def("mergeMat", &Class::mergeMat);
@@ -273,11 +273,11 @@ PYBIND11_MODULE(mosaicfit, mod) {
     mod.def("wcsFromCoeff", wcsFromCoeff);
 
     mod.def("getJImg", (std::shared_ptr<lsst::afw::image::Image<float>>(*)(
-                               Coeff::Ptr &, PTR(lsst::afw::cameraGeom::Detector) &))getJImg);
+                               Coeff::Ptr &, std::shared_ptr<lsst::afw::cameraGeom::Detector> &))getJImg);
     mod.def("getJImg",
             (std::shared_ptr<lsst::afw::image::Image<float>>(*)(std::shared_ptr<lsst::afw::geom::SkyWcs> &, int, int))getJImg);
     mod.def("getJImg", (std::shared_ptr<lsst::afw::image::Image<float>>(*)(
-                               std::shared_ptr<lsst::afw::geom::SkyWcs> &, PTR(lsst::afw::cameraGeom::Detector) &))getJImg);
+                               std::shared_ptr<lsst::afw::geom::SkyWcs> &, std::shared_ptr<lsst::afw::cameraGeom::Detector> &))getJImg);
     mod.def("calculateJacobian",
             (double (*)(afw::geom::SkyWcs const &, afw::geom::Point2D const &))calculateJacobian);
     mod.def("calculateJacobian",

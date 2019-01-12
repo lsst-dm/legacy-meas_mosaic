@@ -1789,7 +1789,7 @@ void lsst::meas::mosaic::fluxFit(bool absolute, bool common, ObsVec &matchVec, i
 }
 
 FluxFitParams::Ptr lsst::meas::mosaic::convertFluxFitParams(FluxFitParams::Ptr &ffp,
-                                                            PTR(lsst::afw::cameraGeom::Detector) & ccd,
+                                                            std::shared_ptr<lsst::afw::cameraGeom::Detector> & ccd,
                                                             double x0, double y0) {
     FluxFitParams::Ptr newP = FluxFitParams::Ptr(new FluxFitParams(ffp->order, ffp->chebyshev));
     newP->u_max = 1.0;
@@ -1849,7 +1849,7 @@ lsst::daf::base::PropertySet::Ptr lsst::meas::mosaic::metadataFromFluxFitParams(
 }
 
 std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getFCorImg(
-    FluxFitParams::Ptr &p, PTR(lsst::afw::cameraGeom::Detector) & ccd, Coeff::Ptr &coeff) {
+    FluxFitParams::Ptr &p, std::shared_ptr<lsst::afw::cameraGeom::Detector> & ccd, Coeff::Ptr &coeff) {
     int width = getWidth(ccd);
     int height = getHeight(ccd);
 
@@ -1937,7 +1937,7 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getFCorImg(F
 }
 
 std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getFCorImg(
-    FluxFitParams::Ptr &p, PTR(lsst::afw::cameraGeom::Detector) & ccd) {
+    FluxFitParams::Ptr &p, std::shared_ptr<lsst::afw::cameraGeom::Detector> & ccd) {
     int width = getWidth(ccd);
     int height = getHeight(ccd);
 

@@ -36,8 +36,8 @@ PYBIND11_MODULE(spatialCellSource, mod) {
     py::class_<SpatialCellSource, std::shared_ptr<SpatialCellSource>, lsst::afw::math::SpatialCellCandidate>
             cls(mod, "SpatialCellSource");
 
-    cls.def(py::init<float const, float const, PTR(Source)>(), "xCenter"_a, "yCenter"_a, "source"_a);
-    cls.def(py::init<PTR(Source)>(), "source"_a);
+    cls.def(py::init<float const, float const, std::shared_ptr<Source>>(), "xCenter"_a, "yCenter"_a, "source"_a);
+    cls.def(py::init<std::shared_ptr<Source>>(), "source"_a);
 
     cls.def("getSource", &SpatialCellSource::getSource);
     cls.def("getCandidateRating", &SpatialCellSource::getCandidateRating);

@@ -39,7 +39,7 @@ void writeObsVec(std::string const & filename, ObsVec const & obsVec) {
     catalog.reserve(obsVec.size());
     for (ObsVec::const_iterator iter = obsVec.begin(); iter != obsVec.end(); ++iter) {
         Obs const & obs = **iter;
-        PTR(afw::table::BaseRecord) record = catalog.addNew();
+        std::shared_ptr<afw::table::BaseRecord> record = catalog.addNew();
         record->set(keys.id, obs.id);
         record->set(keys.ra, obs.ra);
         record->set(keys.dec, obs.dec);

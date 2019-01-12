@@ -58,7 +58,7 @@ namespace lsst {
 
 	    FluxFitParams::Ptr
 	      convertFluxFitParams(FluxFitParams::Ptr& ffp,
-				   PTR(lsst::afw::cameraGeom::Detector)& ccd,
+				   std::shared_ptr<lsst::afw::cameraGeom::Detector>& ccd,
 				   double x0=0.0, double y0=0.0);
 
 	    lsst::daf::base::PropertySet::Ptr
@@ -66,7 +66,7 @@ namespace lsst {
 
         std::shared_ptr<lsst::afw::image::Image<float>>
 	      getFCorImg(FluxFitParams::Ptr& p,
-			 PTR(lsst::afw::cameraGeom::Detector)& ccd,
+			 std::shared_ptr<lsst::afw::cameraGeom::Detector>& ccd,
 			 Coeff::Ptr& coeff);
 
         std::shared_ptr<lsst::afw::image::Image<float>>
@@ -74,7 +74,7 @@ namespace lsst {
 
         std::shared_ptr<lsst::afw::image::Image<float>>
 	      getFCorImg(FluxFitParams::Ptr& p,
-			 PTR(lsst::afw::cameraGeom::Detector)& ccd);
+			 std::shared_ptr<lsst::afw::cameraGeom::Detector>& ccd);
 
 #include "chebyshev.h"
     }

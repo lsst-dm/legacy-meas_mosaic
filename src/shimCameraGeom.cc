@@ -5,11 +5,11 @@ namespace lsst {
 namespace meas {
 namespace mosaic {
 
-int getNQuarter(CONST_PTR(afw::cameraGeom::Detector) det) {
+int getNQuarter(std::shared_ptr<afw::cameraGeom::Detector const> det) {
     return det->getOrientation().getNQuarter();
 }
 
-afw::geom::Angle getYaw(CONST_PTR(afw::cameraGeom::Detector) det) {
+afw::geom::Angle getYaw(std::shared_ptr<afw::cameraGeom::Detector const> det) {
     afw::geom::Angle deg = det->getOrientation().getYaw();
     int nQuarter = det->getOrientation().getNQuarter();
     if (nQuarter%4 != 0) {
@@ -31,12 +31,12 @@ afw::geom::LinearTransform makeScalingMmToPx(afw::geom::Extent2D const pSize) {
     return afw::geom::LinearTransform::makeScaling(1.0/pSize.getX(), 1.0/pSize.getY());
 }
 
-afw::geom::Point2D getCenterInFpPixels(CONST_PTR(afw::cameraGeom::Detector) det) {
+afw::geom::Point2D getCenterInFpPixels(std::shared_ptr<afw::cameraGeom::Detector const> det) {
     auto scaling = makeScalingMmToPx(det->getPixelSize());
     return scaling(det->getCenter(afw::cameraGeom::FOCAL_PLANE));
 }
 
-afw::geom::Point2D getCenterInDetectorPixels(CONST_PTR(afw::cameraGeom::Detector) det) {
+afw::geom::Point2D getCenterInDetectorPixels(std::shared_ptr<afw::cameraGeom::Detector const> det) {
     auto center = det->getCenter(afw::cameraGeom::PIXELS);
     if ((getNQuarter(det)%2) != 0) {
         return afw::geom::Point2D(center.getY(), center.getX());
@@ -45,20 +45,20 @@ afw::geom::Point2D getCenterInDetectorPixels(CONST_PTR(afw::cameraGeom::Detector
     }
 }
 
-int getWidth(CONST_PTR(afw::cameraGeom::Detector) det) {
+int getWidth(std::shared_ptr<afw::cameraGeom::Detector const> det) {
     return det->getBBox().getWidth();
 }
 
-int getHeight(CONST_PTR(afw::cameraGeom::Detector) det) {
+int getHeight(std::shared_ptr<afw::cameraGeom::Detector const> det) {
     return det->getBBox().getHeight();
 }
 
-afw::geom::Point2D detPxToFpPx(CONST_PTR(afw::cameraGeom::Detector) det, afw::geom::Point2D const detPt) {
+afw::geom::Point2D detPxToFpPx(std::shared_ptr<afw::cameraGeom::Detector const> det, afw::geom::Point2D const detPt) {
     auto scaling = makeScalingMmToPx(det->getPixelSize());
     return scaling(det->transform(detPt, afw::cameraGeom::PIXELS, afw::cameraGeom::FOCAL_PLANE));
 }
 
-afw::geom::Point2D detPxToFpPxRot(CONST_PTR(afw::cameraGeom::Detector) det, afw::geom::Point2D const detPt) {
+afw::geom::Point2D detPxToFpPxRot(std::shared_ptr<afw::cameraGeom::Detector const> det, afw::geom::Point2D const detPt) {
     double cosYaw = std::cos(getYaw(det));
     double sinYaw = std::sin(getYaw(det));
     // Center in detector and focal plane pixels
@@ -72,7 +72,7 @@ afw::geom::Point2D detPxToFpPxRot(CONST_PTR(afw::cameraGeom::Detector) det, afw:
     return centerFp + scaling(offset);
 }
 
-afw::geom::Point2D computeX0Y0(CONST_PTR(afw::cameraGeom::Detector) det, double x0, double y0) {
+afw::geom::Point2D computeX0Y0(std::shared_ptr<afw::cameraGeom::Detector const> det, double x0, double y0) {
     afw::geom::Point2D newXY0;
 
     double cosYaw = std::cos(getYaw(det));

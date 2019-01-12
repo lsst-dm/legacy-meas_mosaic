@@ -23,7 +23,7 @@ using namespace lsst::meas::mosaic;
 
 Eigen::VectorXd solveMatrix(long size, Eigen::MatrixXd &a_data, Eigen::VectorXd &b_data);
 
-static void decodeSipHeader(CONST_PTR(lsst::daf::base::PropertySet) const &fitsMetadata,
+static void decodeSipHeader(std::shared_ptr<lsst::daf::base::PropertySet const> const &fitsMetadata,
                             std::string const &which, Eigen::MatrixXd *m);
 
 double calXi(double a, double d, double A, double D);
@@ -300,7 +300,7 @@ Obs::Obs(int id_, double ra_, double dec_, int ichip_, int iexp_)
       mag0(std::numeric_limits<double>::quiet_NaN()),
       mag_cat(std::numeric_limits<double>::quiet_NaN()) {}
 
-void Obs::setUV(PTR(lsst::afw::cameraGeom::Detector) & ccd, double x0, double y0) {
+void Obs::setUV(std::shared_ptr<lsst::afw::cameraGeom::Detector> & ccd, double x0, double y0) {
     double cosYaw = std::cos(getYaw(ccd));
     double sinYaw = std::sin(getYaw(ccd));
 
@@ -381,7 +381,7 @@ class SourceCmpDec {
     }
 };
 
-KDTree::KDTree(PTR(Source) s, int depth) {
+KDTree::KDTree(std::shared_ptr<Source> s, int depth) {
     SourceSet set;
     set.push_back(s);
     _initializeSources(set, depth);
@@ -670,7 +670,7 @@ KDTree::Ptr KDTree::findNearest(Source const &s) {
     }
 }
 
-void KDTree::add(PTR(Source) s, lsst::afw::geom::Angle d_lim) {
+void KDTree::add(std::shared_ptr<Source> s, lsst::afw::geom::Angle d_lim) {
     lsst::afw::geom::Angle ra = s->getRa();
     lsst::afw::geom::Angle dec = s->getDec();
 
@@ -739,7 +739,7 @@ SourceGroup KDTree::mergeSource(unsigned int minNumMatch) {
         double ra = sr / sn;
         double dec = sd / sn;
         double mag = sm / sn;
-        PTR(Source)
+        std::shared_ptr<Source>
         source(new Source(lsst::afw::geom::SpherePoint(ra, dec, lsst::afw::geom::degrees), mag));
         this->set.insert(set.begin(), source);
         sg.push_back(this->set);
@@ -2003,12 +2003,12 @@ int lsst::meas::mosaic::flagSuspect(SourceGroup &allMat, SourceGroup &allSource,
         int visit_ref = visits[j];
         for (size_t i = j + 1; i < visits.size(); i++) {
             int visit_targ = visits[i];
-            std::vector<PTR(Source)> refs;
-            std::vector<PTR(Source)> targs;
+            std::vector<std::shared_ptr<Source>> refs;
+            std::vector<std::shared_ptr<Source>> targs;
             std::vector<double> mref;
             std::vector<double> mtarg;
             for (size_t l = 0; l < allMat.size(); l++) {
-                std::vector<PTR(Source)> mm = allMat[l];
+                std::vector<std::shared_ptr<Source>> mm = allMat[l];
                 int j_ref = -1;
                 int j_targ = -1;
                 for (size_t k = 1; k < mm.size(); k++) {
@@ -2027,7 +2027,7 @@ int lsst::meas::mosaic::flagSuspect(SourceGroup &allMat, SourceGroup &allSource,
                 }
             }
             for (size_t l = 0; l < allSource.size(); l++) {
-                std::vector<PTR(Source)> ss = allSource[l];
+                std::vector<std::shared_ptr<Source>> ss = allSource[l];
                 int j_ref = -1;
                 int j_targ = -1;
                 for (size_t k = 1; k < ss.size(); k++) {
@@ -2855,7 +2855,7 @@ int fact(int n) {
 
 int binomial(int n, int k) { return (fact(n) / (fact(n - k) * fact(k))); }
 
-Coeff::Ptr lsst::meas::mosaic::convertCoeff(Coeff::Ptr &coeff, PTR(lsst::afw::cameraGeom::Detector) & ccd) {
+Coeff::Ptr lsst::meas::mosaic::convertCoeff(Coeff::Ptr &coeff, std::shared_ptr<lsst::afw::cameraGeom::Detector> & ccd) {
     Poly::Ptr p = Poly::Ptr(new Poly(coeff->p->order));
     Coeff::Ptr newC = Coeff::Ptr(new Coeff(p));
 
@@ -2985,7 +2985,7 @@ std::shared_ptr<lsst::afw::geom::SkyWcs> lsst::meas::mosaic::wcsFromCoeff(Coeff:
 
 // wholesale copied from afw::image::TanWcs.cc
 ///@brief Decode the SIP headers for a given matrix, if present.
-static void decodeSipHeader(CONST_PTR(lsst::daf::base::PropertySet) const &fitsMetadata,
+static void decodeSipHeader(std::shared_ptr<lsst::daf::base::PropertySet const> const &fitsMetadata,
                             std::string const &which, Eigen::MatrixXd *m) {
     std::string header = which + "_ORDER";
     if (!fitsMetadata->exists(header)) return;
@@ -3005,7 +3005,7 @@ static void decodeSipHeader(CONST_PTR(lsst::daf::base::PropertySet) const &fitsM
 }
 
 std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
-    Coeff::Ptr &coeff, PTR(lsst::afw::cameraGeom::Detector) & ccd) {
+    Coeff::Ptr &coeff, std::shared_ptr<lsst::afw::cameraGeom::Detector> & ccd) {
     double scale = coeff->pixelScale();
     double deg2pix = 1.0 / scale;
 
@@ -3099,7 +3099,7 @@ std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
 }
 
 std::shared_ptr<lsst::afw::image::Image<float>> lsst::meas::mosaic::getJImg(
-    std::shared_ptr<lsst::afw::geom::SkyWcs> &wcs, PTR(lsst::afw::cameraGeom::Detector) & ccd) {
+    std::shared_ptr<lsst::afw::geom::SkyWcs> &wcs, std::shared_ptr<lsst::afw::cameraGeom::Detector> & ccd) {
     int width = getWidth(ccd);
     int height = getHeight(ccd);
 

@@ -101,10 +101,10 @@ namespace lsst {
                 bool _astromBad;                  // Astrometry bad?
             };
 
-            typedef std::pair<PTR(Source), PTR(Source)> SourceMatch;
+            typedef std::pair<std::shared_ptr<Source>, std::shared_ptr<Source>> SourceMatch;
 
-            typedef std::vector<PTR(Source)> SourceSet;
-	    typedef std::vector<std::vector<PTR(Source)> > SourceGroup;
+            typedef std::vector<std::shared_ptr<Source>> SourceSet;
+	    typedef std::vector<std::vector<std::shared_ptr<Source>> > SourceGroup;
             typedef std::vector<SourceMatch> SourceMatchSet;
 	    typedef std::vector<std::vector<SourceMatch> > SourceMatchGroup;
 
@@ -218,7 +218,7 @@ namespace lsst {
 
 		Obs(int id, double ra, double dec, double x, double y, int ichip, int iexp);
 		Obs(int id, double ra, double dec, int ichip, int iexp);
-		void setUV(PTR(lsst::afw::cameraGeom::Detector) &ccd, double x0=0, double y0=0);
+		void setUV(std::shared_ptr<lsst::afw::cameraGeom::Detector> &ccd, double x0=0, double y0=0);
 		void setXiEta(double ra_c, double dec_c);
 		void setFitVal(Coeff::Ptr& c, Poly::Ptr p);
 		void setFitVal2(Coeff::Ptr& c, Poly::Ptr p);
@@ -242,7 +242,7 @@ namespace lsst {
                 SourceSet set;
 
                 KDTree(SourceSet& s, int depth) { _initializeSources(s, depth); }
-		KDTree(PTR(Source) s, int depth);
+		KDTree(std::shared_ptr<Source> s, int depth);
 
                 KDTree(SourceMatchSet m, int depth) { _initializeMatches(m, depth); }
                 KDTree(SourceMatch const& m, int depth);
@@ -251,7 +251,7 @@ namespace lsst {
                 ConstPtr search(lsst::afw::geom::SpherePoint const& sky) const;
 		ConstPtr findSource(Source const& s) const;
                 void add(SourceMatch const& m);
-		void add(PTR(Source) s,
+		void add(std::shared_ptr<Source> s,
                          lsst::afw::geom::Angle d_lim=lsst::afw::geom::Angle(0, lsst::afw::geom::degrees));
 		int count(void);
 		SourceGroup mergeMat() const;
@@ -270,7 +270,7 @@ namespace lsst {
                 void _initializeMatches(SourceMatchSet& m, int depth);
             };
 
-	    typedef std::map<int, PTR(lsst::afw::cameraGeom::Detector)> CcdSet;
+	    typedef std::map<int, std::shared_ptr<lsst::afw::cameraGeom::Detector>> CcdSet;
 	    typedef std::map<int, Coeff::Ptr> CoeffSet;
 	    typedef std::vector<Obs::Ptr> ObsVec;
 
@@ -315,13 +315,13 @@ namespace lsst {
                                      std::string const & snapshotDir = ".");
 
 	    Coeff::Ptr convertCoeff(Coeff::Ptr& coeff,
-				    PTR(lsst::afw::cameraGeom::Detector)& ccd);
+				    std::shared_ptr<lsst::afw::cameraGeom::Detector>& ccd);
 
 	    std::shared_ptr<lsst::afw::geom::SkyWcs> wcsFromCoeff(Coeff::Ptr& coeff);
 
 	    std::shared_ptr<lsst::afw::image::Image<float>>
 	      getJImg(Coeff::Ptr& coeff,
-		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
+		      std::shared_ptr<lsst::afw::cameraGeom::Detector>& ccd);
 
 	    std::shared_ptr<lsst::afw::image::Image<float>>
 	      getJImg(std::shared_ptr<lsst::afw::geom::SkyWcs>& wcs,
@@ -329,7 +329,7 @@ namespace lsst {
 
 	    std::shared_ptr<lsst::afw::image::Image<float>>
 	      getJImg(std::shared_ptr<lsst::afw::geom::SkyWcs>& wcs,
-		      PTR(lsst::afw::cameraGeom::Detector)& ccd);
+		      std::shared_ptr<lsst::afw::cameraGeom::Detector>& ccd);
 
             //{
             // Calculate Jacobian correction

@@ -81,10 +81,10 @@ PYBIND11_MODULE(fluxfit, mod) {
     mod.def("metadataFromFluxFitParams", metadataFromFluxFitParams);
     mod.def("getFCorImg",
             (std::shared_ptr<lsst::afw::image::Image<float>>(*)(
-                    FluxFitParams::Ptr&, PTR(lsst::afw::cameraGeom::Detector)&, Coeff::Ptr&))getFCorImg);
+                    FluxFitParams::Ptr&, std::shared_ptr<lsst::afw::cameraGeom::Detector>&, Coeff::Ptr&))getFCorImg);
     mod.def("getFCorImg", (std::shared_ptr<lsst::afw::image::Image<float>>(*)(FluxFitParams::Ptr&, int, int))getFCorImg);
     mod.def("getFCorImg", (std::shared_ptr<lsst::afw::image::Image<float>>(*)(
-                                  FluxFitParams::Ptr&, PTR(lsst::afw::cameraGeom::Detector)&))getFCorImg);
+                                  FluxFitParams::Ptr&, std::shared_ptr<lsst::afw::cameraGeom::Detector>&))getFCorImg);
 }
 }
 }
