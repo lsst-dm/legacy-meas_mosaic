@@ -677,9 +677,8 @@ class MosaicTask(pipeBase.CmdLineTask):
             exp = afwImage.ExposureI(0,0)
             exp.getMetadata().combine(metadata)
             scale = self.fexp[iexp]*self.fchip[ichip]
-            calib = afwImage.Calib()
-            calib.setFluxMag0(1.0/scale, 1.0/scale*std*M_LN10*0.4)
-            exp.setCalib(calib)
+            photoCalib = afwImage.makePhotoCalibFromCalibZeroPoint(1.0/scale, 1.0/scale*std*M_LN10*0.4)
+            exp.setPhotoCalib(photoCalib)
             try:
                 dataRef.put(exp, "fcr")
             except Exception as e:
@@ -700,18 +699,9 @@ class MosaicTask(pipeBase.CmdLineTask):
             except Exception as e:
                 print("failed to read Wcs for PhotoCalib: %s" % (e))
                 continue
-            instFluxMag0, instFluxMag0Err = calib.getFluxMag0()
-            # TODO: need to scale these until DM-10153 is completed and PhotoCalib has replaced Calib
-            referenceFlux = 1e23 * 10**(48.6 / -2.5) * 1e9
             bf = measMosaic.FluxFitBoundedField(bbox, newP, wcs,
-                                                zeroPoint=instFluxMag0,
+                                                zeroPoint=photoCalib.getInstFluxAtZeroMagnitude(),
                                                 nQuarter=nQuarter)
-            photoCalib = afwImage.PhotoCalib(
-                referenceFlux / instFluxMag0,
-                referenceFlux * instFluxMag0Err/instFluxMag0**2,
-                bf,
-                isConstant=False
-            )
             dataRef.put(photoCalib, "jointcal_photoCalib")
 
     def outputDiagWcs(self):

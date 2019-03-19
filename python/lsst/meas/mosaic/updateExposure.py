@@ -76,7 +76,8 @@ def applyMosaicResultsExposure(dataRef, calexp=None):
         mosaic.wcs = measAstrom.rotateWcsPixelsBy90(mosaic.wcs, 4 - nQuarter, dims)
     calexp.setWcs(mosaic.wcs)
 
-    calexp.getCalib().setFluxMag0(mosaic.calib.getFluxMag0())
+    fluxMag0 = mosaic.calib.getInstFluxAtZeroMagnitude()
+    calexp.setPhotoCalib(afwImage.makePhotoCalibFromCalibZeroPoint(fluxMag0, 0.0))
 
     mi = calexp.getMaskedImage()
     # rotate photometric correction to LSST coordiantes
@@ -99,7 +100,7 @@ def getFluxFitParams(dataRef):
         ffpHeader = dataRef.get("fcr_hsc_md", immediate=True)
     else:
         ffpHeader = dataRef.get("fcr_md", immediate=True)
-    calib = afwImage.Calib(ffpHeader)
+    photoCalib = afwImage.makePhotoCalibFromMetadata(ffpHeader)
     ffp = FluxFitParams(ffpHeader)
 
     wcs = getWcs(dataRef)
@@ -112,7 +113,7 @@ def getFluxFitParams(dataRef):
             import lsst.meas.astrom as measAstrom
             dimensions = dataRef.get("calexp_bbox").getDimensions()
             wcs = measAstrom.rotateWcsPixelsBy90(wcs, nQuarter, dimensions)
-    return Struct(ffp=ffp, calib=calib, wcs=wcs)
+    return Struct(ffp=ffp, calib=photoCalib, wcs=wcs)
 
 
 def getWcs(dataRef):
@@ -206,7 +207,7 @@ def applyMosaicResultsCatalog(dataRef, catalog, addCorrection=True):
     return Struct(catalog=catalog, wcs=wcs, ffp=ffp)
 
 
-def applyCalib(catalog, calib, hscRun=None):
+def applyCalib(catalog, photoCalib, hscRun=None):
     """Convert all fluxes in a catalog to magnitudes
 
     The fluxes are converted in-place, so that the "_flux*" are now really
@@ -243,21 +244,17 @@ def applyCalib(catalog, calib, hscRun=None):
         aliasMap.set(name, newName)
         aliasMap.set(name + errName, newName + errName)
 
-    calib.setThrowOnNegativeFlux(False)
-
     newCatalog = afwTable.SourceCatalog(mapper.getOutputSchema())
     newCatalog.extend(catalog, mapper=mapper)
 
     for name, key in newFluxKeys.items():
         flux = newCatalog[key]
         if name in newErrKeys:
-            fluxErr = newCatalog[newErrKeys[name]]
-            magArray = numpy.array([calib.getMagnitude(f, e) for f, e in zip(flux, fluxErr)])
-            mag = magArray[:, 0]
-            fluxErr[:] = magArray[:, 1]
+            result = photoCalib.instFluxToMagnitude(newCatalog, name.strip('_mag'))
+            flux[:] = result[:, 0]
+            newCatalog[newErrKeys[name]] = result[:, 1]
         else:
-            mag = numpy.array([calib.getMagnitude(f) for f in flux])
-        flux[:] = mag
+            flux[:] = numpy.array([photoCalib.instFluxToMagnitude(f) for f in flux])
 
     return newCatalog
 

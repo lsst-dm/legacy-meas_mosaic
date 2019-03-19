@@ -169,9 +169,7 @@ class PhotometricSolutionTask(PhotoCalTask):
             exp = afwImage.ExposureI(0,0)
             exp.getMetadata().combine(metadata)
             scale = fexp[iexp] * fchip[ichip]
-            calib = afwImage.Calib()
-            calib.setFluxMag0(1.0/scale)
-            exp.setCalib(calib)
+            exp.setPhotoCalib(afwImage.makePhotoCalibFromCalibZeroPoint(1.0/scale))
             exp.setFilter(afwImage.Filter(filterName))
             try:
                 butler.put(exp, 'fcr', {'visit': iexp, 'ccd': ichip})
