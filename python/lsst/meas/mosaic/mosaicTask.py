@@ -24,6 +24,7 @@ from __future__ import print_function
 import os
 import math
 import numpy
+import astropy.units
 
 import multiprocessing
 
@@ -392,19 +393,19 @@ class SourceReader(object):
                     newMatch = table.makeRecord()
                     newMatch.assign(match[0], mapper)
                     match[0] = newMatch
-                primaryFluxKey = refSchema.find(refSchema.join(self.cterm.primary, "flux")).key
-                secondaryFluxKey = refSchema.find(refSchema.join(self.cterm.secondary, "flux")).key
-                primaryFluxErrKey = refSchema.find(refSchema.join(self.cterm.primary, "fluxErr")).key
-                secondaryFluxErrKey = refSchema.find(refSchema.join(self.cterm.secondary, "fluxErr")).key
-                refFlux1 = numpy.array([m[0].get(primaryFluxKey) for m in matches])
-                refFlux2 = numpy.array([m[0].get(secondaryFluxKey) for m in matches])
-                refFluxErr1 = numpy.array([m[0].get(primaryFluxErrKey) for m in matches])
-                refFluxErr2 = numpy.array([m[0].get(secondaryFluxErrKey) for m in matches])
-                refMag1 = -2.5*numpy.log10(refFlux1)
-                refMag2 = -2.5*numpy.log10(refFlux2)
-                refMag = self.cterm.transformMags(refMag1, refMag2)
-                refFlux = numpy.power(10.0, -0.4*refMag)
-                refFluxErr = self.cterm.propagateFluxErrors(refFluxErr1, refFluxErr2)
+
+                # extract the matched refCat as a Catalog for the colorterm code
+                refCat = afwTable.SimpleCatalog(matches[0].first.schema)
+                refCat.reserve(len(matches))
+                for x in matches:
+                    record = refCat.addNew()
+                    record.assign(x.first)
+
+                refMag, refMagErr = self.cterm.getCorrectedMagnitudes(refCat,
+                                                                      afwImage.Filter(calexp_md).getName())
+                # NOTE: mosaic assumes fluxes are in Jy
+                refFlux = (refMag*astropy.units.ABmag).to_value(astropy.units.Jy)
+                refFluxErr = afwImage.fluxErrFromABMagErr(refMagErr, refMag)
                 matches = [self.setCatFlux(m, flux, fluxKey, fluxErr, fluxErrKey) for
                            m, flux, fluxErr in zip(matches, refFlux, refFluxErr) if flux == flux]
             else:
