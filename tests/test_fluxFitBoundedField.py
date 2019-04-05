@@ -266,21 +266,21 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
         catalog2 = lsst.meas.mosaic.applyCalib(catalog2, results2.ffp.calib)
         mag2 = catalog2["example_mag"]
         # Check that the non-spatially varying part of the correction is the same.
-        fluxMag0 = results2.ffp.calib.getFluxMag0()
-        self.assertFloatsAlmostEqual(photoCalib.getInstFluxAtZeroMagnitude(), fluxMag0[0],
+        self.assertFloatsAlmostEqual(photoCalib.getCalibrationMean(),
+                                     results2.ffp.calib.getCalibrationMean(),
                                      rtol=1E-14)
-        self.assertFloatsAlmostEqual(photoCalib.getCalibrationErr(), referenceFlux*fluxMag0[1]/fluxMag0[0]**2,
+        self.assertFloatsAlmostEqual(photoCalib.getCalibrationErr(),
+                                     results2.ffp.calib.getCalibrationErr(),
                                      rtol=1E-14)
         # Compute partially-calibrated magnitudes that don't account for the spatially-varying part.
-        mag0, magErr0 = results2.ffp.calib.getMagnitude(catalog.get("example_instFlux"),
-                                                        catalog.get("example_instFluxErr"))
+        mag0 = results2.ffp.calib.instFluxToMagnitude(catalog, "example")
         # Check that both approaches yield similar results overall...
         rtol = 1E-10 if nQuarter == 0 else 1E-6  # rotating SIP Wcses involves a big loss of precision
         self.assertFloatsAlmostEqual(mag1, mag2, rtol=rtol)
         # ...and in just the spatially-varying part (but with less precision, partially because of
         # round-off error).
-        magDiff2 = mag2 - mag0
-        magDiff1 = mag1 - mag0
+        magDiff2 = mag2 - mag0[:, 0]
+        magDiff1 = mag1 - mag0[:, 0]
         self.assertFloatsAlmostEqual(magDiff1, magDiff2, rtol=rtol*3E3)
 
     def checkPhotoCalibExposure(self, nQuarter):

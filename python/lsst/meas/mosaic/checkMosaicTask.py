@@ -58,7 +58,7 @@ class CheckMosaicTask(MosaicTask):
                     ra, dec = wcs.pixelToSky(x, y).getPosition(afwGeom.degrees)
                     dx_m.append((ra - ra_cat) * 3600)
                     dy_m.append((dec - dec_cat) * 3600)
-                    mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
+                    mag = 2.5*math.log10(calibDic[iexp][ichip].getInstFluxAtZeroMagnitude()/ss[j].getFlux())
                     mcor = ffpDic[iexp][ichip].eval(x,y)
                     jcor = -2.5*math.log10(measMosaic.computeJacobian(wcs, afwGeom.Point2D(x, y)))
                     m0_m.append(mag_cat)
@@ -86,7 +86,7 @@ class CheckMosaicTask(MosaicTask):
                         ra_cat += ra
                         dec_cat += dec
 
-                        mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
+                        mag = 2.5*math.log10(calibDic[iexp][ichip].getInstFluxAtZeroMagnitude()/ss[j].getFlux())
                         err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
                         mcor = ffpDic[iexp][ichip].eval(x,y)
                         jcor = -2.5*math.log10(measMosaic.computeJacobian(wcs, afwGeom.Point2D(x, y)))
@@ -131,7 +131,7 @@ class CheckMosaicTask(MosaicTask):
                     ra_cat += ra
                     dec_cat += dec
 
-                    mag = 2.5*math.log10(calibDic[iexp][ichip].getFluxMag0()[0]/ss[j].getFlux())
+                    mag = 2.5*math.log10(calibDic[iexp][ichip].getInstFluxAtZeroMagnitude()/ss[j].getFlux())
                     err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
                     mcor = ffpDic[iexp][ichip].eval(x,y)
                     jcor = -2.5*math.log10(measMosaic.computeJacobian(wcs, afwGeom.Point2D(x, y)))
@@ -174,7 +174,7 @@ class CheckMosaicTask(MosaicTask):
                     iexp = ss[j].getExp()
                     ichip = ss[j].getChip()
                     if ss[j].getFlux() > 0.0:
-                        mag = calibDic[iexp][ichip].getMagnitude(ss[j].getFlux())
+                        mag = calibDic[iexp][ichip].instFluxToMagnitude(ss[j].getFlux())
                         err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
                         xs, ys = ss[j].getX(), ss[j].getY()
                         mcor = ffpDic[iexp][ichip].eval(xs, ys)
@@ -201,9 +201,9 @@ class CheckMosaicTask(MosaicTask):
             for j in range(1,len(ss)):
                 iexp = ss[j].getExp()
                 ichip = ss[j].getChip()
-                #print iexp, ichip, calibDic[iexp][ichip].getFluxMag0()[0], ss[j].getFlux()
-                if calibDic[iexp][ichip].getFluxMag0()[0] > 0 and ss[j].getFlux() > 0.0:
-                    mag = calibDic[iexp][ichip].getMagnitude(ss[j].getFlux())
+                #print iexp, ichip, calibDic[iexp][ichip].getInstFluxAtZeroMagnitude(), ss[j].getFlux()
+                if calibDic[iexp][ichip].getInstFluxAtZeroMagnitude() > 0 and ss[j].getFlux() > 0.0:
+                    mag = calibDic[iexp][ichip].instFluxToMagnitude(ss[j].getFlux())
                     err = 2.5 / math.log(10) * ss[j].getFluxErr() / ss[j].getFlux()
                     xs, ys = ss[j].getX(), ss[j].getY()
                     mcor = ffpDic[iexp][ichip].eval(xs, ys)
@@ -411,7 +411,7 @@ class CheckMosaicTask(MosaicTask):
                 ra, dec = wcs.pixelToSky(x, y).getPosition(afwGeom.degrees)
                 outData.ra[i] = ra
                 outData.dec[i] = dec
-                fluxMag0 = calibDic[iexp][ichip].getFluxMag0()[0]
+                fluxMag0 = calibDic[iexp][ichip].getInstFluxAtZeroMagnitude()
                 flux = src.getFlux()
                 if flux > 0 and fluxMag0 > 0:
                     mcor = ffpDic[iexp][ichip].eval(x, y)
@@ -462,7 +462,7 @@ class CheckMosaicTask(MosaicTask):
 
                 md = dataRef.get('fcr_md')
                 ffp = measMosaic.FluxFitParams(md)
-                calib = afwImage.Calib(md)
+                photoCalib = afwImage.makePhotoCalibFromMetadata(md)
 
                 sources = dataRef.get('src',
                               flags=afwTable.SOURCE_IO_NO_FOOTPRINTS,
@@ -528,7 +528,7 @@ class CheckMosaicTask(MosaicTask):
                         match[1].setChip(dataRef.dataId['ccd'])
                         mlVisit[dataRef.dataId['visit']].append(match)
                 wcsDic[dataRef.dataId['visit']][dataRef.dataId['ccd']] = wcs
-                calibDic[dataRef.dataId['visit']][dataRef.dataId['ccd']] = calib
+                calibDic[dataRef.dataId['visit']][dataRef.dataId['ccd']] = photoCalib
                 ffpDic[dataRef.dataId['visit']][dataRef.dataId['ccd']] = ffp
                 dataRefListUsed.append(dataRef)
 
