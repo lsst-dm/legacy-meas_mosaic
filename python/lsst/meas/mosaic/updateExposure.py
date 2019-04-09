@@ -100,7 +100,7 @@ def getFluxFitParams(dataRef):
         ffpHeader = dataRef.get("fcr_hsc_md", immediate=True)
     else:
         ffpHeader = dataRef.get("fcr_md", immediate=True)
-    photoCalib = afwImage.makePhotoCalibFromMetadata(ffpHeader)
+    photoCalib = dataRef.get("fcr_photoCalib")
     ffp = FluxFitParams(ffpHeader)
 
     wcs = getWcs(dataRef)
