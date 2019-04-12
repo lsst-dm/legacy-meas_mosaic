@@ -143,6 +143,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
                 "%d/fcr-%07d-%03d.fits" % (self.tract, self.visit, ccd)
             )
             fcrMetadata = readMetadata(fcrFilename)
+            fcrPhotoCalib = lsst.afw.image.ExposureF(fcrFilename).getPhotoCalib()
             self.ffp[ccd] = lsst.meas.mosaic.FluxFitParams(fcrMetadata)
             wcsFilename = os.path.join(
                 DATA_DIR,
@@ -157,6 +158,7 @@ class FluxFitBoundedFieldTestCase(lsst.utils.tests.TestCase):
             camera[ccd] = MockDetector(MockOrientation(nQuarter))
             self.dataRefs[ccd] = MockDataRef(visit=self.visit, tract=self.tract, ccd=ccd)
             self.dataRefs[ccd].put(fcrMetadata, "fcr_md", )
+            self.dataRefs[ccd].put(fcrPhotoCalib, "fcr_photoCalib")
             self.dataRefs[ccd].put(self.wcs[ccd], "jointcal_wcs")
             self.dataRefs[ccd].put(calexpMetadata, "calexp_md")
             self.dataRefs[ccd].put(camera, "camera")
