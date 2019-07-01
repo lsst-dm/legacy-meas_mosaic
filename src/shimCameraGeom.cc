@@ -68,8 +68,7 @@ afw::geom::Point2D detPxToFpPxRot(CONST_PTR(afw::cameraGeom::Detector) det, afw:
     afw::geom::Extent2D offset = afw::geom::Extent2D(cosYaw * detPt.getX() - sinYaw * detPt.getY(),
                                                      sinYaw * detPt.getX() + cosYaw * detPt.getY());
     offset -= afw::geom::Extent2D(centerDet);
-    auto scaling = makeScalingMmToPx(det->getPixelSize());
-    return centerFp + scaling(offset);
+    return centerFp + offset;
 }
 
 afw::geom::Point2D computeX0Y0(CONST_PTR(afw::cameraGeom::Detector) det, double x0, double y0) {

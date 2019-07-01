@@ -37,6 +37,7 @@ except ImportError:
 class ShimCameraGeomTestCase(utilsTests.TestCase):
     def setUp(self):
         self.camera = obsHsc.HscMapper(root=".").camera
+        self.pixelSize = self.camera[0].getPixelSize()[0]  # mm/pixel
         self.ccds = [self.camera[49],   # 0_12; no rotation
                      self.camera[102],  # 0_35; 1 quarter rotation
                      self.camera[29],   # 1_03; 2 quarter rotations
@@ -59,12 +60,13 @@ class ShimCameraGeomTestCase(utilsTests.TestCase):
             self.assertAlmostEqual(measMosaic.getYaw(ccd).asDegrees(), yaw)
 
     def testMakeScalingMmToPx(self):
-        # HSC uses a scaling of 1mm to 1 pixel.
+        # HSC uses a scaling of 1mm to 1 pixel...not anymore!
         extents = [afwGeom.Extent2D(0, 0), afwGeom.Point2D(100, 100)]
+        knownExtents = [afwGeom.Extent2D(0, 0), afwGeom.Point2D(100/self.pixelSize, 100/self.pixelSize)]
         for ccd in self.ccds:
             scaling = measMosaic.makeScalingMmToPx(ccd.getPixelSize())
-            for extent in extents:
-                self.assertEqual(scaling(extent), extent)
+            for extent, knownExtent in zip(extents, knownExtents):
+                self.assertEqual(scaling(extent), knownExtent)
 
     def testGetCenterInFpPixels(self):
         # HSC camGeom: ccd.getCenter().getPixels(ccd.getPixelSize())
